@@ -33,7 +33,7 @@ class Melspec_layer(Model):
             dur=1.,
             f_min=300.,
             f_max=4000.,
-            amin=1e-10, # minimum amp.
+            amin=1e-5, # minimum amp.
             dynamic_range=80.,
             name='Mel-spectrogram',
             trainable=False,
@@ -97,18 +97,24 @@ class Melspec_layer(Model):
                             )
             )
         return m
-        
+
 
     @tf.function
-    def call(self, x):        
-        x = self.m(x) + 0.06
-        #x = tf.sqrt(x)
-        
-        x = tf.math.log(tf.maximum(x, self.amin)) / math.log(10)
-        x = x - tf.reduce_max(x)
+    def call(self, x):
+
+        # Amplitude Mel-Spectrogram
+        x = self.m(x)
+        # Clip x below from amin
+        x = tf.maximum(x, self.amin)
+        # log-power Mel-spectrogram
+        x_ref = tf.reduce_max(x) # Reference is the maximum value of x
+        x = 20*tf.math.log(x/x_ref)/ tf.math.log(tf.constant(10, dtype=x.dtype))
+        # Clip x below from -dynamic_range dB
         x = tf.maximum(x, -1 * self.dynamic_range)
+        # Normalize x to be in [0, 1]
         if self.segment_norm:
-            x = (x - tf.reduce_min(x) / 2) / tf.abs(tf.reduce_min(x) / 2 + 1e-10)
+            x = 1 + (x/self.dynamic_range)
+
         return self.p(x) # Permute((3,2,1))
 
     
@@ -120,16 +126,16 @@ def get_melspec_layer(cfg, trainable=False):
     n_mels = cfg['MODEL']['N_MELS']
     f_min = cfg['MODEL']['F_MIN']
     f_max = cfg['MODEL']['F_MAX']
-    if cfg['MODEL']['FEAT'] == 'melspec':
-        segment_norm = False
-    elif cfg['MODEL']['FEAT'] == 'melspec_maxnorm':
-        segment_norm = True
-    else:
-        raise NotImplementedError(cfg['MODEL']['FEAT'])
+    # if cfg['MODEL']['FEAT'] == 'melspec':
+    #     segment_norm = False
+    # elif cfg['MODEL']['FEAT'] == 'melspec_maxnorm':
+    #     segment_norm = True
+    # else:
+    #     raise NotImplementedError(cfg['MODEL']['FEAT'])
     
     input_shape = (1, int(fs * dur))
     l = Melspec_layer(input_shape=input_shape,
-                      segment_norm=segment_norm,
+                      segment_norm=cfg['MODEL']['SEGMENT_NORM'],
                       n_fft=n_fft,
                       stft_hop=stft_hop,
                       n_mels=n_mels,
