@@ -7,3 +7,4 @@ pyyaml==5.4.1
 numpy
 matplotlib
 wavio
+protobuf==3.20.*
