@@ -111,9 +111,9 @@ class Melspec_layer(Model):
         x = 20*tf.math.log(x/x_ref)/ tf.math.log(tf.constant(10, dtype=x.dtype))
         # Clip x below from -dynamic_range dB
         x = tf.maximum(x, -1 * self.dynamic_range)
-        # Normalize x to be in [0, 1]
+        # Normalize x to be in [-1, 1]
         if self.segment_norm:
-            x = 1 + (x/self.dynamic_range)
+            x = (x + self.dynamic_range/2) / (self.dynamic_range/2)
 
         return self.p(x) # Permute((3,2,1))
 
