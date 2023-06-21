@@ -318,12 +318,10 @@ class genUnbalSequence(Sequence):
         for idx in anchor_idx_list:  # idx: index for one sample
             pos_start_sec_list = []
             # fns_event_seg_list = [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
-            offset_min, offset_max = self.fns_event_seg_list[idx][
-                2], self.fns_event_seg_list[idx][3]
+            offset_min, offset_max = self.fns_event_seg_list[idx][2], self.fns_event_seg_list[idx][3]
             anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
             anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
-            if (self.random_offset_anchor == True) & (self.experimental_mode
-                                                      == False):
+            if (self.random_offset_anchor == True) & (self.experimental_mode== False):
                 # Usually, we can apply random offset to anchor only in training.
                 np.random.seed(idx)
                 # Calculate anchor_start_sec
@@ -380,21 +378,17 @@ class genUnbalSequence(Sequence):
             load audio returns: [anchor, pos1, pos2,..pos_n]
             """
             #print(self.fns_event_seg_list[idx])
-            start_sec_list = np.concatenate(
-                ([anchor_start_sec], pos_start_sec_list))
+            start_sec_list = np.concatenate(([anchor_start_sec], pos_start_sec_list))
             xs = load_audio_multi_start(self.fns_event_seg_list[idx][0],
                                         start_sec_list, self.duration, self.fs,
                                         self.amp_mode)  # xs: ((1+n_pos)),T)
 
             if Xa_batch is None:
                 Xa_batch = xs[0, :].reshape((1, -1))
-                Xp_batch = xs[
-                    1:, :]  # If self.n_pos_per_anchor==0: this produces an empty array
+                Xp_batch = xs[1:, :]  # If self.n_pos_per_anchor==0: this produces an empty array
             else:
-                Xa_batch = np.vstack((Xa_batch, xs[0, :].reshape(
-                    (1, -1))))  # Xa_batch: (n_anchor, T)
-                Xp_batch = np.vstack(
-                    (Xp_batch, xs[1:, :]))  # Xp_batch: (n_pos, T)
+                Xa_batch = np.vstack((Xa_batch, xs[0, :].reshape((1, -1))))  # Xa_batch: (n_anchor, T)
+                Xp_batch = np.vstack((Xp_batch, xs[1:, :]))  # Xp_batch: (n_pos, T)
         return Xa_batch, Xp_batch
 
 
