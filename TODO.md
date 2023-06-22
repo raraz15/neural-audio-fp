@@ -1,6 +1,5 @@
 - What is mini-search-validation?
-- How does validation work
-- Re-train with 500 validation
+- Re-train with 500 validation??
 
 - Replicate mel-spec with esssentia
   - Why is the 3dB difference?
