@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-"""melsprctrogram.py"""    
+
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Lambda, Permute
 from kapre.time_frequency import STFT, Magnitude, ApplyFilterbank
-import math
-
 
 class Melspec_layer(Model):
     """
@@ -20,8 +18,8 @@ class Melspec_layer(Model):
     USAGE:
         
         See get_melspec_layer() in the below.
-        
     """
+
     def __init__(
             self,
             input_shape=(1, 8000),
@@ -117,7 +115,6 @@ class Melspec_layer(Model):
 
         return self.p(x) # Permute((3,2,1))
 
-    
 def get_melspec_layer(cfg, trainable=False):
     fs = cfg['MODEL']['FS']
     dur = cfg['MODEL']['DUR']
@@ -126,13 +123,6 @@ def get_melspec_layer(cfg, trainable=False):
     n_mels = cfg['MODEL']['N_MELS']
     f_min = cfg['MODEL']['F_MIN']
     f_max = cfg['MODEL']['F_MAX']
-    # if cfg['MODEL']['FEAT'] == 'melspec':
-    #     segment_norm = False
-    # elif cfg['MODEL']['FEAT'] == 'melspec_maxnorm':
-    #     segment_norm = True
-    # else:
-    #     raise NotImplementedError(cfg['MODEL']['FEAT'])
-    
     input_shape = (1, int(fs * dur))
     l = Melspec_layer(input_shape=input_shape,
                       segment_norm=cfg['MODEL']['SEGMENT_NORM'],
@@ -145,4 +135,3 @@ def get_melspec_layer(cfg, trainable=False):
                       f_max=f_max)
     l.trainable = trainable
     return l
-                        
