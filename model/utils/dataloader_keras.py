@@ -130,8 +130,7 @@ class genUnbalSequence(Sequence):
         self.drop_the_last_non_full_batch = drop_the_last_non_full_batch
         
         if self.drop_the_last_non_full_batch: # training
-            self.n_samples = int(
-                (len(self.fns_event_seg_list) // n_anchor) * n_anchor)
+            self.n_samples = int((len(self.fns_event_seg_list) // n_anchor) * n_anchor)
         else:
             self.n_samples = len(self.fns_event_seg_list) # fp-generation
 
@@ -222,127 +221,71 @@ class genUnbalSequence(Sequence):
 
     def __getitem__(self, idx):
         """ Get anchor (original) and positive (replica) samples. """
-        index_anchor_for_batch = self.index_event[idx *
-                                                  self.n_anchor:(idx + 1) *
-                                                  self.n_anchor]
+
+        index_anchor_for_batch = self.index_event[idx*self.n_anchor:(idx + 1)*self.n_anchor]
         Xa_batch, Xp_batch = self.__event_batch_load(index_anchor_for_batch)
         global bg_sel_indices, speech_sel_indices
 
-        if self.bg_mix and self.speech_mix:
-            if self.n_pos_bsz > 0:
+        # If there are positive samples, check for bg and ir mixing
+        if self.n_pos_bsz > 0:
+
+            if self.bg_mix == True:
                 # Prepare bg for positive samples
-                bg_sel_indices = np.arange(
-                    idx * self.n_pos_bsz,
-                    (idx + 1) * self.n_pos_bsz) % self.n_bg_samples
+                bg_sel_indices = np.arange(idx * self.n_pos_bsz, (idx + 1) * self.n_pos_bsz) % self.n_bg_samples
                 index_bg_for_batch = self.index_bg[bg_sel_indices]
                 Xp_bg_batch = self.__bg_batch_load(index_bg_for_batch)
-
-                # Prepare speech for positive samples
-                speech_sel_indices = np.arange(
-                    idx * self.n_pos_bsz,
-                    (idx + 1) * self.n_pos_bsz) % self.n_speech_samples
-                index_speech_for_batch = self.index_speech[speech_sel_indices]
-                Xp_speech_batch = self.__speech_batch_load(
-                    index_speech_for_batch)
-
-                Xp_noise_batch = Xp_bg_batch + Xp_speech_batch
                 # mix
                 Xp_batch = bg_mix_batch(Xp_batch,
-                                        Xp_noise_batch,
+                                        Xp_bg_batch,
                                         self.fs,
-                                        snr_range=self.speech_snr_range)
-        else:
-            if self.bg_mix == True:
-                if self.n_pos_bsz > 0:
-                    # Prepare bg for positive samples
-                    bg_sel_indices = np.arange(
-                        idx * self.n_pos_bsz,
-                        (idx + 1) * self.n_pos_bsz) % self.n_bg_samples
-                    index_bg_for_batch = self.index_bg[bg_sel_indices]
-                    Xp_bg_batch = self.__bg_batch_load(index_bg_for_batch)
-                    # mix
-                    Xp_batch = bg_mix_batch(Xp_batch,
-                                            Xp_bg_batch,
-                                            self.fs,
-                                            snr_range=self.bg_snr_range)
-            else:
-                pass
+                                        snr_range=self.bg_snr_range)
 
-            if self.speech_mix == True:
-                if self.n_pos_bsz > 0:
-                    # Prepare speech for positive samples
-                    speech_sel_indices = np.arange(
-                        idx * self.n_pos_bsz,
-                        (idx + 1) * self.n_pos_bsz) % self.n_speech_samples
-                    index_speech_for_batch = self.index_speech[
-                        speech_sel_indices]
-                    Xp_speech_batch = self.__speech_batch_load(
-                        index_speech_for_batch)
-                    # mix
-                    Xp_batch = bg_mix_batch(Xp_batch,
-                                            Xp_speech_batch,
-                                            self.fs,
-                                            snr_range=self.bg_snr_range)
-            else:
-                pass
-
-        if self.ir_mix == True:
-            if self.n_pos_bsz > 0:
+            if self.ir_mix == True:
                 # Prepare ir for positive samples
                 ir_sel_indices = np.arange(
                     idx * self.n_pos_bsz,
                     (idx + 1) * self.n_pos_bsz) % self.n_ir_samples
                 index_ir_for_batch = self.index_ir[ir_sel_indices]
                 Xp_ir_batch = self.__ir_batch_load(index_ir_for_batch)
-
                 # ir aug
                 Xp_batch = ir_aug_batch(Xp_batch, Xp_ir_batch)
-        else:
-            pass
 
-        Xa_batch = np.expand_dims(Xa_batch,
-                                  1).astype(np.float32)  # (n_anchor, 1, T)
-        Xp_batch = np.expand_dims(Xp_batch,
-                                  1).astype(np.float32)  # (n_pos, 1, T)
-        
+        Xa_batch = np.expand_dims(Xa_batch, 1).astype(np.float32)  # (n_anchor, 1, T)
+        Xp_batch = np.expand_dims(Xp_batch, 1).astype(np.float32)  # (n_pos, 1, T)
+
         if self.reduce_batch_first_half:
-            return Xp_batch, [] # Anchors will be reduced.    
+            return Xp_batch, [] # Anchors will be reduced.
         else:
             return Xa_batch, Xp_batch
 
 
     def __event_batch_load(self, anchor_idx_list):
         """ Get Xa_batch and Xp_batch for anchor (original) and positive (replica) samples. """
+
         Xa_batch = None
         Xp_batch = None
         for idx in anchor_idx_list:  # idx: index for one sample
-            pos_start_sec_list = []
+
+            # Determine anchor_start_sec by finding offset range for anchor
             # fns_event_seg_list = [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
-            offset_min, offset_max = self.fns_event_seg_list[idx][2], self.fns_event_seg_list[idx][3]
+            _,_,offset_min, offset_max = self.fns_event_seg_list[idx]
             anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
             anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
             if (self.random_offset_anchor == True) & (self.experimental_mode== False):
                 # Usually, we can apply random offset to anchor only in training.
                 np.random.seed(idx)
                 # Calculate anchor_start_sec
-                _anchor_offset_frame = np.random.randint(
-                    low=anchor_offset_min, high=anchor_offset_max)
+                _anchor_offset_frame = np.random.randint(low=anchor_offset_min, high=anchor_offset_max)
                 _anchor_offset_sec = _anchor_offset_frame / self.fs
-                anchor_start_sec = self.fns_event_seg_list[idx][
-                    1] * self.hop + _anchor_offset_sec
+                anchor_start_sec = self.fns_event_seg_list[idx][1] * self.hop + _anchor_offset_sec
             else:
                 _anchor_offset_frame = 0
                 anchor_start_sec = self.fns_event_seg_list[idx][1] * self.hop
-            """ Calculate multiple(=self.n_pos_per_anchor) pos_start_sec. """
+
+            # Calculate multiple(=self.n_pos_per_anchor) pos_start_sec
             if self.n_pos_per_anchor > 0:
-                pos_offset_min = np.max([
-                    (_anchor_offset_frame - self.offset_margin_frame),
-                    offset_min
-                ])
-                pos_offset_max = np.min([
-                    (_anchor_offset_frame + self.offset_margin_frame),
-                    offset_max
-                ])
+                pos_offset_min = np.max([(_anchor_offset_frame - self.offset_margin_frame),offset_min])
+                pos_offset_max = np.min([(_anchor_offset_frame + self.offset_margin_frame),offset_max])
                 if self.experimental_mode:
                     # In experimental_mode, we use a set of pre-defined offset for multiple positive replicas...
                     _pos_offset_sec_list = self.experimental_mode_offset_sec_list  # [-0.2, -0.1,  0. ,  0.1,  0.2] for n_pos=5 with hop=0.5s
@@ -356,32 +299,27 @@ class genUnbalSequence(Sequence):
                         1] * self.hop + _pos_offset_sec_list
                 else:
                     if pos_offset_min==pos_offset_max==0:
-                        # Only the case of running extras/dataset2wav.py 
-                        # as offset_margin_hot_rate=0
-                        pos_start_sec_list = self.fns_event_seg_list[idx][
-                            1] * self.hop
+                        # Only the case of running extras/dataset2wav.py as offset_margin_hot_rate=0
+                        pos_start_sec_list = self.fns_event_seg_list[idx][1] * self.hop
                         pos_start_sec_list = [pos_start_sec_list]
-                        # print('!!!!!!!!!!!!!!!!!!!!!!')
-                        # print(pos_start_sec_list)
-                        # print([anchor_start_sec])
-
                     else:
                         # Otherwise, we apply random offset to replicas 
-                        _pos_offset_frame_list = np.random.randint(
-                            low=pos_offset_min,
-                            high=pos_offset_max,
-                            size=self.n_pos_per_anchor)
+                        _pos_offset_frame_list = np.random.randint(low=pos_offset_min,
+                                                                    high=pos_offset_max,
+                                                                    size=self.n_pos_per_anchor)
                         _pos_offset_sec_list = _pos_offset_frame_list / self.fs
-                        pos_start_sec_list = self.fns_event_seg_list[idx][
-                            1] * self.hop + _pos_offset_sec_list  
+                        pos_start_sec_list = self.fns_event_seg_list[idx][1] * self.hop + _pos_offset_sec_list
+            else:
+                pos_start_sec_list = []
             """
             load audio returns: [anchor, pos1, pos2,..pos_n]
             """
-            #print(self.fns_event_seg_list[idx])
             start_sec_list = np.concatenate(([anchor_start_sec], pos_start_sec_list))
             xs = load_audio_multi_start(self.fns_event_seg_list[idx][0],
-                                        start_sec_list, self.duration, self.fs,
-                                        self.amp_mode)  # xs: ((1+n_pos)),T)
+                                        start_sec_list, 
+                                        self.duration, 
+                                        self.fs,
+                                        self.amp_mode) # xs: ((1+n_pos)),T)
 
             if Xa_batch is None:
                 Xa_batch = xs[0, :].reshape((1, -1))
