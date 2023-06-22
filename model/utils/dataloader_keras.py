@@ -224,7 +224,7 @@ class genUnbalSequence(Sequence):
 
         index_anchor_for_batch = self.index_event[idx*self.n_anchor:(idx + 1)*self.n_anchor]
         Xa_batch, Xp_batch = self.__event_batch_load(index_anchor_for_batch)
-        global bg_sel_indices, speech_sel_indices
+        global bg_sel_indices
 
         # If there are positive samples, check for bg and ir mixing
         if self.n_pos_bsz > 0:
@@ -356,35 +356,6 @@ class genUnbalSequence(Sequence):
                 X_bg_batch = np.concatenate((X_bg_batch, X), axis=0)
 
         return X_bg_batch
-
-
-    def __speech_batch_load(self, idx_list):
-        X_speech_batch = None  # (n_batch+n_batch//n_class, fs*k)
-        random_offset_sec = np.random.randint(
-            0, self.duration * self.fs / 2, size=len(idx_list)) / self.fs
-        for i, idx in enumerate(idx_list):
-            idx = idx % self.n_speech_samples
-            offset_sec = np.min([
-                random_offset_sec[i],
-                self.fns_speech_seg_list[idx][3] / self.fs
-            ])
-
-            X = load_audio(filename=self.fns_speech_seg_list[idx][0],
-                           seg_start_sec=self.fns_speech_seg_list[idx][1] *
-                           self.duration,
-                           offset_sec=offset_sec,
-                           seg_length_sec=self.duration,
-                           seg_pad_offset_sec=0.,
-                           fs=self.fs,
-                           amp_mode='normal')
-            X = X.reshape(1, -1)
-
-            if X_speech_batch is None:
-                X_speech_batch = X
-            else:
-                X_speech_batch = np.concatenate((X_speech_batch, X), axis=0)
-
-        return X_speech_batch
 
 
     def __ir_batch_load(self, idx_list):
