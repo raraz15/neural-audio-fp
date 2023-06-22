@@ -44,8 +44,8 @@ def train_step(X, m_pre, m_specaug, m_fp, loss_obj, helper):
     m_fp.trainable = True
     with tf.GradientTape() as t:
         emb = m_fp(feat) # (BSZ, Dim)
-        loss, sim_mtx, _ = loss_obj.compute_loss(
-            emb[:n_anchors, :], emb[n_anchors:, :]) # {emb_org, emb_rep}
+        loss, sim_mtx, _ = loss_obj.compute_loss(emb[:n_anchors, :], 
+                                                 emb[n_anchors:, :]) # {emb_org, emb_rep}
     g = t.gradient(loss, m_fp.trainable_variables)
     helper.optimizer.apply_gradients(zip(g, m_fp.trainable_variables))
     avg_loss = helper.update_tr_loss(loss) # To tensorboard.
@@ -55,13 +55,14 @@ def train_step(X, m_pre, m_specaug, m_fp, loss_obj, helper):
 @tf.function
 def val_step(X, m_pre, m_fp, loss_obj, helper):
     """ Validation step """
+    
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
     feat = m_pre(X)  # (nA+nP, F, T, 1)
     m_fp.trainable = False
-    emb = m_fp(feat)  # (BSZ, Dim)
-    loss, sim_mtx, _ = loss_obj.compute_loss(
-        emb[:n_anchors, :], emb[n_anchors:, :]) # {emb_org, emb_rep}
+    emb = m_fp(feat) # (BSZ, Dim)
+    loss, sim_mtx, _ = loss_obj.compute_loss(emb[:n_anchors, :], 
+                                             emb[n_anchors:, :]) # {emb_org, emb_rep}
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
@@ -78,10 +79,11 @@ def test_step(X, m_pre, m_fp):
     emb_gf = tf.math.l2_normalize(emb_gf, axis=1)
     return emb_f, emb_f_postL2, emb_gf # f(.), L2(f(.)), L2(g(f(.))
 
-
+# OGUZ: they set the n_anchor to 1/2 of the batch size!
 def mini_search_validation(ds, m_pre, m_fp, mode='argmin',
                            scopes=[1, 3, 5, 9, 11, 19], max_n_samples=3000):
     """ Mini-search-validation """
+
     # Construct mini-DB
     key_strs = ['f', 'L2(f)', 'g(f)']
     m_fp.trainable = False
@@ -105,12 +107,12 @@ def mini_search_validation(ds, m_pre, m_fp, mode='argmin',
     for k in key_strs:
         tf.print(f'======= mini-search-validation: \033[31m{mode} \033[33m{k} \033[0m=======' + '\033[0m')
         query[k] = tf.expand_dims(query[k], axis=1) # (nQ, d) --> (nQ, 1, d)
-        accs_by_scope[k], _ = mini_search_eval(
-            query[k], db[k], scopes, mode, display=True)
+        accs_by_scope[k], _ = mini_search_eval(query[k], db[k], scopes, mode, display=True)
     return accs_by_scope, scopes, key_strs
 
 
 def trainer(cfg, checkpoint_name):
+
     # Dataloader
     dataset = Dataset(cfg)
 
