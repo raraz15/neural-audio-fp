@@ -40,11 +40,13 @@ class ConvLayer(tf.keras.layers.Layer):
     x: (B,F,T,C) with {F=F/stride, T=T/stride, C=hidden_ch}
     
     """
+
     def __init__(self,
                  hidden_ch=128,
                  strides=[(1,1),(1,1)],
                  norm='layer_norm2d'):
         super(ConvLayer, self).__init__()
+
         self.conv2d_1x3 = tf.keras.layers.Conv2D(hidden_ch,
                                                  kernel_size=(1, 3),
                                                  strides=strides[0],
@@ -59,7 +61,6 @@ class ConvLayer(tf.keras.layers.Layer):
                                                  dilation_rate=(1, 1),
                                                  kernel_initializer='glorot_uniform',
                                                  bias_initializer='zeros')
-        
         if norm == 'layer_norm1d':
             self.BN_1x3 = tf.keras.layers.LayerNormalization(axis=-1)
             self.BN_3x1 = tf.keras.layers.LayerNormalization(axis=-1)
@@ -137,7 +138,7 @@ class DivEncLayer(tf.keras.layers.Layer):
                                                tf.keras.layers.Dense(self.unit_dim[1])]))
         return layers
 
- 
+
     @tf.function
     def _split_encoding(self, x_slices):
         """
@@ -154,8 +155,8 @@ class DivEncLayer(tf.keras.layers.Layer):
     def call(self, x): # x: (B,1,1,2048)
         x = tf.reshape(x, shape=[x.shape[0], self.q, -1]) # (B,Q,S); Q=num_slices; S=slice length; (B,128,8 or 16)
         return self._split_encoding(x)
-    
-    
+
+
 class FingerPrinter(tf.keras.Model):
     """
     Fingerprinter: 'Neural Audio Fingerprint for High-specific Audio Retrieval
@@ -189,7 +190,6 @@ class FingerPrinter(tf.keras.Model):
     
     """
     def __init__(self,
-                 input_shape=(256,32,1),
                  front_hidden_ch=[128, 128, 256, 256, 512, 512, 1024, 1024],
                  front_strides=[[(1,2), (2,1)], [(1,2), (2,1)],
                                 [(1,2), (2,1)], [(1,2), (2,1)],
@@ -200,29 +200,34 @@ class FingerPrinter(tf.keras.Model):
                  norm='layer_norm2d',
                  use_L2layer=True):
         super(FingerPrinter, self).__init__()
+
+        assert len(front_hidden_ch) == len(front_strides), \
+            "front_hidden_ch and front_strides must have the same length."
+
         self.front_hidden_ch = front_hidden_ch
         self.front_strides = front_strides
-        self.emb_sz=emb_sz
+        self.emb_sz = emb_sz
         self.norm = norm
         self.use_L2layer = use_L2layer
-        
+
+        # Front (sep-)conv layers
         self.n_clayers = len(front_strides)
         self.front_conv = tf.keras.Sequential(name='ConvLayers')
         if ((front_hidden_ch[-1] % emb_sz) != 0):
-            front_hidden_ch[-1] = ((front_hidden_ch[-1]//emb_sz) + 1) * emb_sz                
-        
-        # Front (sep-)conv layers
+            front_hidden_ch[-1] = ((front_hidden_ch[-1]//emb_sz) + 1) * emb_sz
         for i in range(self.n_clayers):
             self.front_conv.add(ConvLayer(hidden_ch=front_hidden_ch[i],
-                strides=front_strides[i], norm=norm))
+                                          strides=front_strides[i], 
+                                          norm=norm))
         self.front_conv.add(tf.keras.layers.Flatten()) # (B,F',T',C) >> (B,D)
-            
+
         # Divide & Encoder layer
         self.div_enc = DivEncLayer(q=emb_sz, unit_dim=fc_unit_dim, norm=norm)
 
-        
     @tf.function
     def call(self, inputs):
+        """ Input: (B,F,T,1)"""
+
         x = self.front_conv(inputs) # (B,D) with D = (T/2^4) x last_hidden_ch
         x = self.div_enc(x) # (B,Q)
         if self.use_L2layer:
@@ -245,13 +250,11 @@ def get_fingerprinter(cfg, trainable=False):
     <tf.keras.Model> FingerPrinter object
     
     """
-    input_shape = (256, 32, 1) 
     emb_sz = cfg['MODEL']['EMB_SZ']
     norm = cfg['MODEL']['BN']
     fc_unit_dim = [32, 1]
     
-    m = FingerPrinter(input_shape=input_shape,
-                      emb_sz=emb_sz,
+    m = FingerPrinter(emb_sz=emb_sz,
                       fc_unit_dim=fc_unit_dim,
                       norm=norm)
     m.trainable = trainable
