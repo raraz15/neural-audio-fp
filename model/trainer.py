@@ -18,6 +18,7 @@ from model.utils.mini_search_subroutines import mini_search_eval
 
 def build_fp(cfg):
     """ Build fingerprinter """
+
     # m_pre: log-power-Mel-spectrogram layer, S.
     m_pre = get_melspec_layer(cfg, trainable=False)
 
@@ -27,6 +28,7 @@ def build_fp(cfg):
 
     # m_fp: fingerprinter g(f(.)).
     m_fp = get_fingerprinter(cfg, trainable=False)
+
     return m_pre, m_specaug, m_fp
 
 
@@ -38,10 +40,10 @@ def train_step(X, m_pre, m_specaug, m_fp, loss_obj, helper):
     # Xp: augmented replicas, s.t. [xp_0, xp_1] with xp_n = rand_aug(xa_n).
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
-    feat = m_specaug(m_pre(X))  # (nA+nP, F, T, 1)
+    feat = m_specaug(m_pre(X)) # (nA+nP, F, T, 1)
     m_fp.trainable = True
     with tf.GradientTape() as t:
-        emb = m_fp(feat)  # (BSZ, Dim)
+        emb = m_fp(feat) # (BSZ, Dim)
         loss, sim_mtx, _ = loss_obj.compute_loss(
             emb[:n_anchors, :], emb[n_anchors:, :]) # {emb_org, emb_rep}
     g = t.gradient(loss, m_fp.trainable_variables)
@@ -180,8 +182,9 @@ def trainer(cfg, checkpoint_name):
         """ Parallelism to speed up preprocessing.............. """
         train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
         progbar = Progbar(len(train_ds))
-        enq = tf.keras.utils.OrderedEnqueuer(
-            train_ds, use_multiprocessing=True, shuffle=train_ds.shuffle)
+        enq = tf.keras.utils.OrderedEnqueuer(train_ds, 
+                                            use_multiprocessing=True, 
+                                            shuffle=train_ds.shuffle)
         enq.start(workers=cfg['DEVICE']['CPU_N_WORKERS'],
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
         i = 0
@@ -200,8 +203,9 @@ def trainer(cfg, checkpoint_name):
         # Validate
         """ Parallelism to speed up preprocessing.............. """
         val_ds = dataset.get_val_ds(max_song=250) # max 500
-        enq = tf.keras.utils.OrderedEnqueuer(
-            val_ds, use_multiprocessing=True, shuffle=False)
+        enq = tf.keras.utils.OrderedEnqueuer(val_ds, 
+                                            use_multiprocessing=True, 
+                                            shuffle=False)
         enq.start(workers=cfg['DEVICE']['CPU_N_WORKERS'],
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
         i = 0
@@ -213,14 +217,13 @@ def trainer(cfg, checkpoint_name):
         enq.stop()
         """ End of Parallelism................................. """
 
+        # On epoch end
         if cfg['TRAIN']['SAVE_IMG'] and (sim_mtx is not None):
             helper.write_image_tensorboard('val_sim_mtx', sim_mtx.numpy())
 
-        # On epoch end
         tf.print('tr_loss:{:.4f}, val_loss:{:.4f}'.format(
             helper._tr_loss.result(), helper._val_loss.result()))
         helper.update_on_epoch_end(save_checkpoint_now=True)
-
 
         # Mini-search-validation (optional)
         if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:
