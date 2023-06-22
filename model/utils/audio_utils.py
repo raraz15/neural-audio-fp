@@ -267,7 +267,7 @@ def load_audio(filename=str(),
 def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),
-                           fs=22050,
+                           fs=8000,
                            amp_mode='normal'):
     """ Load_audio wrapper for loading audio with multiple start indices. """
     # assert(len(seg_start_sec_list)==len(seg_length_sec))
@@ -276,7 +276,7 @@ def load_audio_multi_start(filename=str(),
         x = load_audio(filename=filename,
                        seg_start_sec=seg_start_sec,
                        seg_length_sec=seg_length_sec,
-                       fs=8000)
+                       fs=fs)
         x = x.reshape((1, -1))
         if out is None:
             out = x
