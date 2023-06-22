@@ -19,8 +19,8 @@ class Melspec_layer(Model):
     USAGE:
         
         See get_melspec_layer() in the below.
-        
     """
+
     def __init__(
             self,
             input_shape=(1, 8000),

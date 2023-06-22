@@ -18,6 +18,7 @@ from model.utils.mini_search_subroutines import mini_search_eval
 
 def build_fp(cfg):
     """ Build fingerprinter """
+
     # m_pre: log-power-Mel-spectrogram layer, S.
     m_pre = get_melspec_layer(cfg, trainable=False)
 
@@ -27,6 +28,7 @@ def build_fp(cfg):
 
     # m_fp: fingerprinter g(f(.)).
     m_fp = get_fingerprinter(cfg, trainable=False)
+
     return m_pre, m_specaug, m_fp
 
 
@@ -38,12 +40,12 @@ def train_step(X, m_pre, m_specaug, m_fp, loss_obj, helper):
     # Xp: augmented replicas, s.t. [xp_0, xp_1] with xp_n = rand_aug(xa_n).
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
-    feat = m_specaug(m_pre(X))  # (nA+nP, F, T, 1)
+    feat = m_specaug(m_pre(X)) # (nA+nP, F, T, 1)
     m_fp.trainable = True
     with tf.GradientTape() as t:
-        emb = m_fp(feat)  # (BSZ, Dim)
-        loss, sim_mtx, _ = loss_obj.compute_loss(
-            emb[:n_anchors, :], emb[n_anchors:, :]) # {emb_org, emb_rep}
+        emb = m_fp(feat) # (BSZ, Dim)
+        loss, sim_mtx, _ = loss_obj.compute_loss(emb[:n_anchors, :], 
+                                                 emb[n_anchors:, :]) # {emb_org, emb_rep}
     g = t.gradient(loss, m_fp.trainable_variables)
     helper.optimizer.apply_gradients(zip(g, m_fp.trainable_variables))
     avg_loss = helper.update_tr_loss(loss) # To tensorboard.
@@ -53,13 +55,14 @@ def train_step(X, m_pre, m_specaug, m_fp, loss_obj, helper):
 @tf.function
 def val_step(X, m_pre, m_fp, loss_obj, helper):
     """ Validation step """
+    
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
     feat = m_pre(X)  # (nA+nP, F, T, 1)
     m_fp.trainable = False
-    emb = m_fp(feat)  # (BSZ, Dim)
-    loss, sim_mtx, _ = loss_obj.compute_loss(
-        emb[:n_anchors, :], emb[n_anchors:, :]) # {emb_org, emb_rep}
+    emb = m_fp(feat) # (BSZ, Dim)
+    loss, sim_mtx, _ = loss_obj.compute_loss(emb[:n_anchors, :], 
+                                             emb[n_anchors:, :]) # {emb_org, emb_rep}
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
@@ -76,10 +79,11 @@ def test_step(X, m_pre, m_fp):
     emb_gf = tf.math.l2_normalize(emb_gf, axis=1)
     return emb_f, emb_f_postL2, emb_gf # f(.), L2(f(.)), L2(g(f(.))
 
-
+# OGUZ: they set the n_anchor to 1/2 of the batch size!
 def mini_search_validation(ds, m_pre, m_fp, mode='argmin',
                            scopes=[1, 3, 5, 9, 11, 19], max_n_samples=3000):
     """ Mini-search-validation """
+
     # Construct mini-DB
     key_strs = ['f', 'L2(f)', 'g(f)']
     m_fp.trainable = False
@@ -103,12 +107,12 @@ def mini_search_validation(ds, m_pre, m_fp, mode='argmin',
     for k in key_strs:
         tf.print(f'======= mini-search-validation: \033[31m{mode} \033[33m{k} \033[0m=======' + '\033[0m')
         query[k] = tf.expand_dims(query[k], axis=1) # (nQ, d) --> (nQ, 1, d)
-        accs_by_scope[k], _ = mini_search_eval(
-            query[k], db[k], scopes, mode, display=True)
+        accs_by_scope[k], _ = mini_search_eval(query[k], db[k], scopes, mode, display=True)
     return accs_by_scope, scopes, key_strs
 
 
 def trainer(cfg, checkpoint_name):
+
     # Dataloader
     dataset = Dataset(cfg)
 
@@ -180,8 +184,9 @@ def trainer(cfg, checkpoint_name):
         """ Parallelism to speed up preprocessing.............. """
         train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
         progbar = Progbar(len(train_ds))
-        enq = tf.keras.utils.OrderedEnqueuer(
-            train_ds, use_multiprocessing=True, shuffle=train_ds.shuffle)
+        enq = tf.keras.utils.OrderedEnqueuer(train_ds, 
+                                            use_multiprocessing=True, 
+                                            shuffle=train_ds.shuffle)
         enq.start(workers=cfg['DEVICE']['CPU_N_WORKERS'],
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
         i = 0
@@ -193,34 +198,31 @@ def trainer(cfg, checkpoint_name):
             i += 1
         enq.stop()
         """ End of Parallelism................................. """
-
         if cfg['TRAIN']['SAVE_IMG'] and (sim_mtx is not None):
             helper.write_image_tensorboard('tr_sim_mtx', sim_mtx.numpy())
 
         # Validate
         """ Parallelism to speed up preprocessing.............. """
-        val_ds = dataset.get_val_ds(max_song=250) # max 500
-        enq = tf.keras.utils.OrderedEnqueuer(
-            val_ds, use_multiprocessing=True, shuffle=False)
+        val_ds = dataset.get_val_ds() # max 500
+        enq = tf.keras.utils.OrderedEnqueuer(val_ds, 
+                                            use_multiprocessing=True, 
+                                            shuffle=False)
         enq.start(workers=cfg['DEVICE']['CPU_N_WORKERS'],
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
         i = 0
         while i < len(enq.sequence):
             X = next(enq.get()) # X: Tuple(Xa, Xp)
-            _, sim_mtx = val_step(X, m_pre, m_fp, loss_obj_val,
-                                  helper)
+            _, sim_mtx = val_step(X, m_pre, m_fp, loss_obj_val, helper)
             i += 1
         enq.stop()
         """ End of Parallelism................................. """
-
         if cfg['TRAIN']['SAVE_IMG'] and (sim_mtx is not None):
             helper.write_image_tensorboard('val_sim_mtx', sim_mtx.numpy())
 
         # On epoch end
-        tf.print('tr_loss:{:.4f}, val_loss:{:.4f}'.format(
-            helper._tr_loss.result(), helper._val_loss.result()))
+        tf.print('tr_loss:{:.4f}, val_loss:{:.4f}'.format(helper._tr_loss.result(), 
+                                                          helper._val_loss.result()))
         helper.update_on_epoch_end(save_checkpoint_now=True)
-
 
         # Mini-search-validation (optional)
         if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:

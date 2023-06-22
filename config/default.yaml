@@ -106,6 +106,6 @@ SPEC_AUG:
 
 # Device setup
 DEVICE:
-    CPU_N_WORKERS : 4 # 4 for minimal system. 8 is recommended.
+    CPU_N_WORKERS : 8 # 4 for minimal system. 8 is recommended.
     CPU_MAX_QUEUE : 10 # 10 for minimal system. 20 is recommended.
 
