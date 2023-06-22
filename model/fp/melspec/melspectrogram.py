@@ -116,6 +116,7 @@ class Melspec_layer(Model):
 
         return self.p(x) # Permute((3,2,1))
 
+# TODO: Is the padding necessary?
 class Melspec_layer_essentia():
 
     def __init__(
@@ -222,6 +223,25 @@ class Melspec_layer_essentia():
 
         return np.concatenate((np.zeros(self.pad_l), audio, np.zeros(self.pad_r))).astype(np.float32)
 
+def get_Melspec_layer_essentia(cfg):
+    fs = cfg['MODEL']['FS']
+    dur = cfg['MODEL']['DUR']
+    n_fft = cfg['MODEL']['STFT_WIN']
+    stft_hop = cfg['MODEL']['STFT_HOP']
+    n_mels = cfg['MODEL']['N_MELS']
+    f_min = cfg['MODEL']['F_MIN']
+    f_max = cfg['MODEL']['F_MAX']
+    input_shape = (1, int(fs * dur))
+
+    return Melspec_layer_essentia(input_shape=input_shape, 
+                        segment_norm=cfg['MODEL']['SEGMENT_NORM'], 
+                        n_fft=n_fft, 
+                        stft_hop=stft_hop, 
+                        n_mels=n_mels, 
+                        fs=fs, 
+                        dur=dur, 
+                        f_min=f_min, 
+                        f_max=f_max)
 
 def get_melspec_layer(cfg, trainable=False):
     fs = cfg['MODEL']['FS']

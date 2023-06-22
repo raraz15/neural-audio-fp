@@ -6,7 +6,7 @@
 import tensorflow as tf
 from tensorflow.keras.utils import Progbar
 from model.dataset import Dataset
-from model.fp.melspec.melspectrogram import get_melspec_layer
+from model.fp.melspec.melspectrogram import get_melspec_layer, get_Melspec_layer_essentia
 from model.fp.specaug_chain.specaug_chain import get_specaug_chain_layer
 from model.fp.nnfp import get_fingerprinter
 from model.fp.NTxent_loss_single_gpu import NTxentLoss
@@ -20,7 +20,7 @@ def build_fp(cfg):
     """ Build fingerprinter """
 
     # m_pre: log-power-Mel-spectrogram layer, S.
-    m_pre = get_melspec_layer(cfg, trainable=False)
+    m_pre = get_Melspec_layer_essentia(cfg)
 
     # m_specaug: spec-augmentation layer.
     m_specaug = get_specaug_chain_layer(cfg, trainable=False)
@@ -38,6 +38,7 @@ def train_step(X, m_pre, m_specaug, m_fp, loss_obj, helper):
     # X: (Xa, Xp)
     # Xa: anchors or originals, s.t. [xa_0, xa_1,...]
     # Xp: augmented replicas, s.t. [xp_0, xp_1] with xp_n = rand_aug(xa_n).
+
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
     feat = m_specaug(m_pre(X)) # (nA+nP, F, T, 1)
