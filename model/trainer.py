@@ -202,7 +202,7 @@ def trainer(cfg, checkpoint_name):
 
         # Validate
         """ Parallelism to speed up preprocessing.............. """
-        val_ds = dataset.get_val_ds(max_song=250) # max 500
+        val_ds = dataset.get_val_ds() # max 500
         enq = tf.keras.utils.OrderedEnqueuer(val_ds, 
                                             use_multiprocessing=True, 
                                             shuffle=False)
