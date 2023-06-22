@@ -5,7 +5,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Lambda, Permute
 from kapre.time_frequency import STFT, Magnitude, ApplyFilterbank
 import math
-
+import numpy as np
 
 class Melspec_layer(Model):
     """
@@ -122,7 +122,7 @@ class Melspec_layer_essentia():
     def __init__(
             self,
             input_shape=(1, 8000),
-            segment_norm=False,
+            segment_norm=True,
             n_fft=1024,
             stft_hop=256,
             n_mels=256,
@@ -132,13 +132,9 @@ class Melspec_layer_essentia():
             f_max=4000.,
             amin=1e-5, # minimum mel-spectrogram amp.
             dynamic_range=80.,
-            # name='Mel-spectrogram',
-            # trainable=False,
-            #**kwargs
             ):
         super().__init__()
 
-        import numpy as np
         import essentia.standard as es
 
         self.mel_fb_kwargs = {
@@ -194,9 +190,9 @@ class Melspec_layer_essentia():
             weighting="linear",
         )
 
-    def call(self, audio):
+    def compute_single(self, audio):
 
-        assert audio.shape[1] == self.input_shape[1], f'Input shape is {audio.shape[1]} '\
+        assert audio.shape[0] == self.input_shape[1], f'Input shape is {audio.shape[0]} '\
                                                         f"but should be {self.input_shape[1]}"
 
         # Pad the segment from both sides
@@ -217,6 +213,10 @@ class Melspec_layer_essentia():
             mel_spec = (mel_spec + self.dynamic_range/2) / (self.dynamic_range/2)
 
         return mel_spec
+    
+    def compute_batch(self, batch):
+
+        return np.array([self.compute_single(audio) for audio in batch])
 
     def pad_audio(self, audio):
         # Combining with how the framing is defined, zero-center the window to the first frame
