@@ -196,7 +196,6 @@ def trainer(cfg, checkpoint_name):
             i += 1
         enq.stop()
         """ End of Parallelism................................. """
-
         if cfg['TRAIN']['SAVE_IMG'] and (sim_mtx is not None):
             helper.write_image_tensorboard('tr_sim_mtx', sim_mtx.numpy())
 
@@ -211,18 +210,16 @@ def trainer(cfg, checkpoint_name):
         i = 0
         while i < len(enq.sequence):
             X = next(enq.get()) # X: Tuple(Xa, Xp)
-            _, sim_mtx = val_step(X, m_pre, m_fp, loss_obj_val,
-                                  helper)
+            _, sim_mtx = val_step(X, m_pre, m_fp, loss_obj_val, helper)
             i += 1
         enq.stop()
         """ End of Parallelism................................. """
-
-        # On epoch end
         if cfg['TRAIN']['SAVE_IMG'] and (sim_mtx is not None):
             helper.write_image_tensorboard('val_sim_mtx', sim_mtx.numpy())
 
-        tf.print('tr_loss:{:.4f}, val_loss:{:.4f}'.format(
-            helper._tr_loss.result(), helper._val_loss.result()))
+        # On epoch end
+        tf.print('tr_loss:{:.4f}, val_loss:{:.4f}'.format(helper._tr_loss.result(), 
+                                                          helper._val_loss.result()))
         helper.update_on_epoch_end(save_checkpoint_now=True)
 
         # Mini-search-validation (optional)

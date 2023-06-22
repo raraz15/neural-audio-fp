@@ -154,11 +154,11 @@ class Dataset:
 
 
     def get_val_ds(self, max_song=500):
-        # Source (music) file paths for validation set.
         """
+        Source (music) file paths for validation set.
         max_song: (int) <= 500.
-
         """
+
         self.val_source_fps = sorted(
             glob.glob(self.source_root_dir + 'val-query-db-500-30s/' +
                       '**/*.wav', recursive=True))[:max_song]
