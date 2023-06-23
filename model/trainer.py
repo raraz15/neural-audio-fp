@@ -6,7 +6,6 @@
 import tensorflow as tf
 from tensorflow.keras.utils import Progbar
 from model.dataset import Dataset
-from model.fp.melspec.melspectrogram import get_melspec_layer, get_Melspec_layer_essentia
 from model.fp.specaug_chain.specaug_chain import get_specaug_chain_layer
 from model.fp.nnfp import get_fingerprinter
 from model.fp.NTxent_loss_single_gpu import NTxentLoss
@@ -19,9 +18,6 @@ from model.utils.mini_search_subroutines import mini_search_eval
 def build_fp(cfg):
     """ Build fingerprinter """
 
-    # m_pre: log-power-Mel-spectrogram layer, S.
-    m_pre = get_Melspec_layer_essentia(cfg)
-
     # m_specaug: spec-augmentation layer.
     m_specaug = get_specaug_chain_layer(cfg, trainable=False)
     assert(m_specaug.bypass==False) # Detachable by setting m_specaug.bypass.
@@ -29,19 +25,18 @@ def build_fp(cfg):
     # m_fp: fingerprinter g(f(.)).
     m_fp = get_fingerprinter(cfg, trainable=False)
 
-    return m_pre, m_specaug, m_fp
+    return m_specaug, m_fp
 
 
 @tf.function
-def train_step(X, m_pre, m_specaug, m_fp, loss_obj, helper):
-    """ Train step """
+def train_step(X, m_specaug, m_fp, loss_obj, helper):
     # X: (Xa, Xp)
     # Xa: anchors or originals, s.t. [xa_0, xa_1,...]
     # Xp: augmented replicas, s.t. [xp_0, xp_1] with xp_n = rand_aug(xa_n).
 
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
-    feat = m_specaug(m_pre.compute_batch(X)) # (nA+nP, F, T, 1)
+    feat = m_specaug(X) # (nA+nP, F, T, 1)
     m_fp.trainable = True
     with tf.GradientTape() as t:
         emb = m_fp(feat) # (BSZ, Dim)
@@ -54,12 +49,12 @@ def train_step(X, m_pre, m_specaug, m_fp, loss_obj, helper):
 
 
 @tf.function
-def val_step(X, m_pre, m_fp, loss_obj, helper):
+def val_step(X, m_fp, loss_obj, helper):
     """ Validation step """
-    
+
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
-    feat = m_pre.compute_batch(X)  # (nA+nP, F, T, 1)
+    feat = X  # (nA+nP, F, T, 1)
     m_fp.trainable = False
     emb = m_fp(feat) # (BSZ, Dim)
     loss, sim_mtx, _ = loss_obj.compute_loss(emb[:n_anchors, :], 
@@ -69,10 +64,10 @@ def val_step(X, m_pre, m_fp, loss_obj, helper):
 
 
 @tf.function
-def test_step(X, m_pre, m_fp):
+def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
     X = tf.concat(X, axis=0)
-    feat = m_pre.compute_batch(X)  # (nA+nP, F, T, 1)
+    feat = X  # (nA+nP, F, T, 1)
     m_fp.trainable = False
     emb_f = m_fp.front_conv(feat)  # (BSZ, Dim)
     emb_f_postL2 = tf.math.l2_normalize(emb_f, axis=1)
@@ -81,7 +76,7 @@ def test_step(X, m_pre, m_fp):
     return emb_f, emb_f_postL2, emb_gf # f(.), L2(f(.)), L2(g(f(.))
 
 # OGUZ: they set the n_anchor to 1/2 of the batch size!
-def mini_search_validation(ds, m_pre, m_fp, mode='argmin',
+def mini_search_validation(ds, m_fp, mode='argmin',
                            scopes=[1, 3, 5, 9, 11, 19], max_n_samples=3000):
     """ Mini-search-validation """
 
@@ -97,8 +92,8 @@ def mini_search_validation(ds, m_pre, m_fp, mode='argmin',
     for k in key_strs:
         (db[k], query[k]) = (tf.zeros((0, dim[k])), tf.zeros((0, dim[k])))
     for i in range(n_iter):
-        X = ds.__getitem__(i)
-        emb['f'], emb['L2(f)'], emb['g(f)'] = test_step(X, m_pre, m_fp)
+        _, _, Xa, Xp = ds.__getitem__(i)
+        emb['f'], emb['L2(f)'], emb['g(f)'] = test_step((Xa, Xp), m_fp)
         for k in key_strs:
             db[k] = tf.concat((db[k], emb[k][:n_anchor, :]), axis=0)
             query[k] = tf.concat((query[k], emb[k][n_anchor:, :]), axis=0)
@@ -118,7 +113,7 @@ def trainer(cfg, checkpoint_name):
     dataset = Dataset(cfg)
 
     # Build models.
-    m_pre, m_specaug, m_fp = build_fp(cfg)
+    m_specaug, m_fp = build_fp(cfg)
 
     # Learning schedule
     total_nsteps = cfg['TRAIN']['MAX_EPOCH'] * len(dataset.get_train_ds())
@@ -192,8 +187,8 @@ def trainer(cfg, checkpoint_name):
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
         i = 0
         while i < len(enq.sequence):
-            X = next(enq.get()) # X: Tuple(Xa, Xp)
-            avg_loss, sim_mtx = train_step(X, m_pre, m_specaug, m_fp,
+            _, _, Xa, Xp = next(enq.get())
+            avg_loss, sim_mtx = train_step((Xa, Xp), m_specaug, m_fp,
                                             loss_obj_train, helper)
             progbar.add(1, values=[("tr loss", avg_loss)])
             i += 1
@@ -212,8 +207,8 @@ def trainer(cfg, checkpoint_name):
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
         i = 0
         while i < len(enq.sequence):
-            X = next(enq.get()) # X: Tuple(Xa, Xp)
-            _, sim_mtx = val_step(X, m_pre, m_fp, loss_obj_val, helper)
+            _, _, Xa, Xp = next(enq.get())
+            _, sim_mtx = val_step((Xa, Xp), m_fp, loss_obj_val, helper)
             i += 1
         enq.stop()
         """ End of Parallelism................................. """
@@ -228,6 +223,6 @@ def trainer(cfg, checkpoint_name):
         # Mini-search-validation (optional)
         if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:
             accs_by_scope, scopes, key_strs = mini_search_validation(
-                val_ds, m_pre, m_fp)
+                val_ds, m_fp)
             for k in key_strs:
                 helper.update_minitest_acc(accs_by_scope[k], scopes, k)

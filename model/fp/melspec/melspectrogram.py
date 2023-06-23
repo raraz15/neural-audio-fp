@@ -116,7 +116,7 @@ class Melspec_layer(Model):
 
         return self.p(x) # Permute((3,2,1))
 
-# TODO: Is the padding necessary?
+# TODO: let essentia pad start and end
 class Melspec_layer_essentia():
 
     def __init__(
@@ -190,7 +190,15 @@ class Melspec_layer_essentia():
             weighting="linear",
         )
 
-    def compute_single(self, audio):
+    def compute_mel_spectrogram(self, audio):
+        """Compute the Mel-spectrogram of an audio segment. The audio segment is padded 
+        from both sides to center the first window.
+
+        Inputs:
+            audio: (T,)
+        
+        Returns:
+            mel_spec: (F, T)"""
 
         assert audio.shape[0] == self.input_shape[1], f'Input shape is {audio.shape[0]} '\
                                                         f"but should be {self.input_shape[1]}"
@@ -212,11 +220,12 @@ class Melspec_layer_essentia():
         if self.segment_norm:
             mel_spec = (mel_spec + self.dynamic_range/2) / (self.dynamic_range/2)
 
-        return mel_spec
-    
-    def compute_batch(self, batch):
+        return mel_spec.T # (n_mels, n_frames)
 
-        return np.array([self.compute_single(audio) for audio in batch])
+    def compute_batch(self, batch):
+        """Returns: (B, F, T)"""
+
+        return np.array([self.compute_mel_spectrogram(audio) for audio in batch])
 
     def pad_audio(self, audio):
         # Combining with how the framing is defined, zero-center the window to the first frame

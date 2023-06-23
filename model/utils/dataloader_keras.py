@@ -3,9 +3,10 @@
 from tensorflow.keras.utils import Sequence
 from model.utils.audio_utils import (bg_mix_batch, ir_aug_batch, load_audio,
                                      get_fns_seg_list, load_audio_multi_start)
+from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 import numpy as np
 
-MAX_IR_LENGTH = 600#400  # 50ms with fs=8000
+MAX_IR_LENGTH = 600 #400  # 50ms with fs=8000
 
 
 class genUnbalSequence(Sequence):
@@ -17,6 +18,12 @@ class genUnbalSequence(Sequence):
         duration=1,
         hop=.5,
         fs=8000,
+        segment_norm=True,
+        n_fft=1024,
+        stft_hop=256,
+        n_mels=256,
+        f_min=300,
+        f_max=4000,
         shuffle=False,
         seg_mode="all",
         amp_mode='normal',
@@ -31,11 +38,10 @@ class genUnbalSequence(Sequence):
         drop_the_last_non_full_batch = True
         ):
         """
-        
         Parameters
         ----------
         fns_event_list : list(str), 
-            Song file paths as a list. 
+            Song file paths as a list. [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
         bsz : (int), optional
             In TPUs code, global batch size. The default is 120.
         n_anchor : TYPE, optional
@@ -76,8 +82,8 @@ class genUnbalSequence(Sequence):
             the multiple positive samples.. The default is False.
         drop_the_last_non_full_batch : (bool), optional
             Set as False in test. Default is True.
-
         """
+
         self.bsz = bsz
         self.n_anchor = n_anchor
         if bsz != n_anchor:
@@ -112,7 +118,6 @@ class genUnbalSequence(Sequence):
             fns_speech_list = speech_mix_parameter[1]
             self.speech_snr_range = speech_mix_parameter[2]
 
-        
         if self.seg_mode in {'random_oneshot', 'all'}:
             self.fns_event_seg_list = get_fns_seg_list(fns_event_list,
                                                        self.seg_mode,
@@ -121,12 +126,7 @@ class genUnbalSequence(Sequence):
                                                        hop=self.hop)
         else:
             raise NotImplementedError("seg_mode={}".format(self.seg_mode))
-        """Structure of fns_event_seg_list:
-        
-        [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
-        
-        """
-        
+
         self.drop_the_last_non_full_batch = drop_the_last_non_full_batch
         
         if self.drop_the_last_non_full_batch: # training
@@ -181,6 +181,15 @@ class genUnbalSequence(Sequence):
                  (self.n_pos_per_anchor - 1) / 2) /
                 self.n_pos_per_anchor) * self.hop
 
+        self.mel_spec = Melspec_layer_essentia(input_shape=(1, int(fs * duration)), 
+                                            segment_norm=segment_norm,
+                                            n_fft=n_fft, 
+                                            stft_hop=stft_hop, 
+                                            n_mels=n_mels, 
+                                            fs=fs, 
+                                            dur=duration, 
+                                            f_min=f_min, 
+                                            f_max=f_max)
 
     def __len__(self):
         """ Returns the number of batches per epoch. """
@@ -226,7 +235,7 @@ class genUnbalSequence(Sequence):
         Xa_batch, Xp_batch = self.__event_batch_load(index_anchor_for_batch)
         global bg_sel_indices
 
-        # If there are positive samples, check for bg and ir mixing
+        # If there are positive samples, check for augmentation
         if self.n_pos_bsz > 0:
 
             if self.bg_mix == True:
@@ -250,17 +259,19 @@ class genUnbalSequence(Sequence):
                 # ir aug
                 Xp_batch = ir_aug_batch(Xp_batch, Xp_ir_batch)
 
-        Xa_batch = np.expand_dims(Xa_batch, 1).astype(np.float32)  # (n_anchor, 1, T)
-        Xp_batch = np.expand_dims(Xp_batch, 1).astype(np.float32)  # (n_pos, 1, T)
+        # Compute mel spectrograms
+        Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch)
+        Xp_batch_mel = self.mel_spec.compute_batch(Xp_batch)
 
-        if self.reduce_batch_first_half:
-            return Xp_batch, [] # Anchors will be reduced.
-        else:
-            return Xa_batch, Xp_batch
+        # Fix the dimensions
+        Xa_batch_mel = np.expand_dims(Xa_batch_mel, 3).astype(np.float32) # (n_anchor, n_mels, T, 1)
+        Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3).astype(np.float32) # (n_pos, n_mels, T, 1)
+
+        return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
 
 
     def __event_batch_load(self, anchor_idx_list):
-        """ Get Xa_batch and Xp_batch for anchor (original) and positive (replica) samples. """
+        """ Get Xa_batch and Xp_batch for anchor (original) and positive (replica) samples od audio. """
 
         Xa_batch = None
         Xp_batch = None
@@ -311,15 +322,14 @@ class genUnbalSequence(Sequence):
                         pos_start_sec_list = self.fns_event_seg_list[idx][1] * self.hop + _pos_offset_sec_list
             else:
                 pos_start_sec_list = []
-            """
-            load audio returns: [anchor, pos1, pos2,..pos_n]
-            """
+
+            """ load audio returns: [anchor, pos1, pos2,..pos_n]: xs: ((1+n_pos)),T)"""
             start_sec_list = np.concatenate(([anchor_start_sec], pos_start_sec_list))
             xs = load_audio_multi_start(self.fns_event_seg_list[idx][0],
                                         start_sec_list, 
                                         self.duration, 
                                         self.fs,
-                                        self.amp_mode) # xs: ((1+n_pos)),T)
+                                        self.amp_mode)
 
             if Xa_batch is None:
                 Xa_batch = xs[0, :].reshape((1, -1))
@@ -327,6 +337,8 @@ class genUnbalSequence(Sequence):
             else:
                 Xa_batch = np.vstack((Xa_batch, xs[0, :].reshape((1, -1))))  # Xa_batch: (n_anchor, T)
                 Xp_batch = np.vstack((Xp_batch, xs[1:, :]))  # Xp_batch: (n_pos, T)
+                # OGUZ it should be (n_anchor*n_pos_per_anchor, T)
+
         return Xa_batch, Xp_batch
 
 

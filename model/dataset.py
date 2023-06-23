@@ -55,6 +55,12 @@ class Dataset:
         self.dur = cfg['MODEL']['DUR']
         self.hop = cfg['MODEL']['HOP']
         self.fs = cfg['MODEL']['FS']
+        self.segment_norm = cfg['MODEL']['SEGMENT_NORM']
+        self.stft_hop = cfg['MODEL']['STFT_HOP']
+        self.n_fft = cfg['MODEL']['STFT_WIN']
+        self.n_mels = cfg['MODEL']['N_MELS']
+        self.fmin = cfg['MODEL']['F_MIN']
+        self.fmax = cfg['MODEL']['F_MAX']
 
         # Time-domain augmentation parameter
         self.tr_snr = cfg['TD_AUG']['TR_SNR']
@@ -143,6 +149,12 @@ class Dataset:
             duration=self.dur,  # duration in seconds
             hop=self.hop,
             fs=self.fs,
+            segment_norm=self.segment_norm,
+            n_fft=self.n_fft,
+            stft_hop=self.stft_hop,
+            n_mels=self.n_mels,
+            f_min=self.fmin,
+            f_max=self.fmax,
             shuffle=True,
             random_offset_anchor=True,
             bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_snr],
@@ -170,6 +182,12 @@ class Dataset:
             self.dur,
             self.hop,
             self.fs,
+            segment_norm=self.segment_norm,
+            n_fft=self.n_fft,
+            stft_hop=self.stft_hop,
+            n_mels=self.n_mels,
+            f_min=self.fmin,
+            f_max=self.fmax,
             shuffle=False,
             random_offset_anchor=False,
             bg_mix_parameter=[self.val_use_bg_aug, self.val_bg_fps, self.val_snr],
@@ -209,6 +227,12 @@ class Dataset:
             self.dur,
             self.hop,
             self.fs,
+            segment_norm=self.segment_norm,
+            n_fft=self.n_fft,
+            stft_hop=self.stft_hop,
+            n_mels=self.n_mels,
+            f_min=self.fmin,
+            f_max=self.fmax,
             shuffle=False,
             random_offset_anchor=False,
             drop_the_last_non_full_batch=False) # No augmentations...
@@ -249,6 +273,12 @@ class Dataset:
                 self.dur,
                 self.hop,
                 self.fs,
+                segment_norm=self.segment_norm,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax,
                 shuffle=False,
                 random_offset_anchor=False,
                 drop_the_last_non_full_batch=False) # No augmentations...
@@ -259,6 +289,12 @@ class Dataset:
                 self.dur,
                 self.hop,
                 self.fs,
+                segment_norm=self.segment_norm,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax,
                 shuffle=False,
                 random_offset_anchor=False,
                 drop_the_last_non_full_batch=False) # No augmentations...
@@ -317,6 +353,12 @@ class Dataset:
             self.dur,
             self.hop,
             self.fs,
+            segment_norm=self.segment_norm,
+            n_fft=self.n_fft,
+            stft_hop=self.stft_hop,
+            n_mels=self.n_mels,
+            f_min=self.fmin,
+            f_max=self.fmax,
             shuffle=False,
             random_offset_anchor=False,
             drop_the_last_non_full_batch=False) # No augmentations, No drop-samples.
