@@ -228,8 +228,8 @@ def load_audio(filename=str(),
     """
         Open file to get file info --> Calulate index range
         --> Load sample by index --> Padding --> Max-Normalize --> Out
-        
     """
+
     start_frame_idx = np.floor((seg_start_sec + offset_sec) * fs).astype(int)
     seg_length_frame = np.floor(seg_length_sec * fs).astype(int)
     end_frame_idx = start_frame_idx + seg_length_frame
@@ -276,7 +276,8 @@ def load_audio_multi_start(filename=str(),
         x = load_audio(filename=filename,
                        seg_start_sec=seg_start_sec,
                        seg_length_sec=seg_length_sec,
-                       fs=fs)
+                       fs=fs,
+                       amp_mode=amp_mode)
         x = x.reshape((1, -1))
         if out is None:
             out = x
