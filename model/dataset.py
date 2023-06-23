@@ -37,7 +37,6 @@ class Dataset:
         self.source_root_dir = cfg['DIR']['SOURCE_ROOT_DIR']
         self.bg_root_dir = cfg['DIR']['BG_ROOT_DIR'] #!
         self.ir_root_dir = cfg['DIR']['IR_ROOT_DIR']
-        self.speech_root_dir = cfg['DIR']['SPEECH_ROOT_DIR']
 
         # Data selection
         self.datasel_train = cfg['DATA_SEL']['TRAIN']
@@ -72,14 +71,11 @@ class Dataset:
         self.tr_use_ir_aug = cfg['TD_AUG']['TR_IR_AUG']
         self.ts_use_ir_aug = cfg['TD_AUG']['TS_IR_AUG']
         self.val_use_ir_aug = cfg['TD_AUG']['VAL_IR_AUG']
-        self.tr_use_speech_aug = cfg['TD_AUG']['TR_SPEECH_AUG']
-        self.ts_use_speech_aug = cfg['TD_AUG']['TS_SPEECH_AUG']
-        self.val_use_speech_aug = cfg['TD_AUG']['VAL_SPEECH_AUG']
+
 
         # Pre-load file paths for augmentation
         self.tr_bg_fps = self.ts_bg_fps = self.val_bg_fps = None
         self.tr_ir_fps = self.ts_ir_fps = self.val_ir_fps = None
-        self.tr_speech_fps = self.ts_speech_fps = self.val_speech_fps = None
         self.__set_augmentation_fps()
 
         # Source (music) file paths
@@ -95,8 +91,8 @@ class Dataset:
 
             If validation set was not available, we replace it with subset of
             the trainset.
-
         """
+
         # File lists for Augmentations
         if self.tr_use_bg_aug:
             self.tr_bg_fps = sorted(glob.glob(self.bg_root_dir +
@@ -117,19 +113,6 @@ class Dataset:
         if self.val_use_ir_aug:
             self.val_ir_fps = sorted(
                 glob.glob(self.ir_root_dir + 'tr/**/*.wav', recursive=True))
-
-        if self.tr_use_speech_aug:
-            self.tr_speech_fps = sorted(
-                glob.glob(self.speech_root_dir + 'train/**/*.wav',
-                          recursive=True))
-        self.ts_speech_fps = sorted(
-            glob.glob(self.speech_root_dir + 'test/**/*.wav',
-                      recursive=True))
-        if self.val_use_speech_aug:
-            self.val_speech_fps = sorted(
-                glob.glob(self.speech_root_dir + 'dev/**/*.wav',
-                          recursive=True))
-        return
 
 
     def get_train_ds(self, reduce_items_p=0):
@@ -159,9 +142,8 @@ class Dataset:
             random_offset_anchor=True,
             bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_snr],
             ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps],
-            speech_mix_parameter=[self.tr_use_speech_aug, self.tr_speech_fps,
-                                  self.tr_snr],
-            reduce_items_p=reduce_items_p)
+            reduce_items_p=reduce_items_p
+            )
         return ds
 
 
@@ -192,8 +174,7 @@ class Dataset:
             random_offset_anchor=False,
             bg_mix_parameter=[self.val_use_bg_aug, self.val_bg_fps, self.val_snr],
             ir_mix_parameter=[self.val_use_ir_aug, self.val_ir_fps],
-            speech_mix_parameter=[self.val_use_speech_aug, self.val_speech_fps,
-                                  self.val_snr])
+            )
         return ds
 
 
@@ -203,8 +184,8 @@ class Dataset:
 
             In this case, high-speed fingerprinting is possible without
             augmentation by setting ts_n_anchor=ts_batch_sz.
-
         """
+
         # Source (music) file paths for test-dummy-DB set
         self.ts_dummy_db_source_fps = sorted(
             glob.glob(self.source_root_dir + 'test-dummy-db-100k-full/' +
@@ -321,7 +302,6 @@ class Dataset:
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps,
                                   self.ts_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps],
-                speech_mix_parameter=[False],
                 reduce_batch_first_half=True,
                 drop_the_last_non_full_batch=False)
 

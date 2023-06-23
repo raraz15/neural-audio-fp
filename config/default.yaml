@@ -3,8 +3,6 @@ DIR:
     SOURCE_ROOT_DIR : '../neural-audio-fp-dataset/music/'
     BG_ROOT_DIR : '../neural-audio-fp-dataset/aug/bg/'
     IR_ROOT_DIR : '../neural-audio-fp-dataset/aug/ir/'
-    SPEECH_ROOT_DIR : '../neural-audio-fp-dataset/aug/speech/common_voice_8k/en/'
-                # Speech augmentation was not included in the ICASSP results.
     OUTPUT_ROOT_DIR : './logs/emb/'
                 # Root directory where the generated embeddings (uncompressed
                 #  fingerprints) will be stored.
@@ -87,9 +85,6 @@ TD_AUG:
     TR_SNR : [0, 10] # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
     TS_SNR : [0, 10] # Active in real-time synthesis of test queries. TEST_QUERY='unseen_icassp' will inactivate this.
     VAL_SNR : [0, 10]
-    TR_SPEECH_AUG : False # False in ICASSP results.
-    TS_SPEECH_AUG : False # False in ICASSP results.
-    VAL_SPEECH_AUG : False # False in ICASSP results.
     TR_BG_AUG : True
     TS_BG_AUG : True # TEST_QUERY='unseen_icassp' will inactivate this.
     VAL_BG_AUG : True # Validation set always flollow this even in 'generate' command.

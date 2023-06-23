@@ -31,11 +31,10 @@ class genUnbalSequence(Sequence):
         offset_margin_hop_rate=0.4,
         bg_mix_parameter=[False],
         ir_mix_parameter=[False],
-        speech_mix_parameter=[False],
         reduce_items_p=0,
         reduce_batch_first_half=False,
         experimental_mode=False,
-        drop_the_last_non_full_batch = True
+        drop_the_last_non_full_batch=True
         ):
         """
         Parameters
@@ -69,8 +68,6 @@ class genUnbalSequence(Sequence):
             [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. The default is [False].
         ir_mix_parameter : list([(bool), list(str)], optional
             [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. The default is [False].
-        speech_mix_parameter : list([(bool), list(str), (int, int)]), optional
-            [True, SPEECH_FILEPATHS, (MIN_SNR, MAX_SNR)]. The default is [False].
         reduce_items_p : (int), optional
             Reduce dataset size to percent (%). Useful when debugging code with samll            data. The default is 0.
         reduce_batch_first_half : (bool), optional
@@ -105,7 +102,6 @@ class genUnbalSequence(Sequence):
 
         self.bg_mix = bg_mix_parameter[0]
         self.ir_mix = ir_mix_parameter[0]
-        self.speech_mix = speech_mix_parameter[0]
 
         if self.bg_mix == True:
             fns_bg_list = bg_mix_parameter[1]
@@ -113,10 +109,6 @@ class genUnbalSequence(Sequence):
 
         if self.ir_mix == True:
             fns_ir_list = ir_mix_parameter[1]
-
-        if self.speech_mix == True:
-            fns_speech_list = speech_mix_parameter[1]
-            self.speech_snr_range = speech_mix_parameter[2]
 
         if self.seg_mode in {'random_oneshot', 'all'}:
             self.fns_event_seg_list = get_fns_seg_list(fns_event_list,
@@ -150,16 +142,6 @@ class genUnbalSequence(Sequence):
         else:
             pass
 
-        if self.speech_mix == True:
-            self.fns_speech_seg_list = get_fns_seg_list(
-                fns_speech_list, 'all', self.fs, self.duration)
-            self.n_speech_samples = len(self.fns_speech_seg_list)
-            if self.shuffle == True:
-                self.index_speech = np.random.permutation(
-                    self.n_speech_samples)
-            else:
-                self.index_speech = np.arange(self.n_speech_samples)
-
         if self.ir_mix == True:
             self.fns_ir_seg_list = get_fns_seg_list(fns_ir_list, 'first',
                                                     self.fs, self.duration)
@@ -171,8 +153,8 @@ class genUnbalSequence(Sequence):
         else:
             pass
 
-        self.reduce_items_p = reduce_items_p
         assert(reduce_items_p <= 100)
+        self.reduce_items_p = reduce_items_p
         self.reduce_batch_first_half = reduce_batch_first_half
         self.experimental_mode = experimental_mode
         if experimental_mode:
@@ -217,13 +199,6 @@ class genUnbalSequence(Sequence):
         if self.ir_mix == True and self.shuffle == True:
             self.index_ir = list(np.random.permutation(
                 self.n_ir_samples))  # same number with event samples
-        else:
-            pass
-
-        if self.speech_mix == True and self.shuffle == True:
-            self.index_speech = list(
-                np.random.permutation(
-                    self.n_speech_samples))  # same number with event samples
         else:
             pass
 
