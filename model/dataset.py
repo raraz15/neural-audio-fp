@@ -33,6 +33,7 @@ class Dataset:
 
     """
     def __init__(self, cfg=dict()):
+
         # Data location
         self.source_root_dir = cfg['DIR']['SOURCE_ROOT_DIR']
         self.bg_root_dir = cfg['DIR']['BG_ROOT_DIR'] #!
@@ -71,7 +72,6 @@ class Dataset:
         self.tr_use_ir_aug = cfg['TD_AUG']['TR_IR_AUG']
         self.ts_use_ir_aug = cfg['TD_AUG']['TS_IR_AUG']
         self.val_use_ir_aug = cfg['TD_AUG']['VAL_IR_AUG']
-
 
         # Pre-load file paths for augmentation
         self.tr_bg_fps = self.ts_bg_fps = self.val_bg_fps = None
@@ -125,7 +125,7 @@ class Dataset:
             glob.glob(self.source_root_dir + _prefix + '**/*.wav',
                       recursive=True))
 
-        ds = genUnbalSequence(
+        return genUnbalSequence(
             fns_event_list=self.tr_source_fps,
             bsz=self.tr_batch_sz,
             n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
@@ -144,8 +144,6 @@ class Dataset:
             ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps],
             reduce_items_p=reduce_items_p
             )
-        return ds
-
 
     def get_val_ds(self, max_song=500):
         """
@@ -157,7 +155,7 @@ class Dataset:
             glob.glob(self.source_root_dir + 'val-query-db-500-30s/' +
                       '**/*.wav', recursive=True))[:max_song]
 
-        ds = genUnbalSequence(
+        return genUnbalSequence(
             self.val_source_fps,
             self.val_batch_sz,
             self.val_n_anchor,
@@ -175,8 +173,6 @@ class Dataset:
             bg_mix_parameter=[self.val_use_bg_aug, self.val_bg_fps, self.val_snr],
             ir_mix_parameter=[self.val_use_ir_aug, self.val_ir_fps],
             )
-        return ds
-
 
     def get_test_dummy_db_ds(self):
         """
@@ -201,7 +197,7 @@ class Dataset:
             raise NotImplementedError(self.datasel_test_dummy_db)
 
         _ts_n_anchor = self.ts_batch_sz
-        ds = genUnbalSequence(
+        return genUnbalSequence(
             self.ts_dummy_db_source_fps,
             self.ts_batch_sz,
             _ts_n_anchor,
@@ -217,8 +213,6 @@ class Dataset:
             shuffle=False,
             random_offset_anchor=False,
             drop_the_last_non_full_batch=False) # No augmentations...
-        return ds
-
 
     def get_test_query_db_ds(self, datasel=None):
         """
@@ -322,11 +316,11 @@ class Dataset:
 
 
     def get_custom_db_ds(self, source_root_dir):
-        """ Construc DB (or query) from custom source files. """
+        """ Construct DB (or query) from custom source files. """
         fps = sorted(
             glob.glob(source_root_dir + '/**/*.wav', recursive=True))
         _ts_n_anchor = self.ts_batch_sz # Only anchors...
-        ds = genUnbalSequence(
+        return genUnbalSequence(
             fps,
             self.ts_batch_sz,
             _ts_n_anchor,
@@ -342,4 +336,3 @@ class Dataset:
             shuffle=False,
             random_offset_anchor=False,
             drop_the_last_non_full_batch=False) # No augmentations, No drop-samples.
-        return ds
