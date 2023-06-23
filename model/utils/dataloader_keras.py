@@ -221,7 +221,6 @@ class genUnbalSequence(Sequence):
                 # mix
                 Xp_batch = bg_mix_batch(Xp_batch,
                                         Xp_bg_batch,
-                                        self.fs,
                                         snr_range=self.bg_snr_range)
 
             if self.ir_mix == True:

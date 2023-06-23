@@ -6,7 +6,6 @@
 import wave
 import numpy as np
 
-
 def max_normalize(x):
     """
     Parameters
@@ -17,15 +16,15 @@ def max_normalize(x):
     -------
     (float)
         Max-normalized audio signal.
-
     """
-    if np.max(np.abs(x)) == 0:
+
+    max_val = np.max(np.abs(x))
+    if max_val==0:
         return x
     else:
-        return x / np.max(np.abs(x))
+        return x / np.max(np.abs(max_val))
 
-
-def background_mix(x, x_bg, fs, snr_db):
+def background_mix(x, x_bg, snr_db):
     """
     Parameters
     ----------
@@ -33,8 +32,6 @@ def background_mix(x, x_bg, fs, snr_db):
         Input audio signal.
     x_bg : 1D array (float)
         Background noise signal.
-    fs : (float)
-        Sampling rate.
     snr_db : (float)
         signal-to-noise ratio in decibel.
 
@@ -55,13 +52,11 @@ def background_mix(x, x_bg, fs, snr_db):
         bg_start = np.random.randint(len(x_bg) - len(x))
         bg_end = bg_start + len(x)
         x_bg = x_bg[bg_start:bg_end]
-    else:
-        pass
 
     # Normalize with energy
-    rmse_bg = np.sqrt(np.sum(x_bg**2 / len(x_bg)))
+    rmse_bg = np.sqrt(np.mean(x_bg**2))
     x_bg = x_bg / rmse_bg
-    rmse_x = np.sqrt(np.sum(x**2) / len(x))
+    rmse_x = np.sqrt(np.mean(x**2))
     x = x / rmse_x
 
     # Mix
@@ -69,17 +64,15 @@ def background_mix(x, x_bg, fs, snr_db):
     x_mix = magnitude * x + x_bg
     return max_normalize(x_mix)
 
-
+# TODO: what is this?
 def log_scale_random_number_batch(bsz=int(), amp_range=(0.1, 1.)):
     range_log = np.log10(amp_range)
-    random_number_log = np.random.rand(bsz) * (
-        np.max(range_log) - np.min(range_log)) + np.min(range_log)
+    random_number_log = np.random.rand(bsz) * (np.max(range_log) - np.min(range_log)) + np.min(range_log)
     return np.power(10, random_number_log)
 
-
+# TODO: how does it work?
 def bg_mix_batch(event_batch,
                  bg_batch,
-                 fs,
                  snr_range=(6, 24),
                  unit='db',
                  mode='energy'):
@@ -103,39 +96,29 @@ def bg_mix_batch(event_batch,
         if event_max == 0 or bg_max == 0:
             X_bg_mix[i] = event_batch[i] + bg_batch[i]
             X_bg_mix[i] = max_normalize(X_bg_mix[i])
-
         else:
             X_bg_mix[i] = background_mix(x=event_batch[i],
                                          x_bg=bg_batch[i],
-                                         fs=fs,
                                          snr_db=snrs[i])
         X_bg_mix[i] = event_amp_ratio_batch[i] * X_bg_mix[i]
 
     return X_bg_mix
 
-
+# TODO: OGUZ: is .real correct? Just taking the real port of the signal?
 def ir_aug_batch(event_batch, ir_batch):
     n_batch = len(event_batch)
     X_ir_aug = np.zeros((n_batch, event_batch.shape[1]))
-
     for i in range(n_batch):
         x = event_batch[i]
         x_ir = ir_batch[i]
-
         # FFT -> multiply -> IFFT
         fftLength = np.maximum(len(x), len(x_ir))
         X = np.fft.fft(x, n=fftLength)
         X_ir = np.fft.fft(x_ir, n=fftLength)
         x_aug = np.fft.ifft(np.multiply(X_ir, X))[0:len(x)].real
-        if np.max(np.abs(x_aug)) == 0:
-            pass
-        else:
-            x_aug = x_aug / np.max(np.abs(x_aug))  # Max-normalize
-
+        x_aug = max_normalize(x_aug)
         X_ir_aug[i] = x_aug
-
     return X_ir_aug
-
 
 def get_fns_seg_list(fns_list=[],
                      segment_mode='all',
@@ -152,8 +135,8 @@ def get_fns_seg_list(fns_list=[],
         
     """
     if hop == None: hop = duration
-    fns_event_seg_list = []
 
+    fns_event_seg_list = []
     for offset_idx, filename in enumerate(fns_list):
         # Get audio info
         n_frames_in_seg = fs * duration
@@ -189,13 +172,11 @@ def get_fns_seg_list(fns_list=[],
         # 'all', 'random_oneshot', 'first'
         if segment_mode == 'all':
             for seg_idx in range(n_segs):
-                offset_min, offset_max = int(-1 *
-                                             n_frames_in_hop), n_frames_in_hop
+                offset_min, offset_max = int(-1 * n_frames_in_hop), n_frames_in_hop
                 if seg_idx == 0:  # first seg
                     offset_min = 0
                 if seg_idx == (n_segs - 1):  # last seg
                     offset_max = residual_frames
-
                 fns_event_seg_list.append(
                     [filename, seg_idx, offset_min, offset_max])
         elif segment_mode == 'random_oneshot':
@@ -217,13 +198,12 @@ def get_fns_seg_list(fns_list=[],
 
     return fns_event_seg_list
 
-
 def load_audio(filename=str(),
                seg_start_sec=float(),
                offset_sec=0.0,
                seg_length_sec=float(),
                seg_pad_offset_sec=0.0,
-               fs=22050,
+               fs=8000,
                amp_mode='normal'):
     """
         Open file to get file info --> Calulate index range
@@ -236,7 +216,6 @@ def load_audio(filename=str(),
 
     # Get file-info
     file_ext = filename[-3:]
-    #print(start_frame_idx, end_frame_idx)
 
     if file_ext == 'wav':
         pt_wav = wave.open(filename, 'r')
@@ -263,7 +242,6 @@ def load_audio(filename=str(),
     audio_arr[seg_pad_offset_idx:seg_pad_offset_idx + len(x)] = x
     return audio_arr
 
-
 def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),
@@ -285,10 +263,8 @@ def load_audio_multi_start(filename=str(),
             out = np.vstack((out, x))
     return out  # (B,T)
 
-
 def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
     import wavio, glob, scipy
-    import numpy as np
 
     fns = glob.glob(root_dir + '**/*.npy', recursive=True)
     for fname in fns:
