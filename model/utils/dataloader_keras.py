@@ -110,6 +110,7 @@ class genUnbalSequence(Sequence):
         if self.ir_mix == True:
             fns_ir_list = ir_mix_parameter[1]
 
+        # TODO: understand seg_mode
         if self.seg_mode in {'random_oneshot', 'all'}:
             self.fns_event_seg_list = get_fns_seg_list(fns_event_list,
                                                        self.seg_mode,
@@ -120,7 +121,6 @@ class genUnbalSequence(Sequence):
             raise NotImplementedError("seg_mode={}".format(self.seg_mode))
 
         self.drop_the_last_non_full_batch = drop_the_last_non_full_batch
-        
         if self.drop_the_last_non_full_batch: # training
             self.n_samples = int((len(self.fns_event_seg_list) // n_anchor) * n_anchor)
         else:
@@ -139,8 +139,6 @@ class genUnbalSequence(Sequence):
                 self.index_bg = np.random.permutation(self.n_bg_samples)
             else:
                 self.index_bg = np.arange(self.n_bg_samples)
-        else:
-            pass
 
         if self.ir_mix == True:
             self.fns_ir_seg_list = get_fns_seg_list(fns_ir_list, 'first',
@@ -150,8 +148,6 @@ class genUnbalSequence(Sequence):
                 self.index_ir = np.random.permutation(self.n_ir_samples)
             else:
                 self.index_ir = np.arange(self.n_ir_samples)
-        else:
-            pass
 
         assert(reduce_items_p <= 100)
         self.reduce_items_p = reduce_items_p
@@ -185,22 +181,17 @@ class genUnbalSequence(Sequence):
 
     def on_epoch_end(self):
         """ Re-shuffle """
+
         if self.shuffle == True:
             self.index_event = list(np.random.permutation(self.n_samples))
-        else:
-            pass
 
         if self.bg_mix == True and self.shuffle == True:
             self.index_bg = list(np.random.permutation(
                 self.n_bg_samples))  # same number with event samples
-        else:
-            pass
 
         if self.ir_mix == True and self.shuffle == True:
             self.index_ir = list(np.random.permutation(
                 self.n_ir_samples))  # same number with event samples
-        else:
-            pass
 
 
     def __getitem__(self, idx):
@@ -239,7 +230,8 @@ class genUnbalSequence(Sequence):
 
         # Fix the dimensions
         Xa_batch_mel = np.expand_dims(Xa_batch_mel, 3).astype(np.float32) # (n_anchor, n_mels, T, 1)
-        Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3).astype(np.float32) # (n_pos, n_mels, T, 1)
+        if Xp_batch_mel.size>0:
+            Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3).astype(np.float32) # (n_pos, n_mels, T, 1)
 
         return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
 
@@ -307,7 +299,7 @@ class genUnbalSequence(Sequence):
 
             if Xa_batch is None:
                 Xa_batch = xs[0, :].reshape((1, -1))
-                Xp_batch = xs[1:, :]  # If self.n_pos_per_anchor==0: this produces an empty array
+                Xp_batch = xs[1:, :]  # If self.n_pos_per_anchor==0: this produces an empty array with shape (0, T)
             else:
                 Xa_batch = np.vstack((Xa_batch, xs[0, :].reshape((1, -1))))  # Xa_batch: (n_anchor, T)
                 Xp_batch = np.vstack((Xp_batch, xs[1:, :]))  # Xp_batch: (n_pos, T)

@@ -9,22 +9,10 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.utils import Progbar
 from model.dataset import Dataset
-from model.fp.melspec.melspectrogram import get_melspec_layer
 from model.fp.nnfp import get_fingerprinter
 
 
-def build_fp(cfg):
-    """ Build fingerprinter """
-    # m_pre: log-power-Mel-spectrogram layer, S.
-    m_pre = get_melspec_layer(cfg, trainable=False)
-
-    # m_fp: fingerprinter g(f(.)).
-    m_fp = get_fingerprinter(cfg, trainable=False)
-    return m_pre, m_fp
-
-
-def load_checkpoint(checkpoint_root_dir, checkpoint_name, checkpoint_index,
-                    m_fp):
+def load_checkpoint(checkpoint_root_dir, checkpoint_name, checkpoint_index, m_fp):
     """ Load a trained fingerprinter """
     # Create checkpoint
     checkpoint = tf.train.Checkpoint(model=m_fp)
@@ -80,14 +68,6 @@ def get_data_source(cfg, source_root_dir, skip_dummy):
     return ds
 
 
-@tf.function
-def test_step(X, m_pre, m_fp):
-    """ Test step used for generating fingerprint """
-    # X is not (Xa, Xp) here. The second element is reduced now.
-    m_fp.trainable = False
-    return m_fp(m_pre(X))  # (BSZ, Dim)
-
-
 def generate_fingerprint(cfg,
                          checkpoint_name,
                          checkpoint_index,
@@ -109,7 +89,7 @@ def generate_fingerprint(cfg,
                      └── query_shape.npy
     """
     # Build and load checkpoint
-    m_pre, m_fp = build_fp(cfg)
+    m_fp = get_fingerprinter(cfg, trainable=False)
     checkpoint_root_dir = cfg['DIR']['LOG_ROOT_DIR'] + 'checkpoint/'
     checkpoint_index = load_checkpoint(checkpoint_root_dir, checkpoint_name,
                                        checkpoint_index, m_fp)
@@ -128,13 +108,18 @@ def generate_fingerprint(cfg,
     if not skip_dummy:
         prevent_overwrite('dummy_db', f'{output_root_dir}/dummy_db.mm')
 
+    bsz = int(cfg['BSZ']['TS_BATCH_SZ'])  # Do not use ds.bsz here.
+    dim = cfg['MODEL']['EMB_SZ']
+
     # Generate
     sz_check = dict() # for warning message
     for key in ds.keys():
-        bsz = int(cfg['BSZ']['TS_BATCH_SZ'])  # Do not use ds.bsz here.
+
         # n_items = len(ds[key]) * bsz
         n_items = ds[key].n_samples
-        dim = cfg['MODEL']['EMB_SZ']
+        assert n_items > 0
+
+        # Create memmap, and save shapes
         """
         Why use "memmap"?
 
@@ -151,8 +136,6 @@ def generate_fingerprint(cfg,
             https://numpy.org/doc/stable/reference/generated/numpy.memmap.html
 
         """
-        # Create memmap, and save shapes
-        assert n_items > 0
         arr_shape = (n_items, dim)
         arr = np.memmap(f'{output_root_dir}/{key}.mm',
                         dtype='float32',
@@ -175,8 +158,8 @@ def generate_fingerprint(cfg,
         i = 0
         while i < len(enq.sequence):
             progbar.update(i)
-            X, _ = next(enq.get())
-            emb = test_step(X, m_pre, m_fp)
+            _, _, Xa, _ = next(enq.get())
+            emb = m_fp(Xa)
             arr[i * bsz:(i + 1) * bsz, :] = emb.numpy() # Writing on disk.
             i += 1
         progbar.update(i, finalize=True)
@@ -188,7 +171,7 @@ def generate_fingerprint(cfg,
         arr.flush(); del(arr) # Close memmap
 
     if 'custom_source' in ds.keys():
-        pass;
+        pass
     elif sz_check['db'] != sz_check['query']:
         print("\033[93mWarning: 'db' and 'qeury' size does not match. This can cause a problem in evaluataion stage.\033[0m")
     return
