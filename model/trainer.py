@@ -41,7 +41,7 @@ def train_step(X, m_pre, m_specaug, m_fp, loss_obj, helper):
 
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
-    feat = m_specaug(m_pre(X)) # (nA+nP, F, T, 1)
+    feat = m_specaug(m_pre.compute_batch(X)) # (nA+nP, F, T, 1)
     m_fp.trainable = True
     with tf.GradientTape() as t:
         emb = m_fp(feat) # (BSZ, Dim)
@@ -59,7 +59,7 @@ def val_step(X, m_pre, m_fp, loss_obj, helper):
     
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
-    feat = m_pre(X)  # (nA+nP, F, T, 1)
+    feat = m_pre.compute_batch(X)  # (nA+nP, F, T, 1)
     m_fp.trainable = False
     emb = m_fp(feat) # (BSZ, Dim)
     loss, sim_mtx, _ = loss_obj.compute_loss(emb[:n_anchors, :], 
@@ -72,7 +72,7 @@ def val_step(X, m_pre, m_fp, loss_obj, helper):
 def test_step(X, m_pre, m_fp):
     """ Test step used for mini-search-validation """
     X = tf.concat(X, axis=0)
-    feat = m_pre(X)  # (nA+nP, F, T, 1)
+    feat = m_pre.compute_batch(X)  # (nA+nP, F, T, 1)
     m_fp.trainable = False
     emb_f = m_fp.front_conv(feat)  # (BSZ, Dim)
     emb_f_postL2 = tf.math.l2_normalize(emb_f, axis=1)
@@ -182,9 +182,9 @@ def trainer(cfg, checkpoint_name):
         tf.print(f'EPOCH: {ep}/{ep_max}')
 
         # Train
-        """ Parallelism to speed up preprocessing.............. """
         train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
         progbar = Progbar(len(train_ds))
+        """ Parallelism to speed up preprocessing.............. """
         enq = tf.keras.utils.OrderedEnqueuer(train_ds, 
                                             use_multiprocessing=True, 
                                             shuffle=train_ds.shuffle)
@@ -203,8 +203,8 @@ def trainer(cfg, checkpoint_name):
             helper.write_image_tensorboard('tr_sim_mtx', sim_mtx.numpy())
 
         # Validate
-        """ Parallelism to speed up preprocessing.............. """
         val_ds = dataset.get_val_ds() # max 500
+        """ Parallelism to speed up preprocessing.............. """
         enq = tf.keras.utils.OrderedEnqueuer(val_ds, 
                                             use_multiprocessing=True, 
                                             shuffle=False)
