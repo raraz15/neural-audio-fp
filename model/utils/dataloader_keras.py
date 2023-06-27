@@ -328,7 +328,6 @@ class genUnbalSequence(Sequence):
         # Random offset for each sample
         random_offset_sec = np.random.randint(0, self.duration * self.fs / 2, size=len(idx_list)) / self.fs
         for i, idx in enumerate(idx_list):
-            idx = idx % self.n_bg_samples
             offset_sec = np.min([random_offset_sec[i], self.fns_bg_seg_list[idx][3] / self.fs])
 
             # Load audio with random offset
