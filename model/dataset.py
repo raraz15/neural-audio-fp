@@ -52,6 +52,7 @@ class Dataset:
         self.ts_batch_sz = cfg['BSZ']['TS_BATCH_SZ']
 
         # Model parameters
+        self.normalize_audio = cfg['MODEL']['NORMALIZE_AUDIO']
         self.dur = cfg['MODEL']['DUR']
         self.hop = cfg['MODEL']['HOP']
         self.fs = cfg['MODEL']['FS']
@@ -131,6 +132,7 @@ class Dataset:
             duration=self.dur,  # duration in seconds
             hop=self.hop,
             fs=self.fs,
+            normalize_audio=self.normalize_audio,
             segment_norm=self.segment_norm,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -161,6 +163,7 @@ class Dataset:
             self.dur,
             self.hop,
             self.fs,
+            normalize_audio=self.normalize_audio,
             segment_norm=self.segment_norm,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -202,6 +205,7 @@ class Dataset:
             self.dur,
             self.hop,
             self.fs,
+            normalize_audio=self.normalize_audio,
             segment_norm=self.segment_norm,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -245,6 +249,7 @@ class Dataset:
                 self.dur,
                 self.hop,
                 self.fs,
+                normalize_audio=self.normalize_audio,
                 segment_norm=self.segment_norm,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
@@ -261,6 +266,7 @@ class Dataset:
                 self.dur,
                 self.hop,
                 self.fs,
+                normalize_audio=self.normalize_audio,
                 segment_norm=self.segment_norm,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
@@ -286,6 +292,7 @@ class Dataset:
                 self.dur,
                 self.hop,
                 self.fs,
+                normalize_audio=self.normalize_audio,
                 shuffle=False,
                 random_offset_anchor=False,
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps,
@@ -302,6 +309,7 @@ class Dataset:
                 self.dur,
                 self.hop,
                 self.fs,
+                normalize_audio=self.normalize_audio,
                 shuffle=False,
                 random_offset_anchor=False,
                 drop_the_last_non_full_batch=False)
@@ -321,6 +329,7 @@ class Dataset:
             self.dur,
             self.hop,
             self.fs,
+            normalize_audio=self.normalize_audio,
             segment_norm=self.segment_norm,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,

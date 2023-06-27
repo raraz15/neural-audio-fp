@@ -148,7 +148,7 @@ def get_fns_seg_list(fns_list=[],
 
         # Check file extension
         file_ext = os.path.splitext(filename)[1]
-        if file_ext != 'wav':
+        if file_ext != '.wav':
             raise NotImplementedError(file_ext)
 
         pt_wav = wave.open(filename, 'r')
@@ -163,12 +163,13 @@ def get_fns_seg_list(fns_list=[],
         # Determine number of segments
         n_frames = pt_wav.getnframes()
         if n_frames > n_frames_in_seg:
-            n_segs = (n_frames - n_frames_in_seg + n_frames_in_hop) // n_frames_in_hop
+            n_segs = int((n_frames - n_frames_in_seg + n_frames_in_hop) // n_frames_in_hop)
             assert n_segs > 0
         else:
             n_segs = 1
         residual_frames = np.max([0, n_frames - ((n_segs - 1) * n_frames_in_hop + n_frames_in_seg)])
         pt_wav.close()
+
 
         # TODO: understand the calculation of offset_min and offset_max
         if segment_mode == 'all':
@@ -205,7 +206,7 @@ def load_audio(filename=str(),
                seg_length_sec=float(),
                seg_pad_offset_sec=0.0,
                fs=8000,
-               amp_mode='normal'):
+               normalize_audio=True):
     """
         Open file to get file info --> Calulate index range
         --> Load sample by index --> Padding --> Max-Normalize --> Out
@@ -216,9 +217,8 @@ def load_audio(filename=str(),
     end_frame_idx = start_frame_idx + seg_length_frame
 
     # Get file-info
-    file_ext = filename[-3:]
-
-    if file_ext == 'wav':
+    file_ext = os.path.splitext(filename)[1]
+    if file_ext == '.wav':
         pt_wav = wave.open(filename, 'r')
         pt_wav.setpos(start_frame_idx)
         x = pt_wav.readframes(end_frame_idx - start_frame_idx)
@@ -228,14 +228,8 @@ def load_audio(filename=str(),
         raise NotImplementedError(file_ext)
 
     # Max Normalize, random amplitude
-    if amp_mode == 'normal':
-        pass
-    elif amp_mode == 'max_normalize':
-        _x_max = np.max(np.abs(x))
-        if _x_max != 0:
-            x = x / _x_max
-    else:
-        raise ValueError('amp_mode={}'.format(amp_mode))
+    if normalize_audio:
+        x = max_normalize(x)
 
     # padding process. it works only when win_size> audio_size and padding='random'
     audio_arr = np.zeros(int(seg_length_sec * fs))
@@ -247,7 +241,7 @@ def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),
                            fs=8000,
-                           amp_mode='normal'):
+                           normalize_audio=True):
     """ Load_audio wrapper for loading audio with multiple start indices. """
     # assert(len(seg_start_sec_list)==len(seg_length_sec))
     out = None
@@ -256,7 +250,7 @@ def load_audio_multi_start(filename=str(),
                        seg_start_sec=seg_start_sec,
                        seg_length_sec=seg_length_sec,
                        fs=fs,
-                       amp_mode=amp_mode)
+                       normalize_audio=normalize_audio)
         x = x.reshape((1, -1))
         if out is None:
             out = x

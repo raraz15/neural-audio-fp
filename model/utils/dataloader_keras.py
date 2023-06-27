@@ -6,7 +6,7 @@ from model.utils.audio_utils import (bg_mix_batch, ir_aug_batch, load_audio,
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 import numpy as np
 
-# OGUZ: Is this a good idea?
+# TODO: OGUZ: Is this a good idea?
 MAX_IR_LENGTH = 600 # 50ms with fs=8000
 
 class genUnbalSequence(Sequence):
@@ -26,7 +26,7 @@ class genUnbalSequence(Sequence):
         f_max=4000,
         shuffle=False,
         seg_mode="all",
-        amp_mode='normal',
+        normalize_audio=True,
         random_offset_anchor=False,
         offset_margin_hop_rate=0.4,
         bg_mix_parameter=[False],
@@ -59,8 +59,8 @@ class genUnbalSequence(Sequence):
             The default is False.
         seg_mode : (str), optional
             DESCRIPTION. The default is "all".
-        amp_mode : (str), optional
-            DESCRIPTION. The default is 'normal'.
+        normalize_audio : (str), optional
+            DESCRIPTION. The default is True.
         random_offset_anchor : (bool), optional
             DESCRIPTION. The default is False.
         offset_margin_hop_rate : (float), optional
@@ -89,7 +89,7 @@ class genUnbalSequence(Sequence):
         self.fs = fs
         self.shuffle = shuffle
         self.seg_mode = seg_mode
-        self.amp_mode = amp_mode
+        self.normalize_audio = normalize_audio
         self.random_offset_anchor = random_offset_anchor
         self.offset_margin_hop_rate = offset_margin_hop_rate
         self.offset_margin_frame = int(hop * self.offset_margin_hop_rate * fs)
@@ -309,7 +309,7 @@ class genUnbalSequence(Sequence):
                                         start_sec_list, 
                                         self.duration, 
                                         self.fs,
-                                        self.amp_mode)
+                                        normalize_audio=self.normalize_audio)
 
             # Create a batch
             if Xa_batch is None:
@@ -337,7 +337,7 @@ class genUnbalSequence(Sequence):
                            seg_length_sec=self.duration,
                            seg_pad_offset_sec=0.,
                            fs=self.fs,
-                           amp_mode='normal')
+                           normalize_audio=self.normalize_audio)
             X = X.reshape(1, -1)
 
             # Create a batch
@@ -361,7 +361,7 @@ class genUnbalSequence(Sequence):
                            seg_length_sec=self.duration,
                            seg_pad_offset_sec=0.0,
                            fs=self.fs,
-                           amp_mode='normal')
+                           normalize_audio=self.normalize_audio)
             if len(X) > MAX_IR_LENGTH:
                 X = X[:MAX_IR_LENGTH]
 
