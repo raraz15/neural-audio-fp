@@ -88,8 +88,10 @@ def generate_fingerprint(cfg,
                      ├── query.mm
                      └── query_shape.npy
     """
+
     # Build and load checkpoint
     m_fp = get_fingerprinter(cfg, trainable=False)
+
     checkpoint_root_dir = cfg['DIR']['LOG_ROOT_DIR'] + 'checkpoint/'
     checkpoint_index = load_checkpoint(checkpoint_root_dir, checkpoint_name,
                                        checkpoint_index, m_fp)
@@ -169,6 +171,8 @@ def generate_fingerprint(cfg,
         tf.print(f'=== Succesfully stored {arr_shape[0]} fingerprint to {output_root_dir} ===')
         sz_check[key] = len(arr)
         arr.flush(); del(arr) # Close memmap
+
+    m_fp.summary()
 
     if 'custom_source' in ds.keys():
         pass
