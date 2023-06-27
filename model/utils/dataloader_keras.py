@@ -83,15 +83,7 @@ class genUnbalSequence(Sequence):
             Set as False in test. Default is True.
         """
 
-        self.bsz = bsz
-        self.n_anchor = n_anchor
-        if bsz != n_anchor:
-            self.n_pos_per_anchor = round((bsz - n_anchor) / n_anchor)
-            self.n_pos_bsz = bsz - n_anchor
-        else:
-            self.n_pos_per_anchor = 0
-            self.n_pos_bsz = 0
-
+        # Input parameters
         self.duration = duration
         self.hop = hop
         self.fs = fs
@@ -101,6 +93,17 @@ class genUnbalSequence(Sequence):
         self.random_offset_anchor = random_offset_anchor
         self.offset_margin_hop_rate = offset_margin_hop_rate
         self.offset_margin_frame = int(hop * self.offset_margin_hop_rate * fs)
+
+        # Melspec layer
+        self.mel_spec = Melspec_layer_essentia(input_shape=(1, int(fs * duration)), 
+                                            segment_norm=segment_norm,
+                                            n_fft=n_fft, 
+                                            stft_hop=stft_hop, 
+                                            n_mels=n_mels, 
+                                            fs=fs, 
+                                            dur=duration, 
+                                            f_min=f_min, 
+                                            f_max=f_max)
 
         # Save bg_mix and ir_mix parameters
         self.bg_mix = bg_mix_parameter[0]
@@ -121,8 +124,18 @@ class genUnbalSequence(Sequence):
         else:
             raise NotImplementedError("seg_mode={}".format(self.seg_mode))
 
+        # Training parameters
+        self.bsz = bsz
+        self.n_anchor = n_anchor
+        if bsz != n_anchor:
+            self.n_pos_per_anchor = round((bsz - n_anchor) / n_anchor)
+            self.n_pos_bsz = bsz - n_anchor
+        else:
+            self.n_pos_per_anchor = 0
+            self.n_pos_bsz = 0
+
         self.drop_the_last_non_full_batch = drop_the_last_non_full_batch
-        if self.drop_the_last_non_full_batch: # training
+        if self.drop_the_last_non_full_batch:
             self.n_samples = int((len(self.fns_event_seg_list) // n_anchor) * n_anchor)
         else:
             self.n_samples = len(self.fns_event_seg_list) # fp-generation
@@ -164,16 +177,6 @@ class genUnbalSequence(Sequence):
                  (self.n_pos_per_anchor - 1) / 2) /
                 self.n_pos_per_anchor) * self.hop
 
-        self.mel_spec = Melspec_layer_essentia(input_shape=(1, int(fs * duration)), 
-                                            segment_norm=segment_norm,
-                                            n_fft=n_fft, 
-                                            stft_hop=stft_hop, 
-                                            n_mels=n_mels, 
-                                            fs=fs, 
-                                            dur=duration, 
-                                            f_min=f_min, 
-                                            f_max=f_max)
-
     def __len__(self):
         """ Returns the number of batches per epoch. """
         if self.reduce_items_p != 0:
@@ -198,11 +201,21 @@ class genUnbalSequence(Sequence):
                 self.n_ir_samples))  # same number with event samples
 
     def __getitem__(self, idx):
-        """ Get anchor (original) and positive (replica) samples. """
+        """ Get anchor (original) and positive (replica) samples of audio and their power mel-spectrograms.
 
-        index_anchor_for_batch = self.index_event[idx*self.n_anchor:(idx + 1)*self.n_anchor]
-        Xa_batch, Xp_batch = self.__event_batch_load(index_anchor_for_batch)
+        Returns:
+            Xa_batch: anchor samples (audio)
+            Xp_batch: positive samples (audio)
+            Xa_batch_mel: power mel-spectrogram of anchor samples
+            Xp_batch_mel: power-mel spectrogram of positive samples"""
+
         global bg_sel_indices
+
+        # Prepare indices for batch. n_anchor consecutive samples are taken at each iteration
+        index_anchor_for_batch = self.index_event[idx*self.n_anchor:(idx + 1)*self.n_anchor]
+
+        # Load anchor and positive audio samples
+        Xa_batch, Xp_batch = self.__event_batch_load(index_anchor_for_batch)
 
         # If there are positive samples, check for augmentation
         if self.n_pos_bsz > 0:
@@ -239,7 +252,7 @@ class genUnbalSequence(Sequence):
         return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
 
     def __event_batch_load(self, anchor_idx_list):
-        """ Get Xa_batch and Xp_batch for anchor (original) and positive (replica) samples od audio. """
+        """ Get Xa_batch (anchor-original) and Xp_batch (positive replica) and samples of audio."""
 
         Xa_batch = None
         Xp_batch = None
