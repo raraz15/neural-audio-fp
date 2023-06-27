@@ -95,8 +95,7 @@ class genUnbalSequence(Sequence):
         self.offset_margin_frame = int(hop * self.offset_margin_hop_rate * fs)
 
         # Melspec layer
-        self.mel_spec = Melspec_layer_essentia(input_shape=(1, int(fs * duration)), 
-                                            segment_norm=segment_norm,
+        self.mel_spec = Melspec_layer_essentia(segment_norm=segment_norm,
                                             n_fft=n_fft, 
                                             stft_hop=stft_hop, 
                                             n_mels=n_mels, 
