@@ -148,7 +148,7 @@ def get_fns_seg_list(fns_list=[],
 
         # Check file extension
         file_ext = os.path.splitext(filename)[1]
-        if file_ext != 'wav':
+        if file_ext != '.wav':
             raise NotImplementedError(file_ext)
 
         pt_wav = wave.open(filename, 'r')
@@ -163,7 +163,7 @@ def get_fns_seg_list(fns_list=[],
         # Determine number of segments
         n_frames = pt_wav.getnframes()
         if n_frames > n_frames_in_seg:
-            n_segs = (n_frames - n_frames_in_seg + n_frames_in_hop) // n_frames_in_hop
+            n_segs = int((n_frames - n_frames_in_seg + n_frames_in_hop) // n_frames_in_hop)
             assert n_segs > 0
         else:
             n_segs = 1
@@ -216,9 +216,8 @@ def load_audio(filename=str(),
     end_frame_idx = start_frame_idx + seg_length_frame
 
     # Get file-info
-    file_ext = filename[-3:]
-
-    if file_ext == 'wav':
+    file_ext = os.path.splitext(filename)[1]
+    if file_ext == '.wav':
         pt_wav = wave.open(filename, 'r')
         pt_wav.setpos(start_frame_idx)
         x = pt_wav.readframes(end_frame_idx - start_frame_idx)
