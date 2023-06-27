@@ -2,6 +2,10 @@
   - Store background noises as audio in memory
   - Store all IR's maybe even their FFTs
 
+- Augmentation
+  - Is not normalizing inputs are added noise a good choice?
+  - inverse fft + real?
+
 - Understand the Baseline dataset
   - Train: 10k 30sec clips
   - Val: 500 tracks of length???
@@ -21,6 +25,7 @@
   - Can we paralelize?
 
 - Write your own dataset class ?
+  - Fix seed?
   - Will it interfere with generate.py?
   - Benefit: Distributed GPU
 
