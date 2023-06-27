@@ -5,7 +5,6 @@
 """ run.py """
 import os
 import sys
-import pathlib
 import click
 import yaml
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
@@ -16,23 +15,19 @@ def load_config(config_fname):
         print(f'cli: Configuration from {config_filepath}')
     else:
         sys.exit(f'cli: ERROR! Configuration file {config_filepath} is missing!!')
-
     with open(config_filepath, 'r') as f:
         cfg = yaml.safe_load(f)
     return cfg
 
-
 def update_config(cfg, key1: str, key2: str, val):
     cfg[key1][key2] = val
     return cfg
-
 
 def print_config(cfg):
     os.system("")
     print('\033[36m' + yaml.dump(cfg, indent=4, width=120, sort_keys=False) +
           '\033[0m')
     return
-
 
 @click.group()
 def cli():
@@ -44,7 +39,6 @@ def cli():
 
     """
     pass
-
 
 """ Train """
 @cli.command()
@@ -71,7 +65,6 @@ def train(checkpoint_name, config, max_epoch):
     print_config(cfg)
     # allow_gpu_memory_growth()
     trainer(cfg, checkpoint_name)
-
 
 """ Generate fingerprint (after training) """
 @cli.command()
@@ -109,7 +102,6 @@ def generate(checkpoint_name, checkpoint_index, config, source, output, skip_dum
     cfg = load_config(config)
     allow_gpu_memory_growth()
     generate_fingerprint(cfg, checkpoint_name, checkpoint_index, source, output, skip_dummy)
-
 
 """ Search and evalutation """
 @cli.command()
@@ -160,7 +152,6 @@ def evaluate(checkpoint_name, checkpoint_index, config, index_type,
     else:
         eval_faiss([emb_dir, "--index_type", index_type, "--test_seq_len",
                     test_seq_len, "--test_ids", test_ids])
-
 
 if __name__ == '__main__':
     cli()

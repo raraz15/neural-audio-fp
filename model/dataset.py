@@ -3,9 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 """ dataset.py """
+
 import glob
 from model.utils.dataloader_keras import genUnbalSequence
-
 
 class Dataset:
     """
@@ -84,7 +84,6 @@ class Dataset:
         self.ts_query_icassp_fps = self.ts_db_icassp_fps = None
         self.ts_query_db_unseen_fps = None
 
-
     def __set_augmentation_fps(self):
         """
         Set file path lists:
@@ -93,6 +92,7 @@ class Dataset:
             the trainset.
         """
 
+        # TODO: Why do they use the same augmentation for train and val?
         # File lists for Augmentations
         if self.tr_use_bg_aug:
             self.tr_bg_fps = sorted(glob.glob(self.bg_root_dir +
@@ -113,7 +113,6 @@ class Dataset:
         if self.val_use_ir_aug:
             self.val_ir_fps = sorted(
                 glob.glob(self.ir_root_dir + 'tr/**/*.wav', recursive=True))
-
 
     def get_train_ds(self, reduce_items_p=0):
         # Source (music) file paths for train set
@@ -177,7 +176,6 @@ class Dataset:
     def get_test_dummy_db_ds(self):
         """
         Test-dummy-DB without augmentation:
-
             In this case, high-speed fingerprinting is possible without
             augmentation by setting ts_n_anchor=ts_batch_sz.
         """
@@ -231,7 +229,6 @@ class Dataset:
         if datasel:
             self.datasel
 
-        # 'unseen_icassp'
         if self.datasel_test_query_db=='unseen_icassp':
             self.ts_query_icassp_fps = sorted(
                 glob.glob(self.source_root_dir + 'test-query-db-500-30s/' +
@@ -274,8 +271,6 @@ class Dataset:
                 random_offset_anchor=False,
                 drop_the_last_non_full_batch=False) # No augmentations...
             return ds_query, ds_db
-
-        # 'unseen_syn'
         elif self.datasel_test_query_db=='unseen_syn':
             self.ts_query_db_unseen_fps = sorted(
             glob.glob(self.source_root_dir + 'val-query-db-500-30s/' +
@@ -313,7 +308,6 @@ class Dataset:
             return ds_query, ds_db
         else:
             raise NotImplementedError(self.datasel_test_query_db)
-
 
     def get_custom_db_ds(self, source_root_dir):
         """ Construct DB (or query) from custom source files. """

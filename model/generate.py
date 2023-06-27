@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 """ generate.py """
+
 import os
 import sys
 import numpy as np
@@ -10,7 +11,6 @@ import tensorflow as tf
 from tensorflow.keras.utils import Progbar
 from model.dataset import Dataset
 from model.fp.nnfp import get_fingerprinter
-
 
 def load_checkpoint(checkpoint_root_dir, checkpoint_name, checkpoint_index, m_fp):
     """ Load a trained fingerprinter """
@@ -39,12 +39,10 @@ def load_checkpoint(checkpoint_root_dir, checkpoint_name, checkpoint_index, m_fp
         tf.print(f'---Restored from {checkpoint_fpath}---')
     return checkpoint_index
 
-
 def prevent_overwrite(key, target_path):
     if (key == 'dummy_db') & os.path.exists(target_path):
         answer = input(f'{target_path} exists. Will you overwrite (y/N)?')
         if answer.lower() not in ['y', 'yes']: sys.exit()
-
 
 def get_data_source(cfg, source_root_dir, skip_dummy):
     dataset = Dataset(cfg)
@@ -66,7 +64,6 @@ def get_data_source(cfg, source_root_dir, skip_dummy):
     tf.print(f'\x1b[1;32mData source: {ds.keys()}\x1b[0m',
              f'{dataset.datasel_test_query_db}')
     return ds
-
 
 def generate_fingerprint(cfg,
                          checkpoint_name,
@@ -136,8 +133,8 @@ def generate_fingerprint(cfg,
 
         Reference:
             https://numpy.org/doc/stable/reference/generated/numpy.memmap.html
-
         """
+
         arr_shape = (n_items, dim)
         arr = np.memmap(f'{output_root_dir}/{key}.mm',
                         dtype='float32',
@@ -168,10 +165,13 @@ def generate_fingerprint(cfg,
         enq.stop()
         """ End of Parallelism-------------------------------------------- """
 
-        tf.print(f'=== Succesfully stored {arr_shape[0]} fingerprint to {output_root_dir} ===')
+        tf.print(f'=== Succesfully stored {arr_shape[0]} fingerprints to {output_root_dir} ===')
         sz_check[key] = len(arr)
-        arr.flush(); del(arr) # Close memmap
+        # Close memmap
+        arr.flush()
+        del(arr)
 
+    # Summary of the model for reference
     m_fp.summary()
 
     if 'custom_source' in ds.keys():

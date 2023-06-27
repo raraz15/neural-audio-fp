@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 """ audio_utils.py """
+
+import os
 import wave
 import numpy as np
 
@@ -132,67 +134,66 @@ def get_fns_seg_list(fns_list=[],
         
         offset_min is 0 or negative integer
         offset_max is 0 or positive integer
-        
     """
-    if hop == None: hop = duration
+
+    if hop == None:
+        hop = duration
+
+    # Get audio info
+    n_frames_in_seg = fs * duration
+    n_frames_in_hop = fs * hop # 2019 09.05
 
     fns_event_seg_list = []
     for offset_idx, filename in enumerate(fns_list):
-        # Get audio info
-        n_frames_in_seg = fs * duration
-        n_frames_in_hop = fs * hop  # 2019 09.05
-        file_ext = filename[-3:]
 
-        if file_ext == 'wav':
-            pt_wav = wave.open(filename, 'r')
-            _fs = pt_wav.getframerate()
-
-            if fs != _fs:
-                raise ValueError('Sample rate should be {} but got {}'.format(
-                    str(fs), str(_fs)))
-
-            n_frames = pt_wav.getnframes()
-            #n_segs = n_frames // n_frames_in_seg
-            if n_frames > n_frames_in_seg:
-                n_segs = (n_frames - n_frames_in_seg +
-                          n_frames_in_hop) // n_frames_in_hop
-            else:
-                n_segs = 1
-
-            n_segs = int(n_segs)
-            assert (n_segs > 0)
-            residual_frames = np.max([
-                0,
-                n_frames - ((n_segs - 1) * n_frames_in_hop + n_frames_in_seg)
-            ])
-            pt_wav.close()
-        else:
+        # Check file extension
+        file_ext = os.path.splitext(filename)[1]
+        if file_ext != 'wav':
             raise NotImplementedError(file_ext)
 
-        # 'all', 'random_oneshot', 'first'
+        pt_wav = wave.open(filename, 'r')
+
+        # Check sample rate
+        _fs = pt_wav.getframerate()
+        if fs != _fs:
+            raise ValueError('Sample rate should be {} but got {}'.format(
+                str(fs), str(_fs)))
+
+        # TODO: understand the calculation of n_segs
+        # Determine number of segments
+        n_frames = pt_wav.getnframes()
+        if n_frames > n_frames_in_seg:
+            n_segs = (n_frames - n_frames_in_seg + n_frames_in_hop) // n_frames_in_hop
+            assert n_segs > 0
+        else:
+            n_segs = 1
+        residual_frames = np.max([0, n_frames - ((n_segs - 1) * n_frames_in_hop + n_frames_in_seg)])
+        pt_wav.close()
+
+        # TODO: understand the calculation of offset_min and offset_max
         if segment_mode == 'all':
+            # Load all segments
             for seg_idx in range(n_segs):
                 offset_min, offset_max = int(-1 * n_frames_in_hop), n_frames_in_hop
                 if seg_idx == 0:  # first seg
                     offset_min = 0
-                if seg_idx == (n_segs - 1):  # last seg
+                if seg_idx == (n_segs - 1): # last seg
                     offset_max = residual_frames
-                fns_event_seg_list.append(
-                    [filename, seg_idx, offset_min, offset_max])
+                fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
+        elif segment_mode == 'first':
+            # Load only the first segment
+            seg_idx = 0
+            offset_min, offset_max = 0, 0
+            fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
         elif segment_mode == 'random_oneshot':
+            # Load only one random segment
             seg_idx = np.random.randint(0, n_segs)
             offset_min, offset_max = n_frames_in_hop, n_frames_in_hop
             if seg_idx == 0:  # first seg
                 offset_min = 0
             if seg_idx == (n_segs - 1):  # last seg
                 offset_max = residual_frames
-            fns_event_seg_list.append(
-                [filename, seg_idx, offset_min, offset_max])
-        elif segment_mode == 'first':
-            seg_idx = 0
-            offset_min, offset_max = 0, 0
-            fns_event_seg_list.append(
-                [filename, seg_idx, offset_min, offset_max])
+            fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
         else:
             raise NotImplementedError(segment_mode)
 

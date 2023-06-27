@@ -14,7 +14,6 @@ from model.fp.lamb_optimizer import LAMB
 from model.utils.experiment_helper import ExperimentHelper
 from model.utils.mini_search_subroutines import mini_search_eval
 
-
 def build_fp(cfg):
     """ Build fingerprinter """
 
@@ -26,7 +25,6 @@ def build_fp(cfg):
     m_fp = get_fingerprinter(cfg, trainable=False)
 
     return m_specaug, m_fp
-
 
 @tf.function
 def train_step(X, m_specaug, m_fp, loss_obj, helper):
@@ -47,7 +45,6 @@ def train_step(X, m_specaug, m_fp, loss_obj, helper):
     avg_loss = helper.update_tr_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx # avg_loss: average within the current epoch
 
-
 @tf.function
 def val_step(X, m_fp, loss_obj, helper):
     """ Validation step """
@@ -62,7 +59,6 @@ def val_step(X, m_fp, loss_obj, helper):
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
-
 @tf.function
 def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
@@ -75,7 +71,6 @@ def test_step(X, m_fp):
     emb_gf = tf.math.l2_normalize(emb_gf, axis=1)
     return emb_f, emb_f_postL2, emb_gf # f(.), L2(f(.)), L2(g(f(.))
 
-# OGUZ: they set the n_anchor to 1/2 of the batch size!
 def mini_search_validation(ds, m_fp, mode='argmin',
                            scopes=[1, 3, 5, 9, 11, 19], max_n_samples=3000):
     """ Mini-search-validation """
@@ -105,7 +100,6 @@ def mini_search_validation(ds, m_fp, mode='argmin',
         query[k] = tf.expand_dims(query[k], axis=1) # (nQ, d) --> (nQ, 1, d)
         accs_by_scope[k], _ = mini_search_eval(query[k], db[k], scopes, mode, display=True)
     return accs_by_scope, scopes, key_strs
-
 
 def trainer(cfg, checkpoint_name):
 

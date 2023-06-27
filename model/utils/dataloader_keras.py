@@ -6,8 +6,8 @@ from model.utils.audio_utils import (bg_mix_batch, ir_aug_batch, load_audio,
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 import numpy as np
 
-MAX_IR_LENGTH = 600 #400  # 50ms with fs=8000
-
+# OGUZ: Is this a good idea?
+MAX_IR_LENGTH = 600 # 50ms with fs=8000
 
 class genUnbalSequence(Sequence):
     def __init__(
@@ -40,7 +40,8 @@ class genUnbalSequence(Sequence):
         Parameters
         ----------
         fns_event_list : list(str), 
-            Song file paths as a list. [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
+            Song file paths as a list. 
+            [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
         bsz : (int), optional
             In TPUs code, global batch size. The default is 120.
         n_anchor : TYPE, optional
@@ -69,7 +70,8 @@ class genUnbalSequence(Sequence):
         ir_mix_parameter : list([(bool), list(str)], optional
             [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. The default is [False].
         reduce_items_p : (int), optional
-            Reduce dataset size to percent (%). Useful when debugging code with samll            data. The default is 0.
+            Reduce dataset size to percent (%). Useful when debugging code 
+            with small data. The default is 0.
         reduce_batch_first_half : (bool), optional
             Remove the first half of elements from each output batch. The
             resulting output batch will contain only replicas. This is useful
@@ -100,13 +102,12 @@ class genUnbalSequence(Sequence):
         self.offset_margin_hop_rate = offset_margin_hop_rate
         self.offset_margin_frame = int(hop * self.offset_margin_hop_rate * fs)
 
+        # Save bg_mix and ir_mix parameters
         self.bg_mix = bg_mix_parameter[0]
         self.ir_mix = ir_mix_parameter[0]
-
         if self.bg_mix == True:
             fns_bg_list = bg_mix_parameter[1]
             self.bg_snr_range = bg_mix_parameter[2]
-
         if self.ir_mix == True:
             fns_ir_list = ir_mix_parameter[1]
 
@@ -132,8 +133,10 @@ class genUnbalSequence(Sequence):
             self.index_event = np.arange(self.n_samples)
 
         if self.bg_mix == True:
-            self.fns_bg_seg_list = get_fns_seg_list(fns_bg_list, 'all',
-                                                    self.fs, self.duration)
+            self.fns_bg_seg_list = get_fns_seg_list(fns_bg_list, 
+                                                    'all',
+                                                    self.fs, 
+                                                    self.duration)
             self.n_bg_samples = len(self.fns_bg_seg_list)
             if self.shuffle == True:
                 self.index_bg = np.random.permutation(self.n_bg_samples)
@@ -141,8 +144,10 @@ class genUnbalSequence(Sequence):
                 self.index_bg = np.arange(self.n_bg_samples)
 
         if self.ir_mix == True:
-            self.fns_ir_seg_list = get_fns_seg_list(fns_ir_list, 'first',
-                                                    self.fs, self.duration)
+            self.fns_ir_seg_list = get_fns_seg_list(fns_ir_list, 
+                                                    'first',
+                                                    self.fs, 
+                                                    self.duration)
             self.n_ir_samples = len(self.fns_ir_seg_list)
             if self.shuffle == True:
                 self.index_ir = np.random.permutation(self.n_ir_samples)
@@ -178,7 +183,6 @@ class genUnbalSequence(Sequence):
         else:
             return int(np.ceil(self.n_samples / float(self.n_anchor)))
 
-
     def on_epoch_end(self):
         """ Re-shuffle """
 
@@ -192,7 +196,6 @@ class genUnbalSequence(Sequence):
         if self.ir_mix == True and self.shuffle == True:
             self.index_ir = list(np.random.permutation(
                 self.n_ir_samples))  # same number with event samples
-
 
     def __getitem__(self, idx):
         """ Get anchor (original) and positive (replica) samples. """
@@ -235,7 +238,6 @@ class genUnbalSequence(Sequence):
 
         return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
 
-
     def __event_batch_load(self, anchor_idx_list):
         """ Get Xa_batch and Xp_batch for anchor (original) and positive (replica) samples od audio. """
 
@@ -244,7 +246,6 @@ class genUnbalSequence(Sequence):
         for idx in anchor_idx_list:  # idx: index for one sample
 
             # Determine anchor_start_sec by finding offset range for anchor
-            # fns_event_seg_list = [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
             _,_,offset_min, offset_max = self.fns_event_seg_list[idx]
             anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
             anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
@@ -265,15 +266,14 @@ class genUnbalSequence(Sequence):
                 pos_offset_max = np.min([(_anchor_offset_frame + self.offset_margin_frame),offset_max])
                 if self.experimental_mode:
                     # In experimental_mode, we use a set of pre-defined offset for multiple positive replicas...
-                    _pos_offset_sec_list = self.experimental_mode_offset_sec_list  # [-0.2, -0.1,  0. ,  0.1,  0.2] for n_pos=5 with hop=0.5s
+                    _pos_offset_sec_list = self.experimental_mode_offset_sec_list # [-0.2, -0.1,  0. ,  0.1,  0.2] for n_pos=5 with hop=0.5s
                     _pos_offset_sec_list[(
                         _pos_offset_sec_list <
                         pos_offset_min / self.fs)] = pos_offset_min / self.fs
                     _pos_offset_sec_list[(
                         _pos_offset_sec_list >
                         pos_offset_max / self.fs)] = pos_offset_max / self.fs
-                    pos_start_sec_list = self.fns_event_seg_list[idx][
-                        1] * self.hop + _pos_offset_sec_list
+                    pos_start_sec_list = self.fns_event_seg_list[idx][1] * self.hop + _pos_offset_sec_list
                 else:
                     if pos_offset_min==pos_offset_max==0:
                         # Only the case of running extras/dataset2wav.py as offset_margin_hot_rate=0
@@ -297,6 +297,7 @@ class genUnbalSequence(Sequence):
                                         self.fs,
                                         self.amp_mode)
 
+            # Create a batch
             if Xa_batch is None:
                 Xa_batch = xs[0, :].reshape((1, -1))
                 Xp_batch = xs[1:, :]  # If self.n_pos_per_anchor==0: this produces an empty array with shape (0, T)
@@ -306,7 +307,6 @@ class genUnbalSequence(Sequence):
                 # OGUZ it should be (n_anchor*n_pos_per_anchor, T)
 
         return Xa_batch, Xp_batch
-
 
     def __bg_batch_load(self, idx_list):
         X_bg_batch = None  # (n_batch+n_batch//n_class, fs*k)
@@ -334,7 +334,6 @@ class genUnbalSequence(Sequence):
                 X_bg_batch = np.concatenate((X_bg_batch, X), axis=0)
 
         return X_bg_batch
-
 
     def __ir_batch_load(self, idx_list):
         X_ir_batch = None  # (n_batch+n_batch//n_class, fs*k)

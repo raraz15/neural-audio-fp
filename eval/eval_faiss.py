@@ -135,8 +135,8 @@ def eval_faiss(emb_dir,
                                        [q0,  q1,  q2,  q3,  q4]
 
     • The set of ground truth IDs for q[i] will be (i + len(dummy_db))
-
     ---------------------------------------------------------------------- """
+
     # Create and train FAISS index
     index = get_index(index_type, dummy_db, dummy_db.shape, (not nogpu),
                       max_train)
@@ -178,8 +178,7 @@ def eval_faiss(emb_dir,
     if test_ids.lower() == 'all':
         test_ids = np.arange(0, len(query) - max(test_seq_len), 1) # will test all segments in query/db set
     elif test_ids.lower() == 'icassp':
-        test_ids = np.load(
-            glob.glob('./**/test_ids_icassp2021.npy', recursive=True)[0])
+        test_ids = np.load(glob.glob('./**/test_ids_icassp2021.npy', recursive=True)[0])
     elif test_ids.isnumeric():
         test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
     else:
@@ -197,6 +196,7 @@ def eval_faiss(emb_dir,
     top10_exact = np.zeros((n_test, len(test_seq_len))).astype(int)
     # top1_song = np.zeros((n_test, len(test_seq_len))).astype(np.int)
 
+    # TODO: understand sequence level search
     scr = curses.initscr()
     pt = PrintTable(scr=scr, test_seq_len=test_seq_len,
                     row_names=['Top1 exact', 'Top1 near', 'Top3 exact','Top10 exact'])
@@ -208,8 +208,7 @@ def eval_faiss(emb_dir,
             q = query[test_id:(test_id + sl), :] # shape(q) = (length, dim)
 
             # segment-level top k search for each segment
-            _, I = index.search(
-                q, k_probe) # _: distance, I: result IDs matrix
+            _, I = index.search(q, k_probe) # _: distance, I: result IDs matrix
 
             # offset compensation to get the start IDs of candidate sequences
             for offset in range(len(I)):
@@ -241,7 +240,6 @@ def eval_faiss(emb_dir,
             # top3, top10 hit
             top3_exact[ti, si] = int(gt_id in pred_ids[:3])
             top10_exact[ti, si] = int(gt_id in pred_ids[:10])
-
 
         if (ti != 0) & ((ti % display_interval) == 0):
             avg_search_time = (time.time() - start_time) / display_interval \
