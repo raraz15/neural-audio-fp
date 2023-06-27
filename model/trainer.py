@@ -164,6 +164,10 @@ def trainer(cfg, checkpoint_name):
     else:
         raise NotImplementedError(cfg['LOSS']['LOSS_MODE'])
 
+    # Initialize the datasets
+    train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
+    val_ds = dataset.get_val_ds() # max 500
+
     # Training loop
     ep_start = helper.epoch
     ep_max = cfg['TRAIN']['MAX_EPOCH']
@@ -171,7 +175,6 @@ def trainer(cfg, checkpoint_name):
         tf.print(f'EPOCH: {ep}/{ep_max}')
 
         # Train
-        train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
         progbar = Progbar(len(train_ds))
         """ Parallelism to speed up preprocessing.............. """
         enq = tf.keras.utils.OrderedEnqueuer(train_ds, 
@@ -192,7 +195,6 @@ def trainer(cfg, checkpoint_name):
             helper.write_image_tensorboard('tr_sim_mtx', sim_mtx.numpy())
 
         # Validate
-        val_ds = dataset.get_val_ds() # max 500
         """ Parallelism to speed up preprocessing.............. """
         enq = tf.keras.utils.OrderedEnqueuer(val_ds, 
                                             use_multiprocessing=True, 
@@ -213,6 +215,8 @@ def trainer(cfg, checkpoint_name):
         tf.print('tr_loss:{:.4f}, val_loss:{:.4f}'.format(helper._tr_loss.result(), 
                                                           helper._val_loss.result()))
         helper.update_on_epoch_end(save_checkpoint_now=True)
+        train_ds.on_epoch_end()
+        val_ds.on_epoch_end()
 
         # Mini-search-validation (optional)
         if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:
@@ -220,3 +224,4 @@ def trainer(cfg, checkpoint_name):
                 val_ds, m_fp)
             for k in key_strs:
                 helper.update_minitest_acc(accs_by_scope[k], scopes, k)
+                
