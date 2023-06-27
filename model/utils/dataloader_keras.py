@@ -222,8 +222,9 @@ class genUnbalSequence(Sequence):
 
             if self.bg_mix == True:
                 # Prepare bg for positive samples
-                bg_sel_indices = np.arange(idx * self.n_pos_bsz, (idx + 1) * self.n_pos_bsz) % self.n_bg_samples
+                bg_sel_indices = np.arange(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz) % self.n_bg_samples
                 index_bg_for_batch = self.index_bg[bg_sel_indices]
+                # TODO: after determining the idx, just return from memory here
                 Xp_bg_batch = self.__bg_batch_load(index_bg_for_batch)
                 # mix
                 Xp_batch = bg_mix_batch(Xp_batch,
@@ -263,6 +264,7 @@ class genUnbalSequence(Sequence):
             anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
             anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
             if (self.random_offset_anchor == True) & (self.experimental_mode== False):
+                # TODO: This is not a good way to generate random offset.
                 # Usually, we can apply random offset to anchor only in training.
                 np.random.seed(idx)
                 # Calculate anchor_start_sec
@@ -323,13 +325,13 @@ class genUnbalSequence(Sequence):
 
     def __bg_batch_load(self, idx_list):
         X_bg_batch = None  # (n_batch+n_batch//n_class, fs*k)
-        random_offset_sec = np.random.randint(
-            0, self.duration * self.fs / 2, size=len(idx_list)) / self.fs
+        # Random offset for each sample
+        random_offset_sec = np.random.randint(0, self.duration * self.fs / 2, size=len(idx_list)) / self.fs
         for i, idx in enumerate(idx_list):
             idx = idx % self.n_bg_samples
-            offset_sec = np.min(
-                [random_offset_sec[i], self.fns_bg_seg_list[idx][3] / self.fs])
+            offset_sec = np.min([random_offset_sec[i], self.fns_bg_seg_list[idx][3] / self.fs])
 
+            # Load audio with random offset
             X = load_audio(filename=self.fns_bg_seg_list[idx][0],
                            seg_start_sec=self.fns_bg_seg_list[idx][1] *
                            self.duration,
@@ -338,9 +340,9 @@ class genUnbalSequence(Sequence):
                            seg_pad_offset_sec=0.,
                            fs=self.fs,
                            amp_mode='normal')
-
             X = X.reshape(1, -1)
 
+            # Create a batch
             if X_bg_batch is None:
                 X_bg_batch = X
             else:
