@@ -33,7 +33,6 @@ class genUnbalSequence(Sequence):
         ir_mix_parameter=[False],
         reduce_items_p=0,
         reduce_batch_first_half=False,
-        experimental_mode=False,
         drop_the_last_non_full_batch=True
         ):
         """
@@ -76,9 +75,6 @@ class genUnbalSequence(Sequence):
             Remove the first half of elements from each output batch. The
             resulting output batch will contain only replicas. This is useful
             when collecting synthesized queries only. Default is False.
-        experimental_mode : (bool), optional
-            In experimental mode, we use a set of pre-defined offsets for
-            the multiple positive samples.. The default is False.
         drop_the_last_non_full_batch : (bool), optional
             Set as False in test. Default is True.
         """
@@ -159,14 +155,6 @@ class genUnbalSequence(Sequence):
         # Shuffle all index events if specified
         if self.shuffle:
             self.shuffle_index_event()
-
-        # TODO: understand experimental_mode and delete it
-        self.experimental_mode = experimental_mode
-        if experimental_mode:
-            self.experimental_mode_offset_sec_list = (
-                (np.arange(self.n_pos_per_anchor) -
-                 (self.n_pos_per_anchor - 1) / 2) /
-                self.n_pos_per_anchor) * self.hop
 
     def __len__(self):
         """ Returns the number of batches per epoch. """
@@ -264,7 +252,7 @@ class genUnbalSequence(Sequence):
             anchor_start_sec = seg_idx * self.hop
 
             # If random offset is specified, apply it to the anchor start time
-            if (self.random_offset_anchor == True) & (self.experimental_mode== False):
+            if self.random_offset_anchor:
                 anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
                 anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
                 # Sample a random offset frame
@@ -277,39 +265,27 @@ class genUnbalSequence(Sequence):
             if self.n_pos_per_anchor > 0:
                 pos_offset_min = np.max([(_anchor_offset_frame - self.offset_margin_frame), offset_min])
                 pos_offset_max = np.min([(_anchor_offset_frame + self.offset_margin_frame), offset_max])
-                if self.experimental_mode:
-                    # In experimental_mode, we use a set of pre-defined offset for multiple positive replicas...
-                    _pos_offset_sec_list = self.experimental_mode_offset_sec_list # [-0.2, -0.1,  0. ,  0.1,  0.2] for n_pos=5 with hop=0.5s
-                    _pos_offset_sec_list[(
-                        _pos_offset_sec_list <
-                        pos_offset_min / self.fs)] = pos_offset_min / self.fs
-                    _pos_offset_sec_list[(
-                        _pos_offset_sec_list >
-                        pos_offset_max / self.fs)] = pos_offset_max / self.fs
-                    pos_start_sec_list = self.fns_event_seg_list[idx][1] * self.hop + _pos_offset_sec_list
+                pos_start_sec_list = seg_idx * self.hop
+                if pos_offset_min==pos_offset_max==0:
+                    # Only the case of running extras/dataset2wav.py as offset_margin_hot_rate=0
+                    pos_start_sec_list = [pos_start_sec_list]
                 else:
-                    pos_start_sec_list = seg_idx * self.hop
-                    if pos_offset_min==pos_offset_max==0:
-                        # Only the case of running extras/dataset2wav.py as offset_margin_hot_rate=0
-                        pos_start_sec_list = [pos_start_sec_list]
-                    else:
-                        # Otherwise, we apply random offset to replicas 
-                        _pos_offset_frame_list = np.random.randint(low=pos_offset_min,
-                                                                    high=pos_offset_max,
-                                                                    size=self.n_pos_per_anchor)
-                        _pos_offset_sec_list = _pos_offset_frame_list / self.fs
-                        pos_start_sec_list += _pos_offset_sec_list
+                    # Otherwise, we apply random offset to replicas 
+                    _pos_offset_frame_list = np.random.randint(low=pos_offset_min,
+                                                                high=pos_offset_max,
+                                                                size=self.n_pos_per_anchor)
+                    _pos_offset_sec_list = _pos_offset_frame_list / self.fs
+                    pos_start_sec_list += _pos_offset_sec_list
             else:
                 pos_start_sec_list = []
-            
+
             # Load the anchor and positive samples
-            """ load audio returns: [anchor, pos1, pos2,..pos_n]: xs: ((1+n_pos_per_anchor)),T)"""
             start_sec_list = np.concatenate(([anchor_start_sec], pos_start_sec_list))
             xs = load_audio_multi_start(self.fns_event_seg_list[idx][0],
                                         start_sec_list, 
                                         self.duration, 
                                         self.fs,
-                                        self.amp_mode)
+                                        self.amp_mode) # xs: ((1+n_pos_per_anchor)),T)
 
             # Create a batch
             if Xa_batch is None:
