@@ -6,7 +6,7 @@ from model.utils.audio_utils import (bg_mix_batch, ir_aug_batch, load_audio,
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 import numpy as np
 
-# OGUZ: Is this a good idea?
+# TODO OGUZ: Is this a good idea?
 MAX_IR_LENGTH = 600 # 50ms with fs=8000
 
 class genUnbalSequence(Sequence):
@@ -83,11 +83,15 @@ class genUnbalSequence(Sequence):
             Set as False in test. Default is True.
         """
 
-        # Input parameters
+        # Check parameters
+        assert bsz >= n_anchor, "bsz should be >= n_anchor"
+        assert n_anchor > 0, "n_anchor should be > 0"
+        assert seg_mode in {'random_oneshot', 'all'}, "seg_mode should be 'random_oneshot' or 'all'"
+
+        # Save the Input parameters
         self.duration = duration
         self.hop = hop
         self.fs = fs
-        self.shuffle = shuffle
         self.seg_mode = seg_mode
         self.amp_mode = amp_mode
         self.random_offset_anchor = random_offset_anchor
@@ -105,25 +109,6 @@ class genUnbalSequence(Sequence):
                                             f_min=f_min, 
                                             f_max=f_max)
 
-        # Save bg_mix and ir_mix parameters
-        self.bg_mix = bg_mix_parameter[0]
-        self.ir_mix = ir_mix_parameter[0]
-        if self.bg_mix == True:
-            fns_bg_list = bg_mix_parameter[1]
-            self.bg_snr_range = bg_mix_parameter[2]
-        if self.ir_mix == True:
-            fns_ir_list = ir_mix_parameter[1]
-
-        # TODO: understand seg_mode
-        if self.seg_mode in {'random_oneshot', 'all'}:
-            self.fns_event_seg_list = get_fns_seg_list(fns_event_list,
-                                                       self.seg_mode,
-                                                       self.fs,
-                                                       self.duration,
-                                                       hop=self.hop)
-        else:
-            raise NotImplementedError("seg_mode={}".format(self.seg_mode))
-
         # Training parameters
         self.bsz = bsz
         self.n_anchor = n_anchor
@@ -133,43 +118,49 @@ class genUnbalSequence(Sequence):
         else:
             self.n_pos_per_anchor = 0
             self.n_pos_bsz = 0
-
+        self.shuffle = shuffle
         self.drop_the_last_non_full_batch = drop_the_last_non_full_batch
+        self.reduce_items_p = reduce_items_p
+        self.reduce_batch_first_half = reduce_batch_first_half
+
+        # TODO: understand seg_mode
+        # Read event segments
+        self.fns_event_seg_list = get_fns_seg_list(fns_event_list,
+                                                    self.seg_mode,
+                                                    self.fs,
+                                                    self.duration,
+                                                    hop=self.hop)
+        # Determine the number of samples
         if self.drop_the_last_non_full_batch:
             self.n_samples = int((len(self.fns_event_seg_list) // n_anchor) * n_anchor)
         else:
             self.n_samples = len(self.fns_event_seg_list) # fp-generation
+        self.index_event = np.arange(self.n_samples)
 
-        if self.shuffle == True:
-            self.index_event = np.random.permutation(self.n_samples)
-        else:
-            self.index_event = np.arange(self.n_samples)
-
-        if self.bg_mix == True:
-            self.fns_bg_seg_list = get_fns_seg_list(fns_bg_list, 
+        # Save bg_mix and ir_mix parameters and read bg/ir segments
+        self.bg_mix = bg_mix_parameter[0]
+        self.ir_mix = ir_mix_parameter[0]
+        if self.bg_mix:
+            self.bg_snr_range = bg_mix_parameter[2]
+            self.fns_bg_seg_list = get_fns_seg_list(bg_mix_parameter[1], 
                                                     'all',
                                                     self.fs, 
                                                     self.duration)
             self.n_bg_samples = len(self.fns_bg_seg_list)
-            if self.shuffle == True:
-                self.index_bg = np.random.permutation(self.n_bg_samples)
-            else:
-                self.index_bg = np.arange(self.n_bg_samples)
-
-        if self.ir_mix == True:
-            self.fns_ir_seg_list = get_fns_seg_list(fns_ir_list, 
+            self.index_bg = np.arange(self.n_bg_samples)
+        if self.ir_mix:
+            self.fns_ir_seg_list = get_fns_seg_list(ir_mix_parameter[1], 
                                                     'first',
                                                     self.fs, 
                                                     self.duration)
             self.n_ir_samples = len(self.fns_ir_seg_list)
-            if self.shuffle == True:
-                self.index_ir = np.random.permutation(self.n_ir_samples)
-            else:
-                self.index_ir = np.arange(self.n_ir_samples)
+            self.index_ir = np.arange(self.n_ir_samples)
 
-        assert(reduce_items_p <= 100)
-        self.reduce_items_p = reduce_items_p
-        self.reduce_batch_first_half = reduce_batch_first_half
+        # Shuffle all index events if specified
+        if self.shuffle:
+            self.shuffle_index_event()
+
+        # TODO: understand experimental_mode and delete it
         self.experimental_mode = experimental_mode
         if experimental_mode:
             self.experimental_mode_offset_sec_list = (
@@ -187,18 +178,21 @@ class genUnbalSequence(Sequence):
             return int(np.ceil(self.n_samples / float(self.n_anchor)))
 
     def on_epoch_end(self):
-        """ Re-shuffle """
+        if self.shuffle:
+            self.shuffle_index_event()
 
-        if self.shuffle == True:
-            self.index_event = list(np.random.permutation(self.n_samples))
+    def shuffle_index_event(self):
+        """ Shuffle index events."""
 
-        if self.bg_mix == True and self.shuffle == True:
-            self.index_bg = list(np.random.permutation(
-                self.n_bg_samples))  # same number with event samples
+        self.index_event = np.random.permutation(self.n_samples)
 
-        if self.ir_mix == True and self.shuffle == True:
-            self.index_ir = list(np.random.permutation(
-                self.n_ir_samples))  # same number with event samples
+        if self.bg_mix == True:
+            # same number with event samples
+            self.index_bg = np.random.permutation(self.n_bg_samples)
+
+        if self.ir_mix == True:
+            # same number with event samples
+            self.index_ir = np.random.permutation(self.n_ir_samples)
 
     def __getitem__(self, idx):
         """ Get anchor (original) and positive (replica) samples of audio and their power mel-spectrograms.
