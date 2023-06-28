@@ -194,6 +194,7 @@ class genUnbalSequence(Sequence):
             # same number with event samples
             self.index_ir = np.random.permutation(self.n_ir_samples)
 
+    # TODO: load bg and ir at init
     def __getitem__(self, idx):
         """ Get anchor (original) and positive (replica) samples of audio and their power mel-spectrograms.
 
@@ -247,32 +248,38 @@ class genUnbalSequence(Sequence):
         return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
 
     def __event_batch_load(self, anchor_idx_list):
-        """ Get Xa_batch (anchor-original) and Xp_batch (positive replica) and samples of audio."""
+        """ Get Xa_batch (anchor-original) and Xp_batch (positive replica) and samples of audio.
+        Returns:
+            Xa_batch: (n_anchor, T)
+            Xp_batch: (n_anchor*n_pos_per_anchor, T)
+        """
 
-        Xa_batch = None
-        Xp_batch = None
-        for idx in anchor_idx_list:  # idx: index for one sample
+        Xa_batch, Xp_batch = None, None
+        for idx in anchor_idx_list:  # idx: index of one sample in the dataset
 
-            # Determine anchor_start_sec by finding offset range for anchor
-            _,_,offset_min, offset_max = self.fns_event_seg_list[idx]
-            anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
-            anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
+            # Load anchor sample information
+            _,seg_idx,offset_min, offset_max = self.fns_event_seg_list[idx]
+
+            # Determine the anchor start time
+            anchor_start_sec = seg_idx * self.hop
+
+            # If random offset is specified, apply it to the anchor start time
             if (self.random_offset_anchor == True) & (self.experimental_mode== False):
+                anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
+                anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
                 # TODO: This is not a good way to generate random offset.
                 # Usually, we can apply random offset to anchor only in training.
                 np.random.seed(idx)
                 # Calculate anchor_start_sec
                 _anchor_offset_frame = np.random.randint(low=anchor_offset_min, high=anchor_offset_max)
-                _anchor_offset_sec = _anchor_offset_frame / self.fs
-                anchor_start_sec = self.fns_event_seg_list[idx][1] * self.hop + _anchor_offset_sec
+                anchor_start_sec += _anchor_offset_frame / self.fs
             else:
                 _anchor_offset_frame = 0
-                anchor_start_sec = self.fns_event_seg_list[idx][1] * self.hop
 
             # Calculate multiple(=self.n_pos_per_anchor) pos_start_sec
             if self.n_pos_per_anchor > 0:
-                pos_offset_min = np.max([(_anchor_offset_frame - self.offset_margin_frame),offset_min])
-                pos_offset_max = np.min([(_anchor_offset_frame + self.offset_margin_frame),offset_max])
+                pos_offset_min = np.max([(_anchor_offset_frame - self.offset_margin_frame), offset_min])
+                pos_offset_max = np.min([(_anchor_offset_frame + self.offset_margin_frame), offset_max])
                 if self.experimental_mode:
                     # In experimental_mode, we use a set of pre-defined offset for multiple positive replicas...
                     _pos_offset_sec_list = self.experimental_mode_offset_sec_list # [-0.2, -0.1,  0. ,  0.1,  0.2] for n_pos=5 with hop=0.5s
@@ -284,9 +291,9 @@ class genUnbalSequence(Sequence):
                         pos_offset_max / self.fs)] = pos_offset_max / self.fs
                     pos_start_sec_list = self.fns_event_seg_list[idx][1] * self.hop + _pos_offset_sec_list
                 else:
+                    pos_start_sec_list = seg_idx * self.hop
                     if pos_offset_min==pos_offset_max==0:
                         # Only the case of running extras/dataset2wav.py as offset_margin_hot_rate=0
-                        pos_start_sec_list = self.fns_event_seg_list[idx][1] * self.hop
                         pos_start_sec_list = [pos_start_sec_list]
                     else:
                         # Otherwise, we apply random offset to replicas 
@@ -294,11 +301,12 @@ class genUnbalSequence(Sequence):
                                                                     high=pos_offset_max,
                                                                     size=self.n_pos_per_anchor)
                         _pos_offset_sec_list = _pos_offset_frame_list / self.fs
-                        pos_start_sec_list = self.fns_event_seg_list[idx][1] * self.hop + _pos_offset_sec_list
+                        pos_start_sec_list += _pos_offset_sec_list
             else:
                 pos_start_sec_list = []
-
-            """ load audio returns: [anchor, pos1, pos2,..pos_n]: xs: ((1+n_pos)),T)"""
+            
+            # Load the anchor and positive samples
+            """ load audio returns: [anchor, pos1, pos2,..pos_n]: xs: ((1+n_pos_per_anchor)),T)"""
             start_sec_list = np.concatenate(([anchor_start_sec], pos_start_sec_list))
             xs = load_audio_multi_start(self.fns_event_seg_list[idx][0],
                                         start_sec_list, 
@@ -311,9 +319,8 @@ class genUnbalSequence(Sequence):
                 Xa_batch = xs[0, :].reshape((1, -1))
                 Xp_batch = xs[1:, :]  # If self.n_pos_per_anchor==0: this produces an empty array with shape (0, T)
             else:
-                Xa_batch = np.vstack((Xa_batch, xs[0, :].reshape((1, -1))))  # Xa_batch: (n_anchor, T)
-                Xp_batch = np.vstack((Xp_batch, xs[1:, :]))  # Xp_batch: (n_pos, T)
-                # OGUZ it should be (n_anchor*n_pos_per_anchor, T)
+                Xa_batch = np.vstack((Xa_batch, xs[0, :].reshape((1, -1)))) 
+                Xp_batch = np.vstack((Xp_batch, xs[1:, :]))
 
         return Xa_batch, Xp_batch
 
