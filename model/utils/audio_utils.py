@@ -200,9 +200,9 @@ def get_fns_seg_list(fns_list=[],
     return fns_event_seg_list
 
 def load_audio(filename=str(),
-               seg_start_sec=float(),
+               seg_start_sec=0.0,
                offset_sec=0.0,
-               seg_length_sec=float(),
+               seg_length_sec=None,
                seg_pad_offset_sec=0.0,
                fs=8000,
                amp_mode='normal'):
@@ -211,20 +211,41 @@ def load_audio(filename=str(),
         --> Load sample by index --> Padding --> Max-Normalize --> Out
     """
 
-    start_frame_idx = np.floor((seg_start_sec + offset_sec) * fs).astype(int)
-    seg_length_frame = np.floor(seg_length_sec * fs).astype(int)
-    end_frame_idx = start_frame_idx + seg_length_frame
+    assert (seg_length_sec is None) or (seg_length_sec > 0.0), 'seg_length_sec should be positive'\
+                                                'or None (read all the rest of the file).'
 
-    # Get file-info
+    # Only support .wav
     file_ext = os.path.splitext(filename)[1]
-    if file_ext == '.wav':
-        pt_wav = wave.open(filename, 'r')
-        pt_wav.setpos(start_frame_idx)
-        x = pt_wav.readframes(end_frame_idx - start_frame_idx)
-        x = np.frombuffer(x, dtype=np.int16)
-        x = x / 2**15  # dtype=float
-    else:
+    if file_ext != '.wav':
         raise NotImplementedError(file_ext)
+
+    # Open file
+    pt_wav = wave.open(filename, 'r')
+
+    # Check sample rate
+    _fs = pt_wav.getframerate()
+    if fs != _fs:
+        raise ValueError('Sample rate should be {} but got {}'.format(str(fs), str(_fs)))
+
+    # Calculate segment start index
+    start_frame_idx = np.floor((seg_start_sec + offset_sec) * fs).astype(int)
+    pt_wav.setpos(start_frame_idx)
+
+    # Determine the segment length
+    if seg_length_sec is None:
+        seg_length_frame = pt_wav.getnframes() - start_frame_idx
+    else:
+        # if seg_length_sec is bigger than the file size, it loads everything
+        # else read seg_length_sec starting from start_frame_idx
+        seg_length_frame = np.floor(seg_length_sec * fs).astype(int)
+
+    # Load audio and close file
+    x = pt_wav.readframes(seg_length_frame)
+    pt_wav.close()
+
+    # Convert bytes to float
+    x = np.frombuffer(x, dtype=np.int16)
+    x = x / 2**15 # normalize to [-1, 1] float
 
     # Max Normalize, random amplitude
     if amp_mode == 'normal':
@@ -236,11 +257,16 @@ def load_audio(filename=str(),
     else:
         raise ValueError('amp_mode={}'.format(amp_mode))
 
-    # padding process. it works only when win_size> audio_size and padding='random'
-    audio_arr = np.zeros(int(seg_length_sec * fs))
-    seg_pad_offset_idx = int(seg_pad_offset_sec * fs)
-    audio_arr[seg_pad_offset_idx:seg_pad_offset_idx + len(x)] = x
-    return audio_arr
+    # Pad the segment if it is shorter than seg_length_sec
+    if len(x) < seg_length_frame:
+        audio_arr = np.zeros(int(seg_length_sec * fs))
+        seg_pad_offset_idx = int(seg_pad_offset_sec * fs)
+        assert seg_pad_offset_idx + len(x) <= seg_length_frame, \
+            "The padded segment is longer than input duration and seg_pad_offset_sec."
+        audio_arr[seg_pad_offset_idx:seg_pad_offset_idx + len(x)] = x
+        return audio_arr
+    else:
+        return x
 
 def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
