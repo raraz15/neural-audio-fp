@@ -57,13 +57,13 @@ def train(checkpoint_name, config, max_epoch):
     NOTE: If './LOG_ROOT_DIR/checkpoint/CHECKPOINT_NAME already exists, the training will resume from the latest checkpoint in the directory.
 
     """
-    from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
-    from model.trainer import trainer
+    from model.trainer import set_seed, trainer
 
+    set_seed()
     cfg = load_config(config)
-    if max_epoch: update_config(cfg, 'TRAIN', 'MAX_EPOCH', max_epoch)
+    if max_epoch:
+        update_config(cfg, 'TRAIN', 'MAX_EPOCH', max_epoch)
     print_config(cfg)
-    # allow_gpu_memory_growth()
     trainer(cfg, checkpoint_name)
 
 """ Generate fingerprint (after training) """

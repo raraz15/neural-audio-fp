@@ -13,6 +13,25 @@ from model.fp.online_triplet_loss import OnlineTripletLoss
 from model.fp.lamb_optimizer import LAMB
 from model.utils.experiment_helper import ExperimentHelper
 from model.utils.mini_search_subroutines import mini_search_eval
+import random
+import numpy as np
+import os
+
+SEED = 27
+
+def set_seed(seed: int = SEED) -> None:
+    """Set seed for reproducibility. Taken
+    from https://wandb.ai/sauravmaheshkar/RSNA-MICCAI/reports/How-to-Set-Random-Seeds-in-PyTorch-and-Tensorflow--VmlldzoxMDA2MDQy"""
+
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    # When running on the CuDNN backend, two further options must be set
+    os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
+    os.environ['TF_DETERMINISTIC_OPS'] = '1'
+    # Set a fixed value for the hash seed
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    print(f"Random seed set as {seed}")
 
 def build_fp(cfg):
     """ Build fingerprinter """
