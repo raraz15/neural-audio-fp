@@ -179,7 +179,9 @@ def trainer(cfg, checkpoint_name):
         """ Parallelism to speed up preprocessing.............. """
         enq = tf.keras.utils.OrderedEnqueuer(train_ds, 
                                             use_multiprocessing=True, 
-                                            shuffle=train_ds.shuffle)
+                                            # We shuffle inside the dataset
+                                            # OrderedEnqueuer calls on_epoch_end
+                                            shuffle=False)
         enq.start(workers=cfg['DEVICE']['CPU_N_WORKERS'],
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
         i = 0
@@ -215,8 +217,6 @@ def trainer(cfg, checkpoint_name):
         tf.print('tr_loss:{:.4f}, val_loss:{:.4f}'.format(helper._tr_loss.result(), 
                                                           helper._val_loss.result()))
         helper.update_on_epoch_end(save_checkpoint_now=True)
-        train_ds.on_epoch_end()
-        val_ds.on_epoch_end()
 
         # Mini-search-validation (optional)
         if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:
@@ -224,4 +224,3 @@ def trainer(cfg, checkpoint_name):
                 val_ds, m_fp)
             for k in key_strs:
                 helper.update_minitest_acc(accs_by_scope[k], scopes, k)
-                
