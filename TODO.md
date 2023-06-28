@@ -1,3 +1,5 @@
+- Deterministic run time
+
 - Try to make loading faster
   - Store background noises as audio in memory
   - Store all IR's maybe even their FFTs
@@ -25,7 +27,6 @@
   - Can we paralelize?
 
 - Write your own dataset class ?
-  - Fix seed?
   - Will it interfere with generate.py?
   - Benefit: Distributed GPU
 
