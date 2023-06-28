@@ -119,7 +119,7 @@ class genUnbalSequence(Sequence):
         self.reduce_items_p = reduce_items_p
         self.reduce_batch_first_half = reduce_batch_first_half
 
-        # Read event segments
+        # Read audio files and save the segments including min and max offset
         self.fns_event_seg_list = get_fns_seg_list(fns_event_list,
                                                     self.seg_mode,
                                                     self.fs,
@@ -134,7 +134,6 @@ class genUnbalSequence(Sequence):
 
         # Save bg_mix and ir_mix parameters and read bg/ir segments
         self.bg_mix = bg_mix_parameter[0]
-        self.ir_mix = ir_mix_parameter[0]
         if self.bg_mix:
             self.bg_snr_range = bg_mix_parameter[2]
             self.fns_bg_seg_list = get_fns_seg_list(bg_mix_parameter[1], 
@@ -143,6 +142,7 @@ class genUnbalSequence(Sequence):
                                                     self.duration)
             self.n_bg_samples = len(self.fns_bg_seg_list)
             self.index_bg = np.arange(self.n_bg_samples)
+        self.ir_mix = ir_mix_parameter[0]
         if self.ir_mix:
             self.fns_ir_seg_list = get_fns_seg_list(ir_mix_parameter[1], 
                                                     'first',
@@ -195,7 +195,6 @@ class genUnbalSequence(Sequence):
 
         # Prepare indices for batch. n_anchor consecutive samples are taken at each iteration
         index_anchor_for_batch = self.index_event[idx*self.n_anchor:(idx + 1)*self.n_anchor]
-
         # Load anchor and positive audio samples
         Xa_batch, Xp_batch = self.__event_batch_load(index_anchor_for_batch)
 
@@ -245,7 +244,7 @@ class genUnbalSequence(Sequence):
         for idx in anchor_idx_list:  # idx: index of one sample in the dataset
 
             # Load anchor sample information
-            _,seg_idx,offset_min, offset_max = self.fns_event_seg_list[idx]
+            _, seg_idx, offset_min, offset_max = self.fns_event_seg_list[idx]
 
             # Determine the anchor start time
             anchor_start_sec = seg_idx * self.hop
@@ -297,16 +296,23 @@ class genUnbalSequence(Sequence):
         return Xa_batch, Xp_batch
 
     def __bg_batch_load(self, idx_list):
+
         X_bg_batch = None  # (n_batch+n_batch//n_class, fs*k)
-        # Random offset for each sample
-        random_offset_sec = np.random.randint(0, self.duration * self.fs / 2, size=len(idx_list)) / self.fs
+        # Determine the Random offset for each sample
+        random_offset_sec = np.random.randint(0, 
+                                              self.duration * self.fs / 2, 
+                                              size=len(idx_list)) / self.fs
         for i, idx in enumerate(idx_list):
-            offset_sec = np.min([random_offset_sec[i], self.fns_bg_seg_list[idx][3] / self.fs])
+
+            # Load background sample information
+            fname, seg_idx, _, offset_max = self.fns_bg_seg_list[idx]
+
+            # Determine the random offset
+            offset_sec = np.min([random_offset_sec[i], offset_max / self.fs])
 
             # Load audio with random offset
-            X = load_audio(filename=self.fns_bg_seg_list[idx][0],
-                           seg_start_sec=self.fns_bg_seg_list[idx][1] *
-                           self.duration,
+            X = load_audio(filename=fname,
+                           seg_start_sec=seg_idx * self.duration,
                            offset_sec=offset_sec,
                            seg_length_sec=self.duration,
                            seg_pad_offset_sec=0.,
