@@ -128,12 +128,18 @@ def get_fns_seg_list(fns_list=[],
                      duration=1,
                      hop=None):
     """
-    return: fns_event_seg_list
-        
+    Opens a file, checks its format and sample rate, and returns a list of segments.
+
+    Parameters:
+        fns_list: list of filenames. Only support .wav
+
+    Returns: 
+        fns_event_seg_list: list of segments.
         [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
-        
-        offset_min is 0 or negative integer
-        offset_max is 0 or positive integer
+            filename is a string
+            seg_idx is an integer
+            offset_min is 0 or negative integer
+            offset_max is 0 or positive integer
     """
 
     if hop == None:
@@ -144,41 +150,40 @@ def get_fns_seg_list(fns_list=[],
     n_frames_in_hop = fs * hop # 2019 09.05
 
     fns_event_seg_list = []
-    for offset_idx, filename in enumerate(fns_list):
+    for filename in fns_list:
 
-        # Check file extension
+        # Only support .wav
         file_ext = os.path.splitext(filename)[1]
         if file_ext != '.wav':
             raise NotImplementedError(file_ext)
 
+        # Open wav file
         pt_wav = wave.open(filename, 'r')
 
         # Check sample rate
         _fs = pt_wav.getframerate()
         if fs != _fs:
-            raise ValueError('Sample rate should be {} but got {}'.format(
-                str(fs), str(_fs)))
+            raise ValueError('Sample rate should be {} but got {} for {}'.format(str(fs), str(_fs)), filename)
 
-        # TODO: understand the calculation of n_segs
         # Determine number of segments
         n_frames = pt_wav.getnframes()
         if n_frames > n_frames_in_seg:
             n_segs = int((n_frames - n_frames_in_seg + n_frames_in_hop) // n_frames_in_hop)
             assert n_segs > 0
         else:
-            n_segs = 1
+            n_segs = 1 # load_audio can pad the audio if it is shorter than n_frames_in_seg
         residual_frames = np.max([0, n_frames - ((n_segs - 1) * n_frames_in_hop + n_frames_in_seg)])
+
         pt_wav.close()
 
-        # TODO: understand the calculation of offset_min and offset_max
-        if segment_mode == 'all':
-            # Load all segments
+        if segment_mode == 'all': # Load all segments
+            # A segment can be offsetted max by n_frames_in_hop to the left or right
             for seg_idx in range(n_segs):
                 offset_min, offset_max = int(-1 * n_frames_in_hop), n_frames_in_hop
                 if seg_idx == 0:  # first seg
-                    offset_min = 0
+                    offset_min = 0 # no offset to the left
                 if seg_idx == (n_segs - 1): # last seg
-                    offset_max = residual_frames
+                    offset_max = residual_frames # Maximal offset to the right is the residual frames
                 fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
         elif segment_mode == 'first':
             # Load only the first segment
@@ -225,7 +230,7 @@ def load_audio(filename=str(),
     # Check sample rate
     _fs = pt_wav.getframerate()
     if fs != _fs:
-        raise ValueError('Sample rate should be {} but got {}'.format(str(fs), str(_fs)))
+        raise ValueError('Sample rate should be {} but got {} for {}'.format(str(fs), str(_fs)), filename)
 
     # Calculate segment start index
     start_frame_idx = np.floor((seg_start_sec + offset_sec) * fs).astype(int)

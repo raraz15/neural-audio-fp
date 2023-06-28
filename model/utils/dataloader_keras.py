@@ -119,7 +119,6 @@ class genUnbalSequence(Sequence):
         self.reduce_items_p = reduce_items_p
         self.reduce_batch_first_half = reduce_batch_first_half
 
-        # TODO: understand seg_mode
         # Read event segments
         self.fns_event_seg_list = get_fns_seg_list(fns_event_list,
                                                     self.seg_mode,
