@@ -267,10 +267,7 @@ class genUnbalSequence(Sequence):
             if (self.random_offset_anchor == True) & (self.experimental_mode== False):
                 anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
                 anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
-                # TODO: This is not a good way to generate random offset.
-                # Usually, we can apply random offset to anchor only in training.
-                np.random.seed(idx)
-                # Calculate anchor_start_sec
+                # Sample a random offset frame
                 _anchor_offset_frame = np.random.randint(low=anchor_offset_min, high=anchor_offset_max)
                 anchor_start_sec += _anchor_offset_frame / self.fs
             else:
