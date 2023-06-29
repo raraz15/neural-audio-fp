@@ -8,120 +8,7 @@ import os
 import wave
 import numpy as np
 
-def max_normalize(x):
-    """
-    Parameters
-    ----------
-    x : (float)
-
-    Returns
-    -------
-    (float)
-        Max-normalized audio signal.
-    """
-
-    max_val = np.max(np.abs(x))
-    if max_val==0:
-        return x
-    else:
-        return x / np.max(np.abs(max_val))
-
-def background_mix(x, x_bg, snr_db):
-    """
-    Parameters
-    ----------
-    x : 1D array (float)
-        Input audio signal.
-    x_bg : 1D array (float)
-        Background noise signal.
-    snr_db : (float)
-        signal-to-noise ratio in decibel.
-
-    Returns
-    -------
-    1D array
-        Max-normalized mix of x and x_bg with SNR
-
-    """
-    # Check length
-    if len(x) > len(x_bg):  # This will not happen though...
-        _x_bg = np.zeros(len(x))
-        bg_start = np.random.randint(len(x) - len(x_bg))
-        bg_end = bg_start + len(x_bg)
-        _x_bg[bg_start:bg_end] = x_bg
-        x_bg = _x_bg
-    elif len(x) < len(x_bg):  # This will not happen though...
-        bg_start = np.random.randint(len(x_bg) - len(x))
-        bg_end = bg_start + len(x)
-        x_bg = x_bg[bg_start:bg_end]
-
-    # Normalize with energy
-    rmse_bg = np.sqrt(np.mean(x_bg**2))
-    x_bg = x_bg / rmse_bg
-    rmse_x = np.sqrt(np.mean(x**2))
-    x = x / rmse_x
-
-    # Mix
-    magnitude = np.power(10, snr_db / 20.)
-    x_mix = magnitude * x + x_bg
-    return max_normalize(x_mix)
-
-def log_scale_random_number_batch(bsz=int(), amp_range=(0.1, 1.)):
-    range_log = np.log10(amp_range)
-    random_number_log = np.random.rand(bsz) * (np.max(range_log) - np.min(range_log)) + np.min(range_log)
-    return np.power(10, random_number_log)
-
-# TODO: how does it work?
-def bg_mix_batch(event_batch,
-                 bg_batch,
-                 snr_range=(6, 24),
-                 unit='db',
-                 mode='energy'):
-
-    # Initialize
-    X_bg_mix = np.zeros((event_batch.shape[0], event_batch.shape[1]))
-
-    # Random SNR
-    min_snr = np.min(snr_range)
-    max_snr = np.max(snr_range)
-    snrs = np.random.rand(len(event_batch))
-    snrs = snrs * (max_snr - min_snr) + min_snr
-
-    # Random amp (batch-wise)
-    event_amp_ratio_batch = log_scale_random_number_batch(bsz=len(event_batch),
-                                                          amp_range=(0.1, 1))
-
-    for i in range(len(event_batch)):
-        event_max = np.max(np.abs(event_batch[i]))
-        bg_max = np.max(np.abs(bg_batch[i]))
-        #event_amp_ratio = log_scale_random_number(amp_range=(0.01,1))
-
-        if event_max == 0 or bg_max == 0:
-            X_bg_mix[i] = event_batch[i] + bg_batch[i]
-            X_bg_mix[i] = max_normalize(X_bg_mix[i])
-        else:
-            X_bg_mix[i] = background_mix(x=event_batch[i],
-                                         x_bg=bg_batch[i],
-                                         snr_db=snrs[i])
-        X_bg_mix[i] = event_amp_ratio_batch[i] * X_bg_mix[i]
-
-    return X_bg_mix
-
-# TODO: OGUZ: is .real correct? Just taking the real port of the signal?
-def ir_aug_batch(event_batch, ir_batch):
-    n_batch = len(event_batch)
-    X_ir_aug = np.zeros((n_batch, event_batch.shape[1]))
-    for i in range(n_batch):
-        x = event_batch[i]
-        x_ir = ir_batch[i]
-        # FFT -> multiply -> IFFT
-        fftLength = np.maximum(len(x), len(x_ir))
-        X = np.fft.fft(x, n=fftLength)
-        X_ir = np.fft.fft(x_ir, n=fftLength)
-        x_aug = np.fft.ifft(np.multiply(X_ir, X))[0:len(x)].real
-        x_aug = max_normalize(x_aug)
-        X_ir_aug[i] = x_aug
-    return X_ir_aug
+#### File Check ####
 
 def get_fns_seg_list(fns_list=[],
                      segment_mode='all',
@@ -205,6 +92,27 @@ def get_fns_seg_list(fns_list=[],
 
     return fns_event_seg_list
 
+#### Audio IO ####
+
+def max_normalize(x):
+    """
+    Parameters
+    ----------
+    x : (float)
+
+    Returns
+    -------
+    (float)
+        Max-normalized audio signal.
+    """
+
+    max_val = np.max(np.abs(x))
+    if max_val==0:
+        return x
+    else:
+        return x / np.max(np.abs(max_val))
+
+# TODO: make normalize
 def load_audio(filename=str(),
                seg_start_sec=0.0,
                offset_sec=0.0,
@@ -311,3 +219,102 @@ def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
         audio = audio * 2**15
         audio = audio.astype(np.int16)  # 16-bit PCM
         wavio.write(fname[:-4] + '.wav', audio, target_fs, sampwidth=2)
+
+#### Audio Augmentation ####
+
+def background_mix(x, x_bg, snr_db):
+    """
+    Parameters
+    ----------
+    x : 1D array (float)
+        Input audio signal.
+    x_bg : 1D array (float)
+        Background noise signal.
+    snr_db : (float)
+        signal-to-noise ratio in decibel.
+
+    Returns
+    -------
+    1D array
+        Max-normalized mix of x and x_bg with SNR
+
+    """
+    # Check length
+    if len(x) > len(x_bg):  # This will not happen though...
+        _x_bg = np.zeros(len(x))
+        bg_start = np.random.randint(len(x) - len(x_bg))
+        bg_end = bg_start + len(x_bg)
+        _x_bg[bg_start:bg_end] = x_bg
+        x_bg = _x_bg
+    elif len(x) < len(x_bg):  # This will not happen though...
+        bg_start = np.random.randint(len(x_bg) - len(x))
+        bg_end = bg_start + len(x)
+        x_bg = x_bg[bg_start:bg_end]
+
+    # Normalize with energy
+    rmse_bg = np.sqrt(np.mean(x_bg**2))
+    x_bg = x_bg / rmse_bg
+    rmse_x = np.sqrt(np.mean(x**2))
+    x = x / rmse_x
+
+    # Mix
+    magnitude = np.power(10, snr_db / 20.)
+    x_mix = magnitude * x + x_bg
+    return max_normalize(x_mix)
+
+def log_scale_random_number_batch(bsz=int(), amp_range=(0.1, 1.)):
+    range_log = np.log10(amp_range)
+    random_number_log = np.random.rand(bsz) * (np.max(range_log) - np.min(range_log)) + np.min(range_log)
+    return np.power(10, random_number_log)
+
+# TODO: how does it work?
+def bg_mix_batch(event_batch,
+                 bg_batch,
+                 snr_range=(6, 24),
+                 unit='db',
+                 mode='energy'):
+
+    # Initialize
+    X_bg_mix = np.zeros((event_batch.shape[0], event_batch.shape[1]))
+
+    # Random SNR
+    min_snr = np.min(snr_range)
+    max_snr = np.max(snr_range)
+    snrs = np.random.rand(len(event_batch))
+    snrs = snrs * (max_snr - min_snr) + min_snr
+
+    # Random amp (batch-wise)
+    event_amp_ratio_batch = log_scale_random_number_batch(bsz=len(event_batch),
+                                                          amp_range=(0.1, 1))
+
+    for i in range(len(event_batch)):
+        event_max = np.max(np.abs(event_batch[i]))
+        bg_max = np.max(np.abs(bg_batch[i]))
+        #event_amp_ratio = log_scale_random_number(amp_range=(0.01,1))
+
+        if event_max == 0 or bg_max == 0:
+            X_bg_mix[i] = event_batch[i] + bg_batch[i]
+            X_bg_mix[i] = max_normalize(X_bg_mix[i])
+        else:
+            X_bg_mix[i] = background_mix(x=event_batch[i],
+                                         x_bg=bg_batch[i],
+                                         snr_db=snrs[i])
+        X_bg_mix[i] = event_amp_ratio_batch[i] * X_bg_mix[i]
+
+    return X_bg_mix
+
+# TODO: OGUZ: is .real correct? Just taking the real port of the signal?
+def ir_aug_batch(event_batch, ir_batch):
+    n_batch = len(event_batch)
+    X_ir_aug = np.zeros((n_batch, event_batch.shape[1]))
+    for i in range(n_batch):
+        x = event_batch[i]
+        x_ir = ir_batch[i]
+        # FFT -> multiply -> IFFT
+        fftLength = np.maximum(len(x), len(x_ir))
+        X = np.fft.fft(x, n=fftLength)
+        X_ir = np.fft.fft(x_ir, n=fftLength)
+        x_aug = np.fft.ifft(np.multiply(X_ir, X))[0:len(x)].real
+        x_aug = max_normalize(x_aug)
+        X_ir_aug[i] = x_aug
+    return X_ir_aug
