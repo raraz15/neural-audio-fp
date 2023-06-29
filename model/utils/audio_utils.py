@@ -66,7 +66,6 @@ def background_mix(x, x_bg, snr_db):
     x_mix = magnitude * x + x_bg
     return max_normalize(x_mix)
 
-# TODO: what is this?
 def log_scale_random_number_batch(bsz=int(), amp_range=(0.1, 1.)):
     range_log = np.log10(amp_range)
     random_number_log = np.random.rand(bsz) * (np.max(range_log) - np.min(range_log)) + np.min(range_log)
@@ -78,6 +77,8 @@ def bg_mix_batch(event_batch,
                  snr_range=(6, 24),
                  unit='db',
                  mode='energy'):
+
+    # Initialize
     X_bg_mix = np.zeros((event_batch.shape[0], event_batch.shape[1]))
 
     # Random SNR
@@ -211,9 +212,20 @@ def load_audio(filename=str(),
                seg_pad_offset_sec=0.0,
                fs=8000,
                normalize_audio=True):
-    """
-        Open file to get file info --> Calulate index range
-        --> Load sample by index --> Padding --> Max-Normalize --> Out
+    """ Loads a wav file if the sample rate is correct.
+
+    Parameters:
+        filename: string
+        seg_start_sec: start reading from this time in seconds
+        offset_sec: offset the seg_start_sec by this amount of seconds
+        seg_length_sec: read this amount of seconds. If None, read the rest of the file.
+        seg_pad_offset_sec: If padding is required (seg_length_sec is longer than file duration),
+            pad the segment from the rgiht and give an offset from the left 
+            with this amount of seconds.
+            
+    Returns:
+        audio: numpy array of shape (n_samples,)
+
     """
 
     assert (seg_length_sec is None) or (seg_length_sec > 0.0), 'seg_length_sec should be positive'\
@@ -273,7 +285,7 @@ def load_audio_multi_start(filename=str(),
                            fs=8000,
                            normalize_audio=True):
     """ Load_audio wrapper for loading audio with multiple start indices. """
-    # assert(len(seg_start_sec_list)==len(seg_length_sec))
+
     out = None
     for seg_start_sec in seg_start_sec_list:
         x = load_audio(filename=filename,
