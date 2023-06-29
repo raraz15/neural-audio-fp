@@ -142,10 +142,10 @@ class genUnbalSequence(Sequence):
             self.n_bg_samples = len(self.fns_bg_seg_list)
             self.index_bg = np.arange(self.n_bg_samples)
             # Load all bg clips in full duration
-            self.bg_clips = {fn: load_audio(fn, fs=self.fs) 
+            self.bg_clips = {fn: load_audio(fn, fs=self.fs, normalize_audio=self.normalize_audio) 
                              for fn,_,_,_ in self.fns_bg_seg_list}
 
-        # TODO: load all ir clips in full duration
+        # TODO: store as FFT
         # Save ir_mix parameters and read ir clips
         self.ir_mix = ir_mix_parameter[0]
         if self.ir_mix:
@@ -155,6 +155,16 @@ class genUnbalSequence(Sequence):
                                                     self.duration)
             self.n_ir_samples = len(self.fns_ir_seg_list)
             self.index_ir = np.arange(self.n_ir_samples)
+            # Load all bg clips in full duration
+            self.ir_clips = {}
+            for fn, _, _, _ in self.fns_ir_seg_list:
+                X = load_audio(fn, 
+                            seg_length_sec=self.duration,
+                            fs=self.fs,
+                            normalize_audio=self.normalize_audio)
+                if len(X) > MAX_IR_LENGTH:
+                    X = X[:MAX_IR_LENGTH]
+                self.ir_clips[fn] = X
 
         # Shuffle all index events if specified
         if self.shuffle:
@@ -218,11 +228,8 @@ class genUnbalSequence(Sequence):
 
             if self.ir_mix == True:
                 # Prepare ir for positive samples
-                ir_sel_indices = np.arange(
-                    idx * self.n_pos_bsz,
-                    (idx + 1) * self.n_pos_bsz) % self.n_ir_samples
-                index_ir_for_batch = self.index_ir[ir_sel_indices]
-                Xp_ir_batch = self.__ir_batch_load(index_ir_for_batch)
+                ir_sel_indices = np.arange(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz) % self.n_ir_samples
+                Xp_ir_batch = self.__ir_batch_load(self.index_ir[ir_sel_indices])
                 # ir aug
                 Xp_batch = ir_aug_batch(Xp_batch, Xp_ir_batch)
 
@@ -323,7 +330,8 @@ class genUnbalSequence(Sequence):
             start_frame_idx = np.floor((seg_idx*self.duration + offset_sec)*self.fs).astype(int)
             seg_length_frame = np.floor(self.duration*self.fs).astype(int)
             assert start_frame_idx+seg_length_frame <= X.shape[0], \
-                "start_frame_idx+seg_length_frame={} is larger than X.shape[0]={}".format(start_frame_idx+seg_length_frame, X.shape[0])
+                    f"start_frame_idx+seg_length_frame={start_frame_idx+seg_length_frame}" \
+                        f"is larger than X.shape[0]={X.shape[0]}"
             X_bg_batch.append(X[start_frame_idx:start_frame_idx+seg_length_frame].reshape(1, -1))
 
         # Concatenate the samples
@@ -332,27 +340,19 @@ class genUnbalSequence(Sequence):
         return X_bg_batch
 
     def __ir_batch_load(self, idx_list):
-        X_ir_batch = None  # (n_batch+n_batch//n_class, fs*k)
+        """ Load len(idx_list) Impulse Response samples from the memory.
 
+        Returns:
+            X_ir_batch (self.n_pos_bsz, T)
+        """
+
+        X_ir_batch = []
         for idx in idx_list:
-            idx = idx % self.n_ir_samples
-
-            X = load_audio(filename=self.fns_ir_seg_list[idx][0],
-                           seg_start_sec=self.fns_ir_seg_list[idx][1] *
-                           self.duration,
-                           offset_sec=0.0,
-                           seg_length_sec=self.duration,
-                           seg_pad_offset_sec=0.0,
-                           fs=self.fs,
-                           normalize_audio=self.normalize_audio)
-            if len(X) > MAX_IR_LENGTH:
-                X = X[:MAX_IR_LENGTH]
-
-            X = X.reshape(1, -1)
-
-            if X_ir_batch is None:
-                X_ir_batch = X
-            else:
-                X_ir_batch = np.concatenate((X_ir_batch, X), axis=0)
+            # Get the IR fname
+            fname, _, _, _ = self.fns_ir_seg_list[idx]
+            # Load the IR sample from memory
+            X_ir_batch.append(self.ir_clips[fname].reshape(1, -1))
+        # Concatenate the samples to a batch
+        X_ir_batch = np.concatenate(X_ir_batch, axis=0)
 
         return X_ir_batch
