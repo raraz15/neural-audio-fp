@@ -188,7 +188,7 @@ def trainer(cfg, checkpoint_name):
         raise NotImplementedError(cfg['LOSS']['LOSS_MODE'])
 
     # Initialize the datasets
-    tf.print('Initializing the datasets...')
+    tf.print('------Initializing the datasets------')
     train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
     val_ds = dataset.get_val_ds() # max 500
 

@@ -47,7 +47,7 @@ def cli():
               help="Name of model configuration located in './config/.'")
 @click.option('--max_epoch', default=None, type=click.INT, help='Max epoch.')
 @click.option('--deterministic', default=False, is_flag=True,
-              help='Exclude dummy-DB from the default source.')
+              help='Set the CUDA operaitions to be deterministic.')
 def train(checkpoint_name, config, max_epoch, deterministic):
     """ Train a neural audio fingerprinter.
 

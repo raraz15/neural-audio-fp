@@ -127,13 +127,13 @@ class ExperimentHelper():
             scratch.
         """
         if self.c_manager.latest_checkpoint:
-            tf.print("---Restoring from {}---".format(
+            tf.print("---Restoring model from {}---".format(
                 self.c_manager.latest_checkpoint))
             status = self._checkpoint.restore(self.c_manager.latest_checkpoint)
             status.expect_partial()
             self.epoch = int(self.c_manager.latest_checkpoint.split(sep='ckpt-')[-1])
         else:
-            tf.print("-----------Initializing from scratch-----------")
+            tf.print("-----------Initializing model from scratch-----------")
 
 
     def save_checkpoint(self):
