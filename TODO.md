@@ -1,11 +1,11 @@
-- Deterministic run time
-
 - Try to make loading faster
-  - Store background noises as audio in memory
-  - Store all IR's maybe even their FFTs
+  - Store all IR FFTs
 
 - Augmentation
-  - Is not normalizing inputs are added noise a good choice?
+  - Is not normalizing inputs and added noise a good choice?
+  - Is normalizing IR good?
+  - Is cutting IR good?
+  - Is taking a short part of IR is good?
   - inverse fft + real?
 
 - Understand the Baseline dataset
