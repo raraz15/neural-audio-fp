@@ -23,8 +23,7 @@ class Melspec_layer(Model):
 
     def __init__(
             self,
-            #input_shape=(1, 8000),
-            segment_norm=False,
+            scale=False,
             n_fft=1024,
             stft_hop=256,
             n_mels=256,
@@ -54,7 +53,7 @@ class Melspec_layer(Model):
         self.n_mels = n_mels
         self.amin = amin
         self.dynamic_range = dynamic_range
-        self.segment_norm = segment_norm
+        self.scale = scale
         
         # 'SAME' Padding layer
         self.pad_l = n_fft // 2
@@ -113,7 +112,7 @@ class Melspec_layer(Model):
         # Clip x below from -dynamic_range dB
         x = tf.maximum(x, -1 * self.dynamic_range)
         # Normalize x to be in [-1, 1]
-        if self.segment_norm:
+        if self.scale:
             x = (x + self.dynamic_range/2) / (self.dynamic_range/2)
 
         return self.p(x) # Permute((3,2,1))
@@ -123,7 +122,7 @@ class Melspec_layer_essentia():
 
     def __init__(
             self,
-            segment_norm=True,
+            scale=True,
             n_fft=1024,
             stft_hop=256,
             n_mels=256,
@@ -150,7 +149,7 @@ class Melspec_layer_essentia():
         self.n_mels = n_mels
         self.amin = amin
         self.dynamic_range = dynamic_range
-        self.segment_norm = segment_norm
+        self.scale = scale
 
         self.input_shape = (1, int(fs * dur))
         self.pad_l = n_fft // 2
@@ -217,8 +216,8 @@ class Melspec_layer_essentia():
         # Clip x below from -dynamic_range dB
         mel_spec = np.where(mel_spec>-self.dynamic_range, mel_spec, -self.dynamic_range)
 
-        # Scale x to be in [-1, 1] if segment_norm is True
-        if self.segment_norm:
+        # Scale x to be in [-1, 1] if scale is True
+        if self.scale:
             mel_spec = (mel_spec + self.dynamic_range/2) / (self.dynamic_range/2)
 
         return mel_spec.T # (n_mels, n_frames)
@@ -243,7 +242,7 @@ def get_Melspec_layer_essentia(cfg):
     f_max = cfg['MODEL']['F_MAX']
 
     return Melspec_layer_essentia(
-                        segment_norm=cfg['MODEL']['SEGMENT_NORM'], 
+                        scale=cfg['MODEL']['SCALE_INPUTS'], 
                         n_fft=n_fft, 
                         stft_hop=stft_hop, 
                         n_mels=n_mels, 
@@ -262,7 +261,7 @@ def get_melspec_layer(cfg, trainable=False):
     f_max = cfg['MODEL']['F_MAX']
 
     l = Melspec_layer(
-                      segment_norm=cfg['MODEL']['SEGMENT_NORM'],
+                      scale=cfg['MODEL']['SCALE_INPUTS'],
                       n_fft=n_fft,
                       stft_hop=stft_hop,
                       n_mels=n_mels,

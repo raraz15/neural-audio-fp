@@ -56,7 +56,7 @@ class Dataset:
         self.dur = cfg['MODEL']['DUR']
         self.hop = cfg['MODEL']['HOP']
         self.fs = cfg['MODEL']['FS']
-        self.segment_norm = cfg['MODEL']['SEGMENT_NORM']
+        self.scale = cfg['MODEL']['SCALE_INPUTS']
         self.stft_hop = cfg['MODEL']['STFT_HOP']
         self.n_fft = cfg['MODEL']['STFT_WIN']
         self.n_mels = cfg['MODEL']['N_MELS']
@@ -133,7 +133,7 @@ class Dataset:
             hop=self.hop,
             fs=self.fs,
             normalize_audio=self.normalize_audio,
-            segment_norm=self.segment_norm,
+            scale=self.scale,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
@@ -164,7 +164,7 @@ class Dataset:
             self.hop,
             self.fs,
             normalize_audio=self.normalize_audio,
-            segment_norm=self.segment_norm,
+            scale=self.scale,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
@@ -206,7 +206,7 @@ class Dataset:
             self.hop,
             self.fs,
             normalize_audio=self.normalize_audio,
-            segment_norm=self.segment_norm,
+            scale=self.scale,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
@@ -250,7 +250,7 @@ class Dataset:
                 self.hop,
                 self.fs,
                 normalize_audio=self.normalize_audio,
-                segment_norm=self.segment_norm,
+                scale=self.scale,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
                 n_mels=self.n_mels,
@@ -267,7 +267,7 @@ class Dataset:
                 self.hop,
                 self.fs,
                 normalize_audio=self.normalize_audio,
-                segment_norm=self.segment_norm,
+                scale=self.scale,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
                 n_mels=self.n_mels,
@@ -330,7 +330,7 @@ class Dataset:
             self.hop,
             self.fs,
             normalize_audio=self.normalize_audio,
-            segment_norm=self.segment_norm,
+            scale=self.scale,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,

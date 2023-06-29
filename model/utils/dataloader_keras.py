@@ -18,7 +18,7 @@ class genUnbalSequence(Sequence):
         duration=1,
         hop=.5,
         fs=8000,
-        segment_norm=True,
+        scale=True,
         n_fft=1024,
         stft_hop=256,
         n_mels=256,
@@ -52,6 +52,8 @@ class genUnbalSequence(Sequence):
             Hop-size in seconds. The default is .5.
         fs : (int), optional
             Sampling rate. The default is 8000.
+        scale : (bool), optional
+            Scale the output. The default is True.
         shuffle : (bool), optional
             Randomize samples from the original songs. BG/IRs will not be 
             affected by this parameter (BG/IRs are always shuffled). 
@@ -95,7 +97,7 @@ class genUnbalSequence(Sequence):
         self.offset_margin_frame = int(hop * self.offset_margin_hop_rate * fs)
 
         # Melspec layer
-        self.mel_spec = Melspec_layer_essentia(segment_norm=segment_norm,
+        self.mel_spec = Melspec_layer_essentia(scale=scale,
                                             n_fft=n_fft, 
                                             stft_hop=stft_hop, 
                                             n_mels=n_mels, 

@@ -44,7 +44,7 @@ MODEL:
     N_MELS : 256 # Number of mel-frequency bins.
     EMB_SZ : 128  # Dimension of fingerprint, d in this paper.
     BN : 'layer_norm2d' # or 'batch_norm'
-    SEGMENT_NORM: True # Scale the log-power spectrogram to [-1,1].
+    SCALE_INPUTS: True # Scale the log-power mel-spectrogram to [-1,1].
     # NOTE:
     # - In the current version, modifying {FS, DUR, HOB, STFT WIN, STFT HOP}
     #   may cause the model to malfunction or cause input shape mismatch errors.
