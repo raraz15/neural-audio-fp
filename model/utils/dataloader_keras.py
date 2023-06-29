@@ -314,24 +314,19 @@ class genUnbalSequence(Sequence):
             # Get background sample information
             fname, seg_idx, _, offset_max = self.fns_bg_seg_list[idx]
 
-            # TODO: hop assertion
-            # TODO: is self.duration/2 is supposed to be hop?
-            # TODO: is this necessary?
-            # Determine the Random offset
-            random_offset_sec = np.random.randint(0, int((self.duration/2)*self.fs)) / self.fs
+            # Load the background sample
+            X = self.bg_clips[fname]
+
+            # Randomly offset the sample
+            random_offset_sec = np.random.randint(0, int((self.hop)*self.fs)) / self.fs
             offset_sec = np.min([random_offset_sec, offset_max / self.fs])
 
             # Load audio segment from memory with random offset
-            t0 = seg_idx*self.duration + offset_sec
-            t1 = t0 + self.duration
-            n0 = int(t0*self.fs)
-            n1 = int(t1*self.fs)
-            if n1-n0 < int(self.fs*self.duration):
-                n1 += int(self.fs*self.duration) - (n1-n0)
-            elif n1-n0 > int(self.fs*self.duration):
-                n1 -= (n1-n0) - int(self.fs*self.duration)
-            X = self.bg_clips[fname][n0:n1].reshape(1, -1)
-            X_bg_batch.append(X)
+            start_frame_idx = np.floor((seg_idx*self.duration + offset_sec)*self.fs).astype(int)
+            seg_length_frame = np.floor(self.duration*self.fs).astype(int)
+            assert start_frame_idx+seg_length_frame <= X.shape[0], \
+                "start_frame_idx+seg_length_frame={} is larger than X.shape[0]={}".format(start_frame_idx+seg_length_frame, X.shape[0])
+            X_bg_batch.append(X[start_frame_idx:start_frame_idx+seg_length_frame].reshape(1, -1))
 
         # Concatenate the samples
         X_bg_batch = np.concatenate(X_bg_batch, axis=0)
