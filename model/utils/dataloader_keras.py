@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" dataloader_keras.py """
+
 from tensorflow.keras.utils import Sequence
 from model.utils.audio_utils import (bg_mix_batch, ir_aug_batch, load_audio,
                                      get_fns_seg_list, load_audio_multi_start)
@@ -119,7 +119,7 @@ class genUnbalSequence(Sequence):
         self.reduce_items_p = reduce_items_p
         self.reduce_batch_first_half = reduce_batch_first_half
 
-        # Read audio files and save the segments including min and max offset
+        # Read audio files and save the segments
         self.fns_event_seg_list = get_fns_seg_list(fns_event_list,
                                                     self.seg_mode,
                                                     self.fs,
@@ -132,7 +132,7 @@ class genUnbalSequence(Sequence):
             self.n_samples = len(self.fns_event_seg_list) # fp-generation
         self.index_event = np.arange(self.n_samples)
 
-        # Save bg_mix and ir_mix parameters and read bg/ir segments
+        # Save bg_mix parameters and read bg audio
         self.bg_mix = bg_mix_parameter[0]
         if self.bg_mix:
             self.bg_snr_range = bg_mix_parameter[2]
@@ -142,6 +142,12 @@ class genUnbalSequence(Sequence):
                                                     self.duration)
             self.n_bg_samples = len(self.fns_bg_seg_list)
             self.index_bg = np.arange(self.n_bg_samples)
+            # Load all bg clips in full duration
+            self.bg_clips = {fn: load_audio(fn, fs=self.fs, amp_mode='normal') 
+                             for fn,_,_,_ in self.fns_bg_seg_list}
+
+        # TODO: load all ir clips in full duration
+        # Save ir_mix parameters and read ir clips
         self.ir_mix = ir_mix_parameter[0]
         if self.ir_mix:
             self.fns_ir_seg_list = get_fns_seg_list(ir_mix_parameter[1], 
@@ -153,7 +159,7 @@ class genUnbalSequence(Sequence):
 
         # Shuffle all index events if specified
         if self.shuffle:
-            self.shuffle_index_event()
+            self.shuffle_index_events()
 
     def __len__(self):
         """ Returns the number of batches per epoch. """
@@ -166,9 +172,9 @@ class genUnbalSequence(Sequence):
 
     def on_epoch_end(self):
         if self.shuffle:
-            self.shuffle_index_event()
+            self.shuffle_index_events()
 
-    def shuffle_index_event(self):
+    def shuffle_index_events(self):
         """ Shuffle index events."""
 
         self.index_event = np.random.permutation(self.n_samples)
@@ -186,11 +192,13 @@ class genUnbalSequence(Sequence):
         """ Get anchor (original) and positive (replica) samples of audio and their power mel-spectrograms.
 
         Returns:
-            Xa_batch: anchor samples (audio)
-            Xp_batch: positive samples (audio)
-            Xa_batch_mel: power mel-spectrogram of anchor samples
-            Xp_batch_mel: power-mel spectrogram of positive samples"""
+            Xa_batch: anchor audio samples (n_anchor, T)
+            Xp_batch: positive audio samples (self.n_pos_bsz, T)
+            Xa_batch_mel: power mel-spectrogram of anchor samples (n_anchor, n_mels, T, 1)
+            Xp_batch_mel: power-mel spectrogram of positive samples (n_pos, n_mels, T, 1)
+        """
 
+        # TODO: check if this is necessary
         global bg_sel_indices
 
         # Prepare indices for batch. n_anchor consecutive samples are taken at each iteration
@@ -204,9 +212,7 @@ class genUnbalSequence(Sequence):
             if self.bg_mix == True:
                 # Prepare bg for positive samples
                 bg_sel_indices = np.arange(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz) % self.n_bg_samples
-                index_bg_for_batch = self.index_bg[bg_sel_indices]
-                # TODO: after determining the idx, just return from memory here
-                Xp_bg_batch = self.__bg_batch_load(index_bg_for_batch)
+                Xp_bg_batch = self.__bg_batch_load(self.index_bg[bg_sel_indices])
                 # mix
                 Xp_batch = bg_mix_batch(Xp_batch,
                                         Xp_bg_batch,
@@ -227,9 +233,9 @@ class genUnbalSequence(Sequence):
         Xp_batch_mel = self.mel_spec.compute_batch(Xp_batch)
 
         # Fix the dimensions
-        Xa_batch_mel = np.expand_dims(Xa_batch_mel, 3).astype(np.float32) # (n_anchor, n_mels, T, 1)
-        if Xp_batch_mel.size>0:
-            Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3).astype(np.float32) # (n_pos, n_mels, T, 1)
+        Xa_batch_mel = np.expand_dims(Xa_batch_mel, 3).astype(np.float32)
+        if Xp_batch_mel.size>0: # if there are positive samples
+            Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3).astype(np.float32)
 
         return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
 
@@ -244,16 +250,16 @@ class genUnbalSequence(Sequence):
         for idx in anchor_idx_list:  # idx: index of one sample in the dataset
 
             # Load anchor sample information
-            _, seg_idx, offset_min, offset_max = self.fns_event_seg_list[idx]
+            fname, seg_idx, offset_min, offset_max = self.fns_event_seg_list[idx]
 
             # Determine the anchor start time
             anchor_start_sec = seg_idx * self.hop
 
             # If random offset is specified, apply it to the anchor start time
             if self.random_offset_anchor:
+                # Sample a random offset frame
                 anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
                 anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
-                # Sample a random offset frame
                 _anchor_offset_frame = np.random.randint(low=anchor_offset_min, high=anchor_offset_max)
                 anchor_start_sec += _anchor_offset_frame / self.fs
             else:
@@ -279,7 +285,7 @@ class genUnbalSequence(Sequence):
 
             # Load the anchor and positive samples
             start_sec_list = np.concatenate(([anchor_start_sec], pos_start_sec_list))
-            xs = load_audio_multi_start(self.fns_event_seg_list[idx][0],
+            xs = load_audio_multi_start(fname,
                                         start_sec_list, 
                                         self.duration, 
                                         self.fs,
@@ -296,35 +302,39 @@ class genUnbalSequence(Sequence):
         return Xa_batch, Xp_batch
 
     def __bg_batch_load(self, idx_list):
+        """ Load len(idx_list) background samples from the memory.
 
-        X_bg_batch = None  # (n_batch+n_batch//n_class, fs*k)
-        # Determine the Random offset for each sample
-        random_offset_sec = np.random.randint(0, 
-                                              self.duration * self.fs / 2, 
-                                              size=len(idx_list)) / self.fs
-        for i, idx in enumerate(idx_list):
+        Returns:
+            X_bg_batch (self.n_pos_bsz, T)
+        """
 
-            # Load background sample information
+        X_bg_batch = []
+        for idx in idx_list:
+
+            # Get background sample information
             fname, seg_idx, _, offset_max = self.fns_bg_seg_list[idx]
 
-            # Determine the random offset
-            offset_sec = np.min([random_offset_sec[i], offset_max / self.fs])
+            # TODO: hop assertion
+            # TODO: is self.duration/2 is supposed to be hop?
+            # TODO: is this necessary?
+            # Determine the Random offset
+            random_offset_sec = np.random.randint(0, int((self.duration/2)*self.fs)) / self.fs
+            offset_sec = np.min([random_offset_sec, offset_max / self.fs])
 
-            # Load audio with random offset
-            X = load_audio(filename=fname,
-                           seg_start_sec=seg_idx * self.duration,
-                           offset_sec=offset_sec,
-                           seg_length_sec=self.duration,
-                           seg_pad_offset_sec=0.,
-                           fs=self.fs,
-                           amp_mode='normal')
-            X = X.reshape(1, -1)
+            # Load audio segment from memory with random offset
+            t0 = seg_idx*self.duration + offset_sec
+            t1 = t0 + self.duration
+            n0 = int(t0*self.fs)
+            n1 = int(t1*self.fs)
+            if n1-n0 < int(self.fs*self.duration):
+                n1 += int(self.fs*self.duration) - (n1-n0)
+            elif n1-n0 > int(self.fs*self.duration):
+                n1 -= (n1-n0) - int(self.fs*self.duration)
+            X = self.bg_clips[fname][n0:n1].reshape(1, -1)
+            X_bg_batch.append(X)
 
-            # Create a batch
-            if X_bg_batch is None:
-                X_bg_batch = X
-            else:
-                X_bg_batch = np.concatenate((X_bg_batch, X), axis=0)
+        # Concatenate the samples
+        X_bg_batch = np.concatenate(X_bg_batch, axis=0)
 
         return X_bg_batch
 
