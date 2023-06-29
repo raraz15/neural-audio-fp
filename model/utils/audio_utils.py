@@ -112,14 +112,13 @@ def max_normalize(x):
     else:
         return x / np.max(np.abs(max_val))
 
-# TODO: make normalize
 def load_audio(filename=str(),
                seg_start_sec=0.0,
                offset_sec=0.0,
                seg_length_sec=None,
                seg_pad_offset_sec=0.0,
                fs=8000,
-               normalize_audio=True):
+               normalize=True):
     """ Loads a wav file if the sample rate is correct.
 
     Parameters:
@@ -173,7 +172,7 @@ def load_audio(filename=str(),
     x = x / 2**15 # normalize to [-1, 1] float
 
     # Max Normalize, random amplitude
-    if normalize_audio:
+    if normalize:
         x = max_normalize(x)
 
     # Pad the segment if it is shorter than seg_length_sec
@@ -191,8 +190,8 @@ def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),
                            fs=8000,
-                           normalize_audio=True):
-    """ Load_audio wrapper for loading audio with multiple start indices. """
+                           normalize=True):
+    """ Load_audio wrapper for loading audio with multiple start indices each with same duration. """
 
     out = None
     for seg_start_sec in seg_start_sec_list:
@@ -200,7 +199,7 @@ def load_audio_multi_start(filename=str(),
                        seg_start_sec=seg_start_sec,
                        seg_length_sec=seg_length_sec,
                        fs=fs,
-                       normalize_audio=normalize_audio)
+                       normalize=normalize)
         x = x.reshape((1, -1))
         if out is None:
             out = x

@@ -142,7 +142,7 @@ class genUnbalSequence(Sequence):
             self.n_bg_samples = len(self.fns_bg_seg_list)
             self.index_bg = np.arange(self.n_bg_samples)
             # Load all bg clips in full duration
-            self.bg_clips = {fn: load_audio(fn, fs=self.fs, normalize_audio=self.normalize_audio) 
+            self.bg_clips = {fn: load_audio(fn, fs=self.fs, normalize=self.normalize_audio) 
                              for fn,_,_,_ in self.fns_bg_seg_list}
 
         # TODO: store as FFT
@@ -161,7 +161,7 @@ class genUnbalSequence(Sequence):
                 X = load_audio(fn, 
                             seg_length_sec=self.duration,
                             fs=self.fs,
-                            normalize_audio=self.normalize_audio)
+                            normalize=self.normalize_audio)
                 if len(X) > MAX_IR_LENGTH:
                     X = X[:MAX_IR_LENGTH]
                 self.ir_clips[fn] = X
@@ -294,7 +294,7 @@ class genUnbalSequence(Sequence):
                                         start_sec_list, 
                                         self.duration, 
                                         self.fs,
-                                        normalize_audio=self.normalize_audio)
+                                        normalize=self.normalize_audio)
 
             # Create a batch
             if Xa_batch is None:
