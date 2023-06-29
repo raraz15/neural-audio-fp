@@ -210,7 +210,7 @@ def load_audio(filename=str(),
                seg_length_sec=None,
                seg_pad_offset_sec=0.0,
                fs=8000,
-               amp_mode='normal'):
+               normalize_audio=True):
     """
         Open file to get file info --> Calulate index range
         --> Load sample by index --> Padding --> Max-Normalize --> Out
@@ -253,14 +253,8 @@ def load_audio(filename=str(),
     x = x / 2**15 # normalize to [-1, 1] float
 
     # Max Normalize, random amplitude
-    if amp_mode == 'normal':
-        pass
-    elif amp_mode == 'max_normalize':
-        _x_max = np.max(np.abs(x))
-        if _x_max != 0:
-            x = x / _x_max
-    else:
-        raise ValueError('amp_mode={}'.format(amp_mode))
+    if normalize_audio:
+        x = max_normalize(x)
 
     # Pad the segment if it is shorter than seg_length_sec
     if len(x) < seg_length_frame:
@@ -277,7 +271,7 @@ def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),
                            fs=8000,
-                           amp_mode='normal'):
+                           normalize_audio=True):
     """ Load_audio wrapper for loading audio with multiple start indices. """
     # assert(len(seg_start_sec_list)==len(seg_length_sec))
     out = None
@@ -286,7 +280,7 @@ def load_audio_multi_start(filename=str(),
                        seg_start_sec=seg_start_sec,
                        seg_length_sec=seg_length_sec,
                        fs=fs,
-                       amp_mode=amp_mode)
+                       normalize_audio=normalize_audio)
         x = x.reshape((1, -1))
         if out is None:
             out = x

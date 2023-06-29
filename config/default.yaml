@@ -33,8 +33,8 @@ DATA_SEL:
 
 # Model hyper-parameters
 MODEL:
-    FEAT : 'melspec'  # 'melspec' or 'melspec_maxnorm'
     FS : 8000 # Sampling rate
+    NORMALIZE_AUDIO: True # Scale the audio to [-1,1].
     DUR : 1. # Unit segment length in seconds.
     HOP : .5 # Hop-size of the segment window in seconds.
     STFT_WIN : 1024

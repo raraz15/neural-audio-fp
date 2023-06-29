@@ -23,7 +23,7 @@ class Melspec_layer(Model):
 
     def __init__(
             self,
-            input_shape=(1, 8000),
+            #input_shape=(1, 8000),
             segment_norm=False,
             n_fft=1024,
             stft_hop=256,
@@ -39,6 +39,8 @@ class Melspec_layer(Model):
             **kwargs
             ):
         super(Melspec_layer, self).__init__(name=name, trainable=False, **kwargs)
+
+        self.input_shape=(1, int(fs*dur)),
         
         self.mel_fb_kwargs = {
             'sample_rate': fs,
@@ -64,13 +66,13 @@ class Melspec_layer(Model):
             )
         
         # Construct log-power Mel-spec layer
-        self.m = self.construct_melspec_layer(input_shape, name)
+        self.m = self.construct_melspec_layer(self.input_shape, name)
 
         # Permute layer
         self.p = tf.keras.Sequential(name='Permute')
         self.p.add(Permute((3, 2, 1), input_shape=self.m.output_shape[1:]))
         
-        super(Melspec_layer, self).build((None, input_shape[0], input_shape[1]))
+        super(Melspec_layer, self).build((None, self.input_shape[0], self.input_shape[1]))
         
         
     def construct_melspec_layer(self, input_shape, name):
@@ -121,7 +123,6 @@ class Melspec_layer_essentia():
 
     def __init__(
             self,
-            input_shape=(1, 8000),
             segment_norm=True,
             n_fft=1024,
             stft_hop=256,
@@ -151,7 +152,7 @@ class Melspec_layer_essentia():
         self.dynamic_range = dynamic_range
         self.segment_norm = segment_norm
 
-        self.input_shape = input_shape
+        self.input_shape = (1, int(fs * dur))
         self.pad_l = n_fft // 2
         self.pad_r = n_fft // 2
         self.padded_input_shape = (1, int(fs * dur) + self.pad_l + self.pad_r)
@@ -240,9 +241,8 @@ def get_Melspec_layer_essentia(cfg):
     n_mels = cfg['MODEL']['N_MELS']
     f_min = cfg['MODEL']['F_MIN']
     f_max = cfg['MODEL']['F_MAX']
-    input_shape = (1, int(fs * dur))
 
-    return Melspec_layer_essentia(input_shape=input_shape, 
+    return Melspec_layer_essentia(
                         segment_norm=cfg['MODEL']['SEGMENT_NORM'], 
                         n_fft=n_fft, 
                         stft_hop=stft_hop, 
@@ -260,9 +260,8 @@ def get_melspec_layer(cfg, trainable=False):
     n_mels = cfg['MODEL']['N_MELS']
     f_min = cfg['MODEL']['F_MIN']
     f_max = cfg['MODEL']['F_MAX']
-    input_shape = (1, int(fs * dur))
 
-    l = Melspec_layer(input_shape=input_shape,
+    l = Melspec_layer(
                       segment_norm=cfg['MODEL']['SEGMENT_NORM'],
                       n_fft=n_fft,
                       stft_hop=stft_hop,
