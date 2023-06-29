@@ -2,9 +2,14 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-""" trainer.py """
+
+import random
+import numpy as np
+import os
+
 import tensorflow as tf
 from tensorflow.keras.utils import Progbar
+
 from model.dataset import Dataset
 from model.fp.specaug_chain.specaug_chain import get_specaug_chain_layer
 from model.fp.nnfp import get_fingerprinter
@@ -13,25 +18,24 @@ from model.fp.online_triplet_loss import OnlineTripletLoss
 from model.fp.lamb_optimizer import LAMB
 from model.utils.experiment_helper import ExperimentHelper
 from model.utils.mini_search_subroutines import mini_search_eval
-import random
-import numpy as np
-import os
 
 SEED = 27
 
-def set_seed(seed: int = SEED) -> None:
-    """Set seed for reproducibility. Taken
-    from https://wandb.ai/sauravmaheshkar/RSNA-MICCAI/reports/How-to-Set-Random-Seeds-in-PyTorch-and-Tensorflow--VmlldzoxMDA2MDQy"""
+def set_seed(seed: int = SEED):
+    """Set seed for reproducibility."""
 
+    # Set a fixed value for the hash seed
+    os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     tf.random.set_seed(seed)
+    print(f"Random seed set as {seed}")
+
+def set_global_determinism():
     # When running on the CuDNN backend, two further options must be set
     os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
     os.environ['TF_DETERMINISTIC_OPS'] = '1'
-    # Set a fixed value for the hash seed
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    print(f"Random seed set as {seed}")
+    print("Global determinism set")
 
 def build_fp(cfg):
     """ Build fingerprinter """
@@ -184,6 +188,7 @@ def trainer(cfg, checkpoint_name):
         raise NotImplementedError(cfg['LOSS']['LOSS_MODE'])
 
     # Initialize the datasets
+    tf.print('Initializing the datasets...')
     train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
     val_ds = dataset.get_val_ds() # max 500
 

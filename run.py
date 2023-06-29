@@ -2,7 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-""" run.py """
+
 import os
 import sys
 import click
@@ -46,7 +46,9 @@ def cli():
 @click.option('--config', '-c', default='default', type=click.STRING,
               help="Name of model configuration located in './config/.'")
 @click.option('--max_epoch', default=None, type=click.INT, help='Max epoch.')
-def train(checkpoint_name, config, max_epoch):
+@click.option('--deterministic', default=False, is_flag=True,
+              help='Exclude dummy-DB from the default source.')
+def train(checkpoint_name, config, max_epoch, deterministic):
     """ Train a neural audio fingerprinter.
 
     ex) python run.py train CHECKPOINT_NAME --max_epoch=100
@@ -54,12 +56,15 @@ def train(checkpoint_name, config, max_epoch):
         # with custom config file
         python run.py train CHECKPOINT_NAME --max_epoch=100 -c CONFIG_NAME
 
-    NOTE: If './LOG_ROOT_DIR/checkpoint/CHECKPOINT_NAME already exists, the training will resume from the latest checkpoint in the directory.
-
+    NOTE: If './LOG_ROOT_DIR/checkpoint/CHECKPOINT_NAME already exists, 
+    the training will resume from the latest checkpoint in the directory.
     """
-    from model.trainer import set_seed, trainer
+
+    from model.trainer import set_seed, set_global_determinism, trainer
 
     set_seed()
+    if deterministic:
+        set_global_determinism()
     cfg = load_config(config)
     if max_epoch:
         update_config(cfg, 'TRAIN', 'MAX_EPOCH', max_epoch)
