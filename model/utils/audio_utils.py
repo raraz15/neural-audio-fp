@@ -257,6 +257,7 @@ def background_mix(x, x_bg, snr_db):
         x_mix = magnitude * x + x_bg
 
     else:
+        # One of the signal is zero so just add them
         x_mix = x + x_bg
 
     # Max normalize
@@ -264,42 +265,24 @@ def background_mix(x, x_bg, snr_db):
 
     return x_mix
 
-def log_scale_random_number(amp_range=(0.1, 1.)):
-
-    assert amp_range[0] < amp_range[1], 'amp_range should be (min, max)'
-
-    log_min, log_max = np.log10(amp_range)
-    random_number_log = np.random.rand() * (log_max - log_min) + log_min
-    random_amp = np.power(10, random_number_log)
-
-    return random_amp
-
-def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24), amp_range=(0.1, 1)):
-    """ Mix a batch of events with a batch of background noise with a uniformly
-    random SNR (dB) in snr_range for each sample in the batch. Optionally apply
-    random amplitude gain to the mixed signal if amp_range is given. The
-    amplitude gain is uniformly random in log scale.
+def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
+    """ Mix a batch of events with a batch of background noise with a 
+    uniformly random SNR (dB) from snr_range. SNR is sampled for each 
+    sample in the batch.
 
     Parameters
     ----------
-    event_batch : 2D array (float)
-        Batch of event signals. (B, T)
-    bg_batch : 2D array (float)
-        Batch of background noise signals. (B, T)
-    snr_range : tuple (float)
-        SNR range in dB. (min, max)
-    amp_range : tuple (float)
-        Amplitude range in linear scale. (min, max) 
-        Provide None if no amplitude gain is needed.
-
+        event_batch : 2D array (float)
+            Batch of event signals. (B, T)
+        bg_batch : 2D array (float)
+            Batch of background noise signals. (B, T)
+        snr_range : tuple (float)
+            SNR range in dB. (min, max)
     """
 
     assert snr_range[0] < snr_range[1], 'snr_range should be (min, max)'
     assert event_batch.shape == bg_batch.shape, \
         'event_batch and bg_batch should have the same shape.'
-    if amp_range is not None:
-        assert amp_range[1] <= 1.0 and amp_range[0] >= 0.1, \
-            'amp_range should be in (0.1, 1.0) in linear scale.'
 
     # Initialize
     X_bg_mix = np.zeros((event_batch.shape[0], event_batch.shape[1]))
@@ -309,17 +292,11 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24), amp_range=(0.1, 1)):
     snrs = np.random.rand(len(event_batch))
     snrs = snrs * (max_snr - min_snr) + min_snr
 
+    # Mix each element with random SNR
     for i in range(len(event_batch)):
-
-        # Mix with random SNR
         X_bg_mix[i] = background_mix(x=event_batch[i],
                                     x_bg=bg_batch[i],
                                     snr_db=snrs[i])
-
-         # Apply random amplitude gain to the mixed signal if amp_range is given
-        if amp_range is not None:
-            event_amp_ratio = log_scale_random_number(amp_range=amp_range)
-            X_bg_mix[i] = event_amp_ratio * X_bg_mix[i]
 
     return X_bg_mix
 
