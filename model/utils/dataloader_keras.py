@@ -208,9 +208,6 @@ class genUnbalSequence(Sequence):
             Xp_batch_mel: power-mel spectrogram of positive samples (n_pos, n_mels, T, 1)
         """
 
-        # TODO: check if this is necessary
-        global bg_sel_indices
-
         # Prepare indices for batch. n_anchor consecutive samples are taken at each iteration
         index_anchor_for_batch = self.index_event[idx*self.n_anchor:(idx + 1)*self.n_anchor]
         # Load anchor and positive audio samples
