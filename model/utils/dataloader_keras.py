@@ -250,7 +250,7 @@ class genUnbalSequence(Sequence):
             Xp_batch: (n_anchor*n_pos_per_anchor, T)
         """
 
-        Xa_batch, Xp_batch = None, None
+        Xa_batch, Xp_batch = [], []
         for idx in anchor_idx_list:  # idx: index of one sample in the dataset
 
             # Load anchor sample information
@@ -294,14 +294,12 @@ class genUnbalSequence(Sequence):
                                         self.duration, 
                                         self.fs,
                                         normalize=self.normalize_audio)
+            Xa_batch.append(xs[0, :].reshape((1, -1)))
+            Xp_batch.append(xs[1:, :])  # If self.n_pos_per_anchor==0: this produces an empty array with shape (0, T)
 
-            # Create a batch
-            if Xa_batch is None:
-                Xa_batch = xs[0, :].reshape((1, -1))
-                Xp_batch = xs[1:, :]  # If self.n_pos_per_anchor==0: this produces an empty array with shape (0, T)
-            else:
-                Xa_batch = np.vstack((Xa_batch, xs[0, :].reshape((1, -1)))) 
-                Xp_batch = np.vstack((Xp_batch, xs[1:, :]))
+        # Create a batch
+        Xa_batch = np.concatenate(Xa_batch, axis=0)
+        Xp_batch = np.concatenate(Xp_batch, axis=0)
 
         return Xa_batch, Xp_batch
 
