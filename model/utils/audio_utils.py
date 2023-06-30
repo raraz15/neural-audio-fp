@@ -236,60 +236,66 @@ def background_mix(x, x_bg, snr_db):
     -------
     1D array
         Max-normalized mix of x and x_bg with SNR
-
     """
-    # Check length
-    if len(x) > len(x_bg):  # This will not happen though...
-        _x_bg = np.zeros(len(x))
-        bg_start = np.random.randint(len(x) - len(x_bg))
-        bg_end = bg_start + len(x_bg)
-        _x_bg[bg_start:bg_end] = x_bg
-        x_bg = _x_bg
-    elif len(x) < len(x_bg):  # This will not happen though...
-        bg_start = np.random.randint(len(x_bg) - len(x))
-        bg_end = bg_start + len(x)
-        x_bg = x_bg[bg_start:bg_end]
 
-    # Normalize with energy
-    rmse_bg = np.sqrt(np.mean(x_bg**2))
+    assert len(x) == len(x_bg), 'x and x_bg should have the same length.'
+    # # Check length
+    # if len(x) > len(x_bg):  # This will not happen though...
+    #     _x_bg = np.zeros(len(x))
+    #     bg_start = np.random.randint(len(x) - len(x_bg))
+    #     bg_end = bg_start + len(x_bg)
+    #     _x_bg[bg_start:bg_end] = x_bg
+    #     x_bg = _x_bg
+    # elif len(x) < len(x_bg):  # This will not happen though...
+    #     bg_start = np.random.randint(len(x_bg) - len(x))
+    #     bg_end = bg_start + len(x)
+    #     x_bg = x_bg[bg_start:bg_end]
+
+    def _RMS_energy(x):
+        return np.sqrt(np.mean(x**2))
+
+    # Normalize with RMS Energy
+    rmse_bg = _RMS_energy(x_bg)
     x_bg = x_bg / rmse_bg
-    rmse_x = np.sqrt(np.mean(x**2))
+
+    rmse_x = _RMS_energy(x)
     x = x / rmse_x
 
     # Mix
     magnitude = np.power(10, snr_db / 20.)
     x_mix = magnitude * x + x_bg
-    return max_normalize(x_mix)
 
-def log_scale_random_number_batch(bsz=int(), amp_range=(0.1, 1.)):
-    range_log = np.log10(amp_range)
-    random_number_log = np.random.rand(bsz) * (np.max(range_log) - np.min(range_log)) + np.min(range_log)
+    # Max normalize
+    x_mix = max_normalize(x_mix)
+
+    return x_mix
+
+def log_scale_random_number(amp_range=(0.1, 1.)):
+
+    assert amp_range[0] < amp_range[1], 'amp_range should be (min, max)'
+
+    log_min, log_max = np.log10(amp_range[0]), np.log10(amp_range[1])
+    random_number_log = np.random.rand() * (log_max - log_min) + log_min
+
     return np.power(10, random_number_log)
 
-# TODO: how does it work?
-def bg_mix_batch(event_batch,
-                 bg_batch,
-                 snr_range=(6, 24),
-                 unit='db',
-                 mode='energy'):
+# TODO: why do we need event_amp_ratio?
+def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24), amp_range=(0.1, 1)):
+
+    assert snr_range[0] < snr_range[1], 'snr_range should be (min, max)'
 
     # Initialize
     X_bg_mix = np.zeros((event_batch.shape[0], event_batch.shape[1]))
 
-    # Random SNR
-    min_snr = np.min(snr_range)
-    max_snr = np.max(snr_range)
+    # Random SNR for each sample in the batch
+    min_snr, max_snr = snr_range
     snrs = np.random.rand(len(event_batch))
     snrs = snrs * (max_snr - min_snr) + min_snr
 
-    # Random amp (batch-wise)
-    event_amp_ratio_batch = log_scale_random_number_batch(bsz=len(event_batch),
-                                                          amp_range=(0.1, 1))
-
     for i in range(len(event_batch)):
+
         event_max = np.max(np.abs(event_batch[i]))
         bg_max = np.max(np.abs(bg_batch[i]))
-        #event_amp_ratio = log_scale_random_number(amp_range=(0.01,1))
 
         if event_max == 0 or bg_max == 0:
             X_bg_mix[i] = event_batch[i] + bg_batch[i]
@@ -298,7 +304,9 @@ def bg_mix_batch(event_batch,
             X_bg_mix[i] = background_mix(x=event_batch[i],
                                          x_bg=bg_batch[i],
                                          snr_db=snrs[i])
-        X_bg_mix[i] = event_amp_ratio_batch[i] * X_bg_mix[i]
+
+        event_amp_ratio = log_scale_random_number(amp_range=amp_range)
+        X_bg_mix[i] = event_amp_ratio * X_bg_mix[i]
 
     return X_bg_mix
 
