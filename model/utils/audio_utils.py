@@ -256,6 +256,10 @@ def background_mix(x, x_bg, snr_db):
         magnitude = np.power(10, snr_db / 20.)
         x_mix = magnitude * x + x_bg
 
+    elif rms_bg == 0 and rms_x == 0:
+        # Both signals are zero so just return zeros
+        x_mix = np.zeros_like(x)
+        print('Both signals are zero!')
     else:
         # One of the signal is zero so just add them
         x_mix = x + x_bg
