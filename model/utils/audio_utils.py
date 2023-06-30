@@ -238,32 +238,26 @@ def background_mix(x, x_bg, snr_db):
         Max-normalized mix of x and x_bg with SNR
     """
 
-    assert len(x) == len(x_bg), 'x and x_bg should have the same length.'
-    # # Check length
-    # if len(x) > len(x_bg):  # This will not happen though...
-    #     _x_bg = np.zeros(len(x))
-    #     bg_start = np.random.randint(len(x) - len(x_bg))
-    #     bg_end = bg_start + len(x_bg)
-    #     _x_bg[bg_start:bg_end] = x_bg
-    #     x_bg = _x_bg
-    # elif len(x) < len(x_bg):  # This will not happen though...
-    #     bg_start = np.random.randint(len(x_bg) - len(x))
-    #     bg_end = bg_start + len(x)
-    #     x_bg = x_bg[bg_start:bg_end]
-
     def _RMS_energy(x):
         return np.sqrt(np.mean(x**2))
 
-    # Normalize with RMS Energy
+    assert len(x) == len(x_bg), 'x and x_bg should have the same length.'
+
+    # Get the RMS Energy for each signal
     rmse_bg = _RMS_energy(x_bg)
-    x_bg = x_bg / rmse_bg
-
     rmse_x = _RMS_energy(x)
-    x = x / rmse_x
+    if rmse_bg != 0 and rmse_x != 0:
 
-    # Mix
-    magnitude = np.power(10, snr_db / 20.)
-    x_mix = magnitude * x + x_bg
+        # Normalize each signal by RMSE
+        x_bg = x_bg / rmse_bg
+        x = x / rmse_x
+
+        # Mix with snr_db
+        magnitude = np.power(10, snr_db / 20.)
+        x_mix = magnitude * x + x_bg
+
+    else:
+        x_mix = x + x_bg
 
     # Max normalize
     x_mix = max_normalize(x_mix)
@@ -274,15 +268,38 @@ def log_scale_random_number(amp_range=(0.1, 1.)):
 
     assert amp_range[0] < amp_range[1], 'amp_range should be (min, max)'
 
-    log_min, log_max = np.log10(amp_range[0]), np.log10(amp_range[1])
+    log_min, log_max = np.log10(amp_range)
     random_number_log = np.random.rand() * (log_max - log_min) + log_min
+    random_amp = np.power(10, random_number_log)
 
-    return np.power(10, random_number_log)
+    return random_amp
 
-# TODO: why do we need event_amp_ratio?
 def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24), amp_range=(0.1, 1)):
+    """ Mix a batch of events with a batch of background noise with a uniformly
+    random SNR (dB) in snr_range for each sample in the batch. Optionally apply
+    random amplitude gain to the mixed signal if amp_range is given. The
+    amplitude gain is uniformly random in log scale.
+
+    Parameters
+    ----------
+    event_batch : 2D array (float)
+        Batch of event signals. (B, T)
+    bg_batch : 2D array (float)
+        Batch of background noise signals. (B, T)
+    snr_range : tuple (float)
+        SNR range in dB. (min, max)
+    amp_range : tuple (float)
+        Amplitude range in linear scale. (min, max) 
+        Provide None if no amplitude gain is needed.
+
+    """
 
     assert snr_range[0] < snr_range[1], 'snr_range should be (min, max)'
+    assert event_batch.shape == bg_batch.shape, \
+        'event_batch and bg_batch should have the same shape.'
+    if amp_range is not None:
+        assert amp_range[1] <= 1.0 and amp_range[0] >= 0.1, \
+            'amp_range should be in (0.1, 1.0) in linear scale.'
 
     # Initialize
     X_bg_mix = np.zeros((event_batch.shape[0], event_batch.shape[1]))
@@ -294,19 +311,15 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24), amp_range=(0.1, 1)):
 
     for i in range(len(event_batch)):
 
-        event_max = np.max(np.abs(event_batch[i]))
-        bg_max = np.max(np.abs(bg_batch[i]))
+        # Mix with random SNR
+        X_bg_mix[i] = background_mix(x=event_batch[i],
+                                    x_bg=bg_batch[i],
+                                    snr_db=snrs[i])
 
-        if event_max == 0 or bg_max == 0:
-            X_bg_mix[i] = event_batch[i] + bg_batch[i]
-            X_bg_mix[i] = max_normalize(X_bg_mix[i])
-        else:
-            X_bg_mix[i] = background_mix(x=event_batch[i],
-                                         x_bg=bg_batch[i],
-                                         snr_db=snrs[i])
-
-        event_amp_ratio = log_scale_random_number(amp_range=amp_range)
-        X_bg_mix[i] = event_amp_ratio * X_bg_mix[i]
+         # Apply random amplitude gain to the mixed signal if amp_range is given
+        if amp_range is not None:
+            event_amp_ratio = log_scale_random_number(amp_range=amp_range)
+            X_bg_mix[i] = event_amp_ratio * X_bg_mix[i]
 
     return X_bg_mix
 
