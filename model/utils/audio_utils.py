@@ -238,19 +238,19 @@ def background_mix(x, x_bg, snr_db):
         Max-normalized mix of x and x_bg with SNR
     """
 
-    def _RMS_energy(x):
+    def _RMS_amplitude(x):
         return np.sqrt(np.mean(x**2))
 
     assert len(x) == len(x_bg), 'x and x_bg should have the same length.'
 
-    # Get the RMS Energy for each signal
-    rmse_bg = _RMS_energy(x_bg)
-    rmse_x = _RMS_energy(x)
-    if rmse_bg != 0 and rmse_x != 0:
+    # Get the RMS Amplitude for each signal
+    rms_bg = _RMS_amplitude(x_bg)
+    rms_x = _RMS_amplitude(x)
+    if rms_bg != 0 and rms_x != 0:
 
-        # Normalize each signal by RMSE
-        x_bg = x_bg / rmse_bg
-        x = x / rmse_x
+        # Normalize each signal by its RMS Amplitude
+        x_bg = x_bg / rms_bg
+        x = x / rms_x
 
         # Mix with snr_db
         magnitude = np.power(10, snr_db / 20.)
@@ -260,7 +260,7 @@ def background_mix(x, x_bg, snr_db):
         # One of the signal is zero so just add them
         x_mix = x + x_bg
 
-    # Max normalize
+    # Max normalize the mix signal to avoid clipping
     x_mix = max_normalize(x_mix)
 
     return x_mix
