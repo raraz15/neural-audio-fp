@@ -157,13 +157,15 @@ class genUnbalSequence(Sequence):
                                                     self.duration)
             self.n_ir_samples = len(self.fns_ir_seg_list)
             self.index_ir = np.arange(self.n_ir_samples)
-            # Load all bg clips in full duration
+            # Load all ir clips in full duration
             self.ir_clips = {}
+            # TODO: load all the ir clips in full duration or load only the first segment?
             for fn, _, _, _ in self.fns_ir_seg_list:
                 X = load_audio(fn, 
                             seg_length_sec=self.duration,
                             fs=self.fs,
                             normalize=self.normalize_audio)
+                # Truncate IR to MAX_IR_LENGTH, assuming that the remaining samples are zeros
                 if len(X) > MAX_IR_LENGTH:
                     X = X[:MAX_IR_LENGTH]
                 self.ir_clips[fn] = X
