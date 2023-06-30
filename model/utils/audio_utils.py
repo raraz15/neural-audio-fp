@@ -7,6 +7,7 @@
 import os
 import wave
 import numpy as np
+from scipy.signal import convolve
 
 #### File Check ####
 
@@ -92,7 +93,7 @@ def get_fns_seg_list(fns_list=[],
 
     return fns_event_seg_list
 
-#### Audio IO ####
+#### Audio Processing ####
 
 def max_normalize(x):
     """
@@ -111,6 +112,8 @@ def max_normalize(x):
         return x
     else:
         return x / np.max(np.abs(max_val))
+
+#### Audio IO ####
 
 def load_audio(filename=str(),
                seg_start_sec=0.0,
@@ -219,7 +222,7 @@ def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
         audio = audio.astype(np.int16)  # 16-bit PCM
         wavio.write(fname[:-4] + '.wav', audio, target_fs, sampwidth=2)
 
-#### Audio Augmentation ####
+#### Background Noise Augmentation ####
 
 def background_mix(x, x_bg, snr_db):
     """
@@ -304,18 +307,31 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
 
     return X_bg_mix
 
-# TODO: OGUZ: is .real correct? Just taking the real port of the signal?
+#### Room IR Augmentation ####
+
+# TODO: does len(x) need to be longer than len(x_ir)?
+def ir_aug(x, x_ir):
+    """ Augment input signal with impulse response. The returned signal
+    has the same length as x and is max-normalized.
+    Note:Scipy convolve automatically determines either to use FFT based
+    convolution or not as of v0.19"""
+
+    assert len(x) > 0, 'x should not be empty.'
+    assert len(x_ir) > 0, 'x_ir should not be empty.'
+    assert len(x)>=len(x_ir), 'x should be longer than x_ir.'
+
+    # Convolve with impulse response
+    x_aug = convolve(x, x_ir, mode='same')
+    x_aug = max_normalize(x_aug)
+
+    return x_aug
+
 def ir_aug_batch(event_batch, ir_batch):
     n_batch = len(event_batch)
     X_ir_aug = np.zeros((n_batch, event_batch.shape[1]))
     for i in range(n_batch):
         x = event_batch[i]
         x_ir = ir_batch[i]
-        # FFT -> multiply -> IFFT
-        fftLength = np.maximum(len(x), len(x_ir))
-        X = np.fft.fft(x, n=fftLength)
-        X_ir = np.fft.fft(x_ir, n=fftLength)
-        x_aug = np.fft.ifft(np.multiply(X_ir, X))[0:len(x)].real
-        x_aug = max_normalize(x_aug)
+        x_aug = ir_aug(x, x_ir)
         X_ir_aug[i] = x_aug
     return X_ir_aug
