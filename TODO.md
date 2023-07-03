@@ -2,27 +2,19 @@
 
 ## Faster Train/Inference
 - Try to make loading faster
-  - Store all IR FFTs
-- Automatic MP
+  - Store all IR FFTs?
+- Automatic Mixed precision
 
 ## Augmentation
+### Signal Processing Understanding
   - Is not normalizing inputs and added noise a good choice?
   - Is normalizing IR good?
   - Is cutting IR good?
   - Is taking a short part of IR is good?
   - inverse fft + real?
-  - BG and IR quantitaive Analysis
-
-## Original Repo Understanding
-- Understand the Baseline dataset
-  - Train: 10k 30sec clips
-  - Val: 500 tracks of length???
-  - Test:
-    - dummy_db: approx. 10k noise tracks. Length?
-    - test-query-db: supposed to be 2000 tracks randomly cropped from ??
-      - db: 500
-      - query: 2000(? 500?) tracks of 30 sec. Created from Val set?? Data Augmented
-      - query_fixed_SNR: 1000 tracks. What is this?
+### Improve for Training
+  - Use more IR samples
+  - Use more BG samples
 
 ## Code
 - Write your own dataset class ?
@@ -42,3 +34,14 @@
 
 ## Input Representation
 - Try 50% overlap maybe 75% is too much
+
+## Original Repo Understanding
+- Understand the Baseline dataset
+  - Train: 10k 30sec clips
+  - Val: 500 tracks of length???
+  - Test:
+    - dummy_db: approx. 10k noise tracks. Length?
+    - test-query-db: supposed to be 2000 tracks randomly cropped from ??
+      - db: 500
+      - query: 2000(? 500?) tracks of 30 sec. Created from Val set?? Data Augmented
+      - query_fixed_SNR: 1000 tracks. What is this?
