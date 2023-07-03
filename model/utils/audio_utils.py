@@ -312,26 +312,28 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
 # TODO: does len(x) need to be longer than len(x_ir)?
 def ir_aug(x, x_ir):
     """ Augment input signal with impulse response. The returned signal
-    has the same length as x and is max-normalized.
-    Note:Scipy convolve automatically determines either to use FFT based
-    convolution or not as of v0.19"""
+    has the same length as x and is max-normalized."""
 
     assert len(x) > 0, 'x should not be empty.'
     assert len(x_ir) > 0, 'x_ir should not be empty.'
     assert len(x)>=len(x_ir), 'x should be longer than x_ir.'
 
     # Convolve with impulse response
-    x_aug = convolve(x, x_ir, mode='same')
+    x_aug = convolve(x, x_ir, mode='same', method='fft')
     x_aug = max_normalize(x_aug)
 
     return x_aug
 
 def ir_aug_batch(event_batch, ir_batch):
+    """ Augment a batch of events with a batch of impulse responses. """
+
     n_batch = len(event_batch)
     X_ir_aug = np.zeros((n_batch, event_batch.shape[1]))
+
     for i in range(n_batch):
         x = event_batch[i]
         x_ir = ir_batch[i]
         x_aug = ir_aug(x, x_ir)
         X_ir_aug[i] = x_aug
+
     return X_ir_aug
