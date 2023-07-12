@@ -5,6 +5,10 @@
   - Store all IR FFTs?
 - Automatic Mixed precision
 
+## Generation
+
+Take model weights from different epochs
+
 ## Augmentation
 ### Signal Processing Understanding
   - Is not normalizing inputs and added noise a good choice?
