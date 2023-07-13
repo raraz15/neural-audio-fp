@@ -130,11 +130,16 @@ def trainer(cfg, checkpoint_name):
     # Dataloader
     dataset = Dataset(cfg)
 
+    # Initialize the datasets
+    tf.print('-----------Initializing the datasets-----------')
+    train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
+    val_ds = dataset.get_val_ds() # max 500
+
     # Build models.
     m_specaug, m_fp = build_fp(cfg)
 
     # Learning schedule
-    total_nsteps = cfg['TRAIN']['MAX_EPOCH'] * len(dataset.get_train_ds())
+    total_nsteps = cfg['TRAIN']['MAX_EPOCH'] * len(train_ds)
     if cfg['TRAIN']['LR_SCHEDULE'].upper() == 'COS':
         lr_schedule = tf.keras.experimental.CosineDecay(
             initial_learning_rate=float(cfg['TRAIN']['LR']),
@@ -187,11 +192,6 @@ def trainer(cfg, checkpoint_name):
             margin=0.)
     else:
         raise NotImplementedError(cfg['LOSS']['LOSS_MODE'])
-
-    # Initialize the datasets
-    tf.print('-----------Initializing the datasets-----------')
-    train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
-    val_ds = dataset.get_val_ds() # max 500
 
     # Training loop
     ep_start = helper.epoch
