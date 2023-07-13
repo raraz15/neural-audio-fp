@@ -54,6 +54,7 @@ def train_step(X, m_specaug, m_fp, loss_obj, helper):
     # X: (Xa, Xp)
     # Xa: anchors or originals, s.t. [xa_0, xa_1,...]
     # Xp: augmented replicas, s.t. [xp_0, xp_1] with xp_n = rand_aug(xa_n).
+    # avg_loss: The cumulative average loss until current step within the current epoch.
 
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
@@ -65,7 +66,7 @@ def train_step(X, m_specaug, m_fp, loss_obj, helper):
                                                  emb[n_anchors:, :]) # {emb_org, emb_rep}
     g = t.gradient(loss, m_fp.trainable_variables)
     helper.optimizer.apply_gradients(zip(g, m_fp.trainable_variables))
-    avg_loss = helper.update_tr_loss(loss) # To tensorboard.
+    avg_loss = helper.update_tr_loss(loss) # To tensorboard
     return avg_loss, sim_mtx # avg_loss: average within the current epoch
 
 @tf.function
@@ -188,7 +189,7 @@ def trainer(cfg, checkpoint_name):
         raise NotImplementedError(cfg['LOSS']['LOSS_MODE'])
 
     # Initialize the datasets
-    tf.print('------Initializing the datasets------')
+    tf.print('-----------Initializing the datasets-----------')
     train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
     val_ds = dataset.get_val_ds() # max 500
 

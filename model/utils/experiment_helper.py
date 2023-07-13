@@ -7,6 +7,7 @@ from tensorflow.summary import create_file_writer
 from model.utils.plotter import get_imshow_image
 
 # TODO: total_nsteps is not used. Remove it.
+# TODO: checkpoint_name= model_name
 class ExperimentHelper():
     """
     Experiment Helper class for conducting experiment.
@@ -40,6 +41,7 @@ class ExperimentHelper():
             checkpoint_name,
             optimizer,
             model_to_checkpoint,
+            max_to_keep=10,
             cfg=None,
             total_nsteps=1500000):
         """
@@ -52,6 +54,8 @@ class ExperimentHelper():
             Assign a pre-constructed optimizer.
         model : <tf.keras.Model>
             Model to train.
+        max_to_keep : (int), optional
+            Maximum number of checkpoints to keep. The default is 10.
         cfg : (dict), optional
             Config file, if available. The default is None.
 
@@ -60,6 +64,7 @@ class ExperimentHelper():
         None.
 
         """
+
         # Experiment settings
         self._checkpoint_name = checkpoint_name
         self._cfg_use_tensorboard = cfg['TRAIN']['TENSORBOARD']
@@ -71,6 +76,8 @@ class ExperimentHelper():
         else:
             _root_dir = './logs/'
         self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
+        # self._best_train_checkpoint_save_dir = _root_dir + f'best_train_checkpoint/{checkpoint_name}/'
+        self._best_val_checkpoint_save_dir = _root_dir + f'best_val_checkpoint/{checkpoint_name}/'
         self._log_dir = _root_dir + 'fit/' + checkpoint_name + '/'
 
         # Logging loss and acc metrics
@@ -91,7 +98,7 @@ class ExperimentHelper():
         self.optimizer = optimizer # assign, not to create.
         self._model_to_checkpoint = model_to_checkpoint # assign, not to create.
 
-        # Setup checkpoint and checkpoint manager
+        # General Setup checkpoint and checkpoint manager
         self._checkpoint = tf.train.Checkpoint(
             optimizer=optimizer,
             model=model_to_checkpoint
@@ -99,30 +106,57 @@ class ExperimentHelper():
         self.c_manager = tf.train.CheckpointManager(
             checkpoint=self._checkpoint,
             directory=self._checkpoint_save_dir,
-            max_to_keep=5,
+            max_to_keep=max_to_keep,
             step_counter=self.optimizer.iterations,
             )
 
-        self.load_checkpoint()
+        # Best Val Loss Setup checkpoint and checkpoint manager
+        self._best_checkpoint = tf.train.Checkpoint(
+            optimizer=optimizer,
+            model=model_to_checkpoint
+            )
+        self.c_manager_best = tf.train.CheckpointManager(
+            checkpoint=self._best_checkpoint,
+            directory=self._best_val_checkpoint_save_dir,
+            max_to_keep=1, # only keep the best model
+            step_counter=self.optimizer.iterations,
+            )
 
+        # Initialize best loss for best model saving
+        self.best_tr_loss = 1e10
+        self.best_val_loss = 1e10
+
+        self.load_checkpoint()
 
     def update_on_epoch_end(self, save_checkpoint_now=True):
         """ Update current epoch index, and loss metrics. """
+
         if save_checkpoint_now:
             self.save_checkpoint()
-        else:
-            pass
+
+        # Update the best training loss
+        avg_tr_loss = self._tr_loss.result()
+        if avg_tr_loss < self.best_tr_loss:
+            self.best_tr_loss = avg_tr_loss
+
+        # Update the best validation loss and save the model
+        avg_val_loss = self._val_loss.result()
+        if avg_val_loss < self.best_val_loss:
+            self.best_val_loss = avg_val_loss
+            self.c_manager_best.save()
+
+        # Reset loss metrics
         self._tr_loss.reset_states()
         self._val_loss.reset_states()
         self.epoch += 1
-
 
     def load_checkpoint(self):
         """ Try loading a saved checkpoint. If no checkpoint, initialize from
             scratch.
         """
+
         if self.c_manager.latest_checkpoint:
-            tf.print("---Restoring model from {}---".format(
+            tf.print("-----------Restoring model from {}-----------".format(
                 self.c_manager.latest_checkpoint))
             status = self._checkpoint.restore(self.c_manager.latest_checkpoint)
             status.expect_partial()
@@ -130,11 +164,9 @@ class ExperimentHelper():
         else:
             tf.print("-----------Initializing model from scratch-----------")
 
-
     def save_checkpoint(self):
         """Save current model and optimizer states to checkpoint."""
         self.c_manager.save()
-
 
     def update_tr_loss(self, value, tb=None):
         """
@@ -148,16 +180,16 @@ class ExperimentHelper():
         Returns
         -------
         avg_tr_loss: (float) Average training loss within current epoch.
-
         """
+
+        # Average the loss over the epoch
         avg_tr_loss = self._tr_loss(value)
+
         if tb or (tb==None and self._cfg_use_tensorboard):
             with self._tr_summary_writer.as_default():
                 tf.summary.scalar('loss', value, step=self.optimizer.iterations)
-        else:
-            pass
-        return avg_tr_loss
 
+        return avg_tr_loss
 
     def update_val_loss(self, value, tb=None):
         """
@@ -170,17 +202,17 @@ class ExperimentHelper():
 
         Returns
         -------
-        avg_val_loss: (float) Average validation loss within current epoch.
-
+        avg_val_loss: (float) Cumulative Average validation loss within current epoch.
         """
+
+        # Cumulative Average the loss over the epoch
         avg_val_loss = self._val_loss(value)
+
         if tb or (tb==None and self._cfg_use_tensorboard):
             with self._val_summary_writer.as_default():
                 tf.summary.scalar('loss', value, step=self.optimizer.iterations)
-        else:
-            pass
-        return avg_val_loss
 
+        return avg_val_loss
 
     def update_minitest_acc(self, accs_by_scope, scopes, key, tb=None):
         """

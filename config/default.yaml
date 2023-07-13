@@ -9,6 +9,10 @@ DIR:
     LOG_ROOT_DIR : './logs/'
                 # Root directory where the checkpoint, tensorboard logs and
                 # images will be stored.
+    CHECKPOINT_DIR : './logs/checkpoint/'
+                # Directory where the checkpoint will be stored.
+    BEST_CHECKPOINT_DIR : './logs/best_checkpoint/'
+                # Directory where the best checkpoint will be stored.
 
 # Data selection for 'train' and 'generate' commands
 DATA_SEL:
