@@ -12,16 +12,18 @@ from tensorflow.keras.utils import Progbar
 from model.dataset import Dataset
 from model.fp.nnfp import get_fingerprinter
 
-def load_checkpoint(checkpoint_root_dir, checkpoint_name, checkpoint_index, m_fp):
+def get_checkpoint_index_and_restore_model(m_fp, checkpoint_root_dir, checkpoint_name, checkpoint_index=None):
     """ Load a trained fingerprinter """
+
     # Create checkpoint
     checkpoint = tf.train.Checkpoint(model=m_fp)
     checkpoint_dir = checkpoint_root_dir + f'/{checkpoint_name}/'
-    c_manager = tf.train.CheckpointManager(checkpoint, checkpoint_dir,
+    c_manager = tf.train.CheckpointManager(checkpoint,
+                                           checkpoint_dir,
                                            max_to_keep=None)
 
     # Load
-    if checkpoint_index == None:
+    if checkpoint_index==None:
         tf.print("\x1b[1;32mArgument 'checkpoint_index' was not specified.\x1b[0m")
         tf.print('\x1b[1;32mSearching for the latest checkpoint...\x1b[0m')
         latest_checkpoint = c_manager.latest_checkpoint
@@ -29,7 +31,7 @@ def load_checkpoint(checkpoint_root_dir, checkpoint_name, checkpoint_index, m_fp
             checkpoint_index = int(latest_checkpoint.split(sep='ckpt-')[-1])
             status = checkpoint.restore(latest_checkpoint)
             status.expect_partial()
-            tf.print(f'---Restored from {c_manager.latest_checkpoint}---')
+            tf.print(f'---Restored from {latest_checkpoint}---')
         else:
             raise FileNotFoundError(f'Cannot find checkpoint in {checkpoint_dir}')
     else:
@@ -66,6 +68,7 @@ def get_data_source(cfg, source_root_dir, skip_dummy):
     return ds
 
 def generate_fingerprint(cfg,
+                         checkpoint_type,
                          checkpoint_name,
                          checkpoint_index,
                          source_root_dir,
@@ -86,26 +89,33 @@ def generate_fingerprint(cfg,
                      └── query_shape.npy
     """
 
-    # Build and load checkpoint
+    # Build the model checkpoint
     m_fp = get_fingerprinter(cfg, trainable=False)
 
-    checkpoint_root_dir = cfg['DIR']['LOG_ROOT_DIR'] + 'checkpoint/'
-    checkpoint_index = load_checkpoint(checkpoint_root_dir, checkpoint_name,
-                                       checkpoint_index, m_fp)
+    # Load from checkpoint
+    if checkpoint_type.lower()=='best':
+        checkpoint_dir = cfg['DIR']['BEST_CHECKPOINT_DIR']
+    elif checkpoint_type.lower()=='custom':
+        checkpoint_dir = cfg['DIR']['CHECKPOINT_DIR']
+    else:
+        raise ValueError(f'checkpoint_type mus be one of {{"best", "custom"}}')
+    checkpoint_index = get_checkpoint_index_and_restore_model(m_fp, 
+                                                            checkpoint_dir, 
+                                                            checkpoint_name, 
+                                                            checkpoint_index)
+
+    # Make output directory
+    if not output_root_dir:
+        output_root_dir = cfg['DIR']['OUTPUT_ROOT_DIR']
+    # Here the checkpoint_type does not matter because checkpoint_index is specified.
+    output_root_dir += f'/{checkpoint_name}/{checkpoint_index}/'
+    os.makedirs(output_root_dir, exist_ok=True)
+    if not skip_dummy:
+        prevent_overwrite('dummy_db', f'{output_root_dir}/dummy_db.mm')
 
     # Get data source
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
     ds = get_data_source(cfg, source_root_dir, skip_dummy)
-
-    # Make output directory
-    if output_root_dir:
-        output_root_dir = output_root_dir + f'/{checkpoint_name}/{checkpoint_index}/'
-    else:
-        output_root_dir = cfg['DIR']['OUTPUT_ROOT_DIR'] + \
-            f'/{checkpoint_name}/{checkpoint_index}/'
-    os.makedirs(output_root_dir, exist_ok=True)
-    if not skip_dummy:
-        prevent_overwrite('dummy_db', f'{output_root_dir}/dummy_db.mm')
 
     bsz = int(cfg['BSZ']['TS_BATCH_SZ'])  # Do not use ds.bsz here.
     dim = cfg['MODEL']['EMB_SZ']
