@@ -17,7 +17,7 @@ def get_checkpoint_index_and_restore_model(m_fp, checkpoint_root_dir, checkpoint
 
     # Create checkpoint
     checkpoint = tf.train.Checkpoint(model=m_fp)
-    checkpoint_dir = checkpoint_root_dir + f'/{checkpoint_name}/'
+    checkpoint_dir = checkpoint_root_dir + f'{checkpoint_name}/'
     c_manager = tf.train.CheckpointManager(checkpoint,
                                            checkpoint_dir,
                                            max_to_keep=None)
@@ -108,10 +108,10 @@ def generate_fingerprint(cfg,
     if not output_root_dir:
         output_root_dir = cfg['DIR']['OUTPUT_ROOT_DIR']
     # Here the checkpoint_type does not matter because checkpoint_index is specified.
-    output_root_dir += f'/{checkpoint_name}/{checkpoint_index}/'
+    output_root_dir += f'{checkpoint_name}/{checkpoint_index}/'
     os.makedirs(output_root_dir, exist_ok=True)
     if not skip_dummy:
-        prevent_overwrite('dummy_db', f'{output_root_dir}/dummy_db.mm')
+        prevent_overwrite('dummy_db', output_root_dir+'dummy_db.mm')
 
     # Get data source
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """

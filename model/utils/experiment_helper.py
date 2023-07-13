@@ -68,22 +68,28 @@ class ExperimentHelper():
         # Experiment settings
         self._checkpoint_name = checkpoint_name
         self._cfg_use_tensorboard = cfg['TRAIN']['TENSORBOARD']
-        self.epoch = 1 # Initialize current epoch.
+
+        # Initialize parameters
+        self.epoch = 1
+        self.best_tr_loss = 1e10
+        self.best_val_loss = 1e10
 
         # Directories
         if cfg['DIR']['LOG_ROOT_DIR']:
             _root_dir = cfg['DIR']['LOG_ROOT_DIR']
         else:
             _root_dir = './logs/'
-        self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
-        # self._best_train_checkpoint_save_dir = _root_dir + f'best_train_checkpoint/{checkpoint_name}/'
-        self._best_val_checkpoint_save_dir = _root_dir + f'best_val_checkpoint/{checkpoint_name}/'
         self._log_dir = _root_dir + 'fit/' + checkpoint_name + '/'
 
-        # Logging loss and acc metrics
-        self._tr_loss = K.metrics.Mean(name='train_loss')
-        self._val_loss = K.metrics.Mean(name='val_loss')
-        self._minitest_acc = None
+        # Checkpoint directories
+        if cfg['DIR']['CHECKPOINT_DIR']:
+            self._checkpoint_save_dir = cfg["DIR"]["CHECKPOINT_DIR"] + f"{checkpoint_name}/"
+        else:
+            self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
+        if cfg['DIR']['BEST_CHECKPOINT_DIR']:
+            self._best_checkpoint_save_dir = cfg["DIR"]["BEST_CHECKPOINT_DIR"] + f"{checkpoint_name}/"
+        else:
+            self._best_checkpoint_save_dir = _root_dir + f'best_checkpoint/{checkpoint_name}/'
 
         # Tensorboard writers
         self._tr_summary_writer = create_file_writer(self._log_dir + '/train')
@@ -93,6 +99,11 @@ class ExperimentHelper():
             self._minitest_summary_writer_dict[key] = create_file_writer(
                 self._log_dir + '/mini_test/' + key)
         self._image_writer = create_file_writer(self._log_dir + '/images')
+
+        # Logging loss and acc metrics
+        self._tr_loss = K.metrics.Mean(name='train_loss')
+        self._val_loss = K.metrics.Mean(name='val_loss')
+        self._minitest_acc = None
 
         # Assign optimizer and model to checkpoint
         self.optimizer = optimizer # assign, not to create.
@@ -117,14 +128,10 @@ class ExperimentHelper():
             )
         self.c_manager_best = tf.train.CheckpointManager(
             checkpoint=self._best_checkpoint,
-            directory=self._best_val_checkpoint_save_dir,
+            directory=self._best_checkpoint_save_dir,
             max_to_keep=1, # only keep the best model
             step_counter=self.optimizer.iterations,
             )
-
-        # Initialize best loss for best model saving
-        self.best_tr_loss = 1e10
-        self.best_val_loss = 1e10
 
         self.load_checkpoint()
 
