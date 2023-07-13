@@ -7,6 +7,7 @@
 import os
 import wave
 import numpy as np
+import essentia.standard as es
 from scipy.signal import convolve
 
 #### File Check ####
@@ -115,36 +116,33 @@ def max_normalize(x):
 
 #### Audio IO ####
 
-def load_audio(filename=str(),
-               seg_start_sec=0.0,
-               offset_sec=0.0,
-               seg_length_sec=None,
-               seg_pad_offset_sec=0.0,
-               fs=8000,
-               normalize=True):
-    """ Loads a wav file if the sample rate is correct.
+def load_wav(filename=str(), 
+            seg_start_sec=0.0,
+            offset_sec=0.0,
+            seg_length_sec=None,
+            seg_pad_offset_sec=0.0,
+            fs=8000):
+    """
+    Opens a wav file, checks its format and sample rate, and returns a segment.
 
     Parameters:
         filename: string
-        seg_start_sec: start reading from this time in seconds
-        offset_sec: offset the seg_start_sec by this amount of seconds
-        seg_length_sec: read this amount of seconds. If None, read the rest of the file.
+        seg_start_sec: Start of the segment in seconds.
+        offset_sec: Offset from seg_start_sec in seconds.
+        seg_length_sec: Length of the segment in seconds.
         seg_pad_offset_sec: If padding is required (seg_length_sec is longer than file duration),
-            pad the segment from the rgiht and give an offset from the left 
-            with this amount of seconds.
-            
-    Returns:
-        audio: numpy array of shape (n_samples,)
+        pad the segment from the right and give an offset from the left with 
+        this amount of seconds.
+        fs: Sample rate.
 
+    Returns:
+        x: Segment (T,)
     """
 
-    assert (seg_length_sec is None) or (seg_length_sec > 0.0), 'seg_length_sec should be positive'\
-                                                'or None (read all the rest of the file).'
-
-    # Only support .wav
-    file_ext = os.path.splitext(filename)[1]
-    if file_ext != '.wav':
-        raise NotImplementedError(file_ext)
+    assert seg_start_sec>=0.0, "The start time must be positive"
+    if seg_length_sec is not None:
+        assert seg_length_sec>0.0, "If you specify a duration, it must be positive."\
+                                    "Use None to read the rest of the file."
 
     # Open file
     pt_wav = wave.open(filename, 'r')
@@ -152,7 +150,7 @@ def load_audio(filename=str(),
     # Check sample rate
     _fs = pt_wav.getframerate()
     if fs != _fs:
-        raise ValueError('Sample rate should be {} but got {} for {}'.format(str(fs), str(_fs)), filename)
+        raise ValueError(f'Sample rate should be {fs} but got {_fs} for {filename}')
 
     # Calculate segment start index
     start_frame_idx = np.floor((seg_start_sec + offset_sec) * fs).astype(int)
@@ -174,10 +172,6 @@ def load_audio(filename=str(),
     x = np.frombuffer(x, dtype=np.int16)
     x = x / 2**15 # normalize to [-1, 1] float
 
-    # Max Normalize, random amplitude
-    if normalize:
-        x = max_normalize(x)
-
     # Pad the segment if it is shorter than seg_length_sec
     if len(x) < seg_length_frame:
         audio_arr = np.zeros(int(seg_length_sec * fs))
@@ -188,6 +182,113 @@ def load_audio(filename=str(),
         return audio_arr
     else:
         return x
+
+def read_cut_resample(filename, 
+                    seg_start_sec=0.0, 
+                    offset_sec=0.0, 
+                    seg_length_sec=1.0, 
+                    fs=8000, 
+                    resample_quality=4):
+    """
+    Reads an audio file, cuts a segment, mixes to mono and resamples it. 
+    Also pads or cuts the segment if necessary. It can read any audio 
+    file format supported by FFmpeg.
+
+    Parameters:
+        filename: string
+        seg_start_sec: Start of the segment in seconds.
+        offset_sec: Offset from seg_start_sec in seconds.
+        seg_length_sec: Length of the segment in seconds.
+        fs: Sample rate.
+        resample_quality: Quality of the resampling. 0 is the fastest, 4 is the slowest.
+
+    Returns:
+        x: Segment (T,)
+    """
+
+    assert seg_length_sec>0.0, "The duration must be positive"
+    assert seg_start_sec>=0.0, "The start time must be positive"
+
+    # Load the audio
+    audio, Fs1, numberChannels, _, _, _ = es.AudioLoader(filename=filename)()
+
+    # Calculate the start and end times
+    t0 = seg_start_sec + offset_sec
+    t1 = t0 + seg_length_sec
+
+    # Convert the times to samples
+    n0 = int(t0*Fs1)
+    n1 = int(t1*Fs1)
+    assert n1<=len(audio), "The end time is after the end of the audio"
+    assert n0>=0, "The start time is before the start of the audio"
+
+    # Cut the audio
+    audio = audio[n0:n1]
+
+    # Convert to mono if necessary
+    if numberChannels>1:
+        audio = np.mean(audio, axis=1)
+
+    # Resample if necessary
+    if Fs1!=fs:
+        resampler = es.Resample(inputSampleRate=Fs1, 
+                                outputSampleRate=fs, 
+                                quality=resample_quality)
+        audio = resampler(audio)
+
+    # Pad or cut the audio to the correct length
+    if len(audio)<int(seg_length_sec*fs):
+        audio = np.pad(audio, 
+                        (0, int(seg_length_sec*fs)-len(audio)), 
+                        mode='constant')
+    elif len(audio)>int(seg_length_sec*fs):
+        audio = audio[:int(seg_length_sec*fs)]
+
+    return audio
+
+def load_audio(filename=str(),
+               seg_start_sec=0.0,
+               offset_sec=0.0,
+               seg_length_sec=None,
+               fs=8000,
+               normalize=True):
+    """ Loads an audio file.
+
+    Parameters:
+        filename: string
+        seg_start_sec: start reading from this time in seconds
+        offset_sec: offset the seg_start_sec by this amount of seconds
+        seg_length_sec: read this amount of seconds. If None, read the rest of the file.
+
+    Returns:
+        audio: numpy array of shape (n_samples,)
+    """
+
+    assert (seg_length_sec is None) or (seg_length_sec > 0.0), 'seg_length_sec should be positive'\
+                                        'or None (read all the rest of the file from seg_start_sec).'
+
+    # Only support .wav or .mp3 or .mp4
+    file_ext = os.path.splitext(filename)[1]
+    if file_ext == '.wav':
+        x = load_wav(filename=filename,
+                     seg_start_sec=seg_start_sec,
+                     offset_sec=offset_sec,
+                     seg_length_sec=seg_length_sec,
+                     fs=fs)
+    elif file_ext == '.mp3' or file_ext == '.mp4':
+        x = read_cut_resample(filename=filename,
+                              seg_start_sec=seg_start_sec,
+                              offset_sec=offset_sec,
+                              seg_length_sec=seg_length_sec,
+                              fs=fs)
+    else:
+        raise NotImplementedError(file_ext)
+
+    # Max Normalize
+    if normalize:
+        x = max_normalize(x)
+
+    return x
 
 def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
