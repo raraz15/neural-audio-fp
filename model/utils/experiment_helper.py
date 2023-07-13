@@ -6,7 +6,7 @@ import tensorflow.keras as K
 from tensorflow.summary import create_file_writer
 from model.utils.plotter import get_imshow_image
 
-
+# TODO: total_nsteps is not used. Remove it.
 class ExperimentHelper():
     """
     Experiment Helper class for conducting experiment.
@@ -91,12 +91,7 @@ class ExperimentHelper():
         self.optimizer = optimizer # assign, not to create.
         self._model_to_checkpoint = model_to_checkpoint # assign, not to create.
 
-        # Setup checkpoint manager
-        if cfg:
-            self._checkpoint_keep_n_hour = int(cfg['TRAIN']['CHECKPOINT_KEEP_N_HOUR'])
-        else:
-            self._checkpoint_keep_n_hour = 1 # every 1 hours
-
+        # Setup checkpoint and checkpoint manager
         self._checkpoint = tf.train.Checkpoint(
             optimizer=optimizer,
             model=model_to_checkpoint
@@ -104,9 +99,9 @@ class ExperimentHelper():
         self.c_manager = tf.train.CheckpointManager(
             checkpoint=self._checkpoint,
             directory=self._checkpoint_save_dir,
-            max_to_keep=3,
-            keep_checkpoint_every_n_hours=self._checkpoint_keep_n_hour,
-            step_counter=self.optimizer.iterations)
+            max_to_keep=5,
+            step_counter=self.optimizer.iterations,
+            )
 
         self.load_checkpoint()
 
