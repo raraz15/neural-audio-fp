@@ -100,17 +100,17 @@ def eval_faiss(emb_dir,
                k_probe=20,
                display_interval=5):
     """
-    Segment/sequence-wise audio search experiment and evaluation: implementation based on FAISS.
+    Segment/sequence-wise audio search experiment and evaluation: implementation 
+    based on FAISS.
 
     ex) python eval.py EMB_DIR --index_type ivfpq
 
-    EMB_DIR: Directory where {query, db, dummy_db}.mm files are located. The 'raw_score.npy' and 'test_ids.npy' will be also created in the same directory.
-
-
-
+    EMB_DIR: Directory where {query, db, dummy_db}.mm files are located. The 
+    'raw_score.npy' and 'test_ids.npy' will be also created in the same directory.
     """
-    test_seq_len = np.asarray(
-        list(map(int, test_seq_len.split())))  # '1 3 5' --> [1, 3, 5]
+
+    # '1 3 5' --> [1, 3, 5]
+    test_seq_len = np.asarray(list(map(int, test_seq_len.split())))
 
     # Load items from {query, db, dummy_db}
     query, query_shape = load_memmap_data(emb_dir, 'query')
@@ -118,6 +118,7 @@ def eval_faiss(emb_dir,
     if emb_dummy_dir is None:
         emb_dummy_dir = emb_dir
     dummy_db, dummy_db_shape = load_memmap_data(emb_dummy_dir, 'dummy_db')
+
     """ ----------------------------------------------------------------------
     FAISS index setup
 
@@ -138,8 +139,7 @@ def eval_faiss(emb_dir,
     ---------------------------------------------------------------------- """
 
     # Create and train FAISS index
-    index = get_index(index_type, dummy_db, dummy_db.shape, (not nogpu),
-                      max_train)
+    index = get_index(index_type, dummy_db, dummy_db.shape, (not nogpu), max_train)
 
     # Add items to index
     start_time = time.time()
@@ -149,6 +149,8 @@ def eval_faiss(emb_dir,
 
     t = time.time() - start_time
     print(f'Added total {index.ntotal} items to DB. {t:>4.2f} sec.')
+
+    del dummy_db
 
     """ ----------------------------------------------------------------------
     We need to prepare a merged {dummy_db + db} memmap:
@@ -160,13 +162,14 @@ def eval_faiss(emb_dir,
     • We prepare a fake_recon_index thourgh the on-disk method.
 
     ---------------------------------------------------------------------- """
+
     # Prepare fake_recon_index
-    del dummy_db
     start_time = time.time()
 
-    fake_recon_index, index_shape = load_memmap_data(
-        emb_dummy_dir, 'dummy_db', append_extra_length=query_shape[0],
-        display=False)
+    fake_recon_index, index_shape = load_memmap_data(emb_dummy_dir, 
+                                                    'dummy_db', 
+                                                    append_extra_length=query_shape[0],
+                                                    display=False)
     fake_recon_index[dummy_db_shape[0]:dummy_db_shape[0] + query_shape[0], :] = db[:, :]
     fake_recon_index.flush()
 
@@ -175,8 +178,8 @@ def eval_faiss(emb_dir,
 
     # Get test_ids
     print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
-    if test_ids.lower() == 'all':
-        test_ids = np.arange(0, len(query) - max(test_seq_len), 1) # will test all segments in query/db set
+    if test_ids.lower() == 'all': # will test all segments in query/db set
+        test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
     elif test_ids.lower() == 'icassp':
         test_ids = np.load(glob.glob('./**/test_ids_icassp2021.npy', recursive=True)[0])
     elif test_ids.isnumeric():
@@ -233,8 +236,7 @@ def eval_faiss(emb_dir,
 
             # top1 hit
             top1_exact[ti, si] = int(gt_id == pred_ids[0])
-            top1_near[ti, si] = int(
-                pred_ids[0] in [gt_id - 1, gt_id, gt_id + 1])
+            top1_near[ti, si] = int(pred_ids[0] in [gt_id - 1, gt_id, gt_id + 1])
             # top1_song = need song info here...
 
             # top3, top10 hit

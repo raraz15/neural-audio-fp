@@ -176,6 +176,7 @@ class Dataset:
             ir_mix_parameter=[self.val_use_ir_aug, self.val_ir_fps],
             )
 
+    # TODO: why does ts_n_anchor=ts_batch_sz makes it faster?
     def get_test_dummy_db_ds(self):
         """
         Test-dummy-DB without augmentation:
@@ -222,7 +223,9 @@ class Dataset:
 
         cfg['DATASEL']['TEST_QUERY_DB']:
 
-            'unseen_icassp' will use pre-defined queries and DB
+            'unseen_icassp' will use pre-defined queries and DB.
+                DB has selected clips without augmentations and queries are their
+                augmented versions.
             'unseen_syn' will synthesize queries from DB in real-time.
 
         Returns
@@ -295,8 +298,7 @@ class Dataset:
                 normalize_audio=self.normalize_audio,
                 shuffle=False,
                 random_offset_anchor=False,
-                bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps,
-                                  self.ts_snr],
+                bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps],
                 reduce_batch_first_half=True,
                 drop_the_last_non_full_batch=False)
