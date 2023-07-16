@@ -14,7 +14,7 @@ from scipy.signal import convolve
 
 def get_fns_seg_list(fns_list=[],
                      segment_mode='all',
-                     fs=22050,
+                     fs=8000,
                      duration=1,
                      hop=None):
     """
