@@ -6,7 +6,6 @@ import tensorflow.keras as K
 from tensorflow.summary import create_file_writer
 from model.utils.plotter import get_imshow_image
 
-# TODO: total_nsteps is not used. Remove it.
 # TODO: checkpoint_name= model_name
 class ExperimentHelper():
     """
@@ -41,9 +40,9 @@ class ExperimentHelper():
             checkpoint_name,
             optimizer,
             model_to_checkpoint,
+            best_loss="val_loss", # "tr_loss" or "val_loss
             max_to_keep=10,
-            cfg=None,
-            total_nsteps=1500000):
+            cfg=None):
         """
 
         Parameters
@@ -52,8 +51,10 @@ class ExperimentHelper():
             Checkpoint name.
         optimizer : <tf.keras.optimizer>
             Assign a pre-constructed optimizer.
-        model : <tf.keras.Model>
+        model_to_checkpoint : <tf.keras.Model>
             Model to train.
+        best_loss : (str), optional
+            The loss to determine the best model. The default is "val_loss".
         max_to_keep : (int), optional
             Maximum number of checkpoints to keep. The default is 10.
         cfg : (dict), optional
@@ -71,8 +72,9 @@ class ExperimentHelper():
 
         # Initialize parameters
         self.epoch = 1
-        self.best_tr_loss = 1e10
-        self.best_val_loss = 1e10
+        self.best_tr_loss = (self.epoch, 1e10)
+        self.best_val_loss = (self.epoch, 1e10)
+        self.best_loss_track = best_loss
 
         # Directories
         if cfg['DIR']['LOG_ROOT_DIR']:
@@ -121,7 +123,7 @@ class ExperimentHelper():
             step_counter=self.optimizer.iterations,
             )
 
-        # Best Val Loss Setup checkpoint and checkpoint manager
+        # Best Loss Setup checkpoint and checkpoint manager
         self._best_checkpoint = tf.train.Checkpoint(
             optimizer=optimizer,
             model=model_to_checkpoint
@@ -129,7 +131,7 @@ class ExperimentHelper():
         self.c_manager_best = tf.train.CheckpointManager(
             checkpoint=self._best_checkpoint,
             directory=self._best_checkpoint_save_dir,
-            max_to_keep=1, # only keep the best model
+            max_to_keep=3, # Keep top 3 best models
             step_counter=self.optimizer.iterations,
             )
 
@@ -143,14 +145,19 @@ class ExperimentHelper():
 
         # Update the best training loss
         avg_tr_loss = self._tr_loss.result()
-        if avg_tr_loss < self.best_tr_loss:
-            self.best_tr_loss = avg_tr_loss
+        if avg_tr_loss < self.best_tr_loss[1]:
+            self.best_tr_loss = (self.epoch, avg_tr_loss)
+            # Save the model if the best loss is updated
+            if self.best_loss_track=="tr_loss":
+                self.c_manager_best.save()
 
-        # Update the best validation loss and save the model
+        # Update the best validation loss
         avg_val_loss = self._val_loss.result()
-        if avg_val_loss < self.best_val_loss:
-            self.best_val_loss = avg_val_loss
-            self.c_manager_best.save()
+        if avg_val_loss < self.best_val_loss[1]:
+            self.best_val_loss = (self.epoch, avg_val_loss)
+            # Save the model if the best loss is updated
+            if self.best_loss_track=="val_loss":
+                self.c_manager_best.save()
 
         # Reset loss metrics
         self._tr_loss.reset_states()
