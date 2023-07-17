@@ -7,7 +7,8 @@ from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 import numpy as np
 
 # TODO: OGUZ: Is this a good idea?
-MAX_IR_LENGTH = 600 # 50ms with fs=8000
+#MAX_IR_LENGTH = 600 # 50ms with fs=8000
+MAX_IR_LENGTH = 8000 # 1s with fs=8000
 
 class genUnbalSequence(Sequence):
     def __init__(
