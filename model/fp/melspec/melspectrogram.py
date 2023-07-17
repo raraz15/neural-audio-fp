@@ -196,9 +196,10 @@ class Melspec_layer_essentia():
 
         Inputs:
             audio: (T,)
-        
+
         Returns:
-            mel_spec: (F, T)"""
+            mel_spec: (F, T)
+        """
 
         assert audio.shape[0] == self.input_shape[1], f'Input shape is {audio.shape[0]} '\
                                                         f"but should be {self.input_shape[1]}"
@@ -209,11 +210,12 @@ class Melspec_layer_essentia():
         # Calculate the Magnitude Mel-spectrogram
         mel_spec = [self.mb(self.spec(self.window(frame))) for frame in self.frame_generator(audio)]
         mel_spec = np.array(mel_spec) # (n_frames, n_mels)
+        # TODO: is this necessary? We are applying dB cutoff later
         mel_spec = np.where(mel_spec>self.amin, mel_spec, self.amin) # Clip magnitude below amin
 
         # Convert to Power Mel-spectrogram
         mel_spec = 20*np.log10(mel_spec/np.max(mel_spec))
-        # Clip x below from -dynamic_range dB
+        # Clip below from -dynamic_range dB
         mel_spec = np.where(mel_spec>-self.dynamic_range, mel_spec, -self.dynamic_range)
 
         # Scale x to be in [-1, 1] if scale is True
