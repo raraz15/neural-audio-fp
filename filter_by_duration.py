@@ -42,7 +42,7 @@ if __name__ == "__main__":
         with open(args.input, "r") as f:
             for i,line in enumerate(f.readlines()):
                 if line == last_path:
-                    print(f"Continuing from {i}.")
+                    print(f"Continuing from {i+1}.")
                     found = True
                     break
         if not found:
@@ -50,13 +50,15 @@ if __name__ == "__main__":
 
         # Process the rest of the files
         with open(args.input, "r") as in_f, open(output, "a") as out_f:
-            for j,mp4_path in enumerate(in_f.readlines()):
-                if j <= i:
-                    continue
-                if (j+1-i) % 10000 == 0:
-                    print(f"Processed {j+1-i} files.")
-                process(mp4_path, out_f)
-            print(f"Processed {j+1-i} files.")
+            lines = in_f.readlines()
+            for j,mp4_path in enumerate(lines[i+1:]):
+                if (j+1) % 10000 == 0:
+                    print(f"Processed {j} files [{j+i+1}/{len(lines)}].")
+                try:
+                    process(mp4_path, out_f)
+                except:
+                    print(f"Error processing {mp4_path}")
+            print(f"Processed {j} files [{j+i+1}/{len(lines)}].")
 
     else:
         print(f"Filtering {args.input}...")
