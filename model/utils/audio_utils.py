@@ -21,9 +21,11 @@ def get_fns_seg_list(fns_list=[],
     Opens a file, checks its format and sample rate, and returns a list of segments.
 
     Parameters:
+    ----------
         fns_list: list of filenames. Only support .wav
 
-    Returns: 
+    Returns:
+    -------
         fns_event_seg_list: list of segments.
         [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
             filename is a string
@@ -36,9 +38,10 @@ def get_fns_seg_list(fns_list=[],
         hop = duration
 
     # Get audio info
-    n_frames_in_seg = fs * duration
-    n_frames_in_hop = fs * hop # 2019 09.05
+    n_samples_in_seg = int(fs * duration)
+    n_samples_in_hop = int(fs * hop) # 2019 09.05
 
+    # Load each file and determine number of segments
     fns_event_seg_list = []
     for filename in fns_list:
 
@@ -55,39 +58,39 @@ def get_fns_seg_list(fns_list=[],
         if fs != _fs:
             raise ValueError('Sample rate should be {} but got {} for {}'.format(str(fs), str(_fs)), filename)
 
-        # Determine number of segments
-        n_frames = pt_wav.getnframes()
-        if n_frames > n_frames_in_seg:
-            n_segs = int((n_frames - n_frames_in_seg + n_frames_in_hop) // n_frames_in_hop)
-            assert n_segs > 0
-        else:
-            n_segs = 1 # load_audio can pad the audio if it is shorter than n_frames_in_seg
-        residual_frames = np.max([0, n_frames - ((n_segs - 1) * n_frames_in_hop + n_frames_in_seg)])
-
+        # Get the number of samples the file has
+        n_total_samples = pt_wav.getnframes()
         pt_wav.close()
 
+        # Calculate number of segments and residual frames
+        if n_total_samples > n_samples_in_seg:
+            n_segs = int((n_total_samples - n_samples_in_seg + n_samples_in_hop) // n_samples_in_hop)
+            assert n_segs > 0
+        else:
+            n_segs = 1 # load_audio can pad the audio if it is shorter than n_samples_in_seg
+        residual_samples = np.max([0, n_total_samples - ((n_segs - 1) * n_samples_in_hop + n_samples_in_seg)])
+
+        # Create a list of segments from the file
         if segment_mode == 'all': # Load all segments
-            # A segment can be offsetted max by n_frames_in_hop to the left or right
             for seg_idx in range(n_segs):
-                offset_min, offset_max = int(-1 * n_frames_in_hop), n_frames_in_hop
-                if seg_idx == 0:  # first seg
+                # A segment can be offsetted max by n_samples_in_hop to the left or right
+                offset_min, offset_max = -1*n_samples_in_hop, n_samples_in_hop
+                if seg_idx == 0: # first seg
                     offset_min = 0 # no offset to the left
-                if seg_idx == (n_segs - 1): # last seg
-                    offset_max = residual_frames # Maximal offset to the right is the residual frames
+                elif seg_idx == (n_segs - 1): # last seg
+                    offset_max = residual_samples # Maximal offset to the right is the residual frames
                 fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
-        elif segment_mode == 'first':
-            # Load only the first segment
+        elif segment_mode == 'first': # Load only the first segment
             seg_idx = 0
             offset_min, offset_max = 0, 0
             fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
-        elif segment_mode == 'random_oneshot':
-            # Load only one random segment
+        elif segment_mode == 'random_oneshot':  # Load only one random segment
             seg_idx = np.random.randint(0, n_segs)
-            offset_min, offset_max = n_frames_in_hop, n_frames_in_hop
+            offset_min, offset_max = n_samples_in_hop, n_samples_in_hop
             if seg_idx == 0:  # first seg
                 offset_min = 0
             if seg_idx == (n_segs - 1):  # last seg
-                offset_max = residual_frames
+                offset_max = residual_samples
             fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
         else:
             raise NotImplementedError(segment_mode)
@@ -261,7 +264,7 @@ def load_audio(filename=str(),
         seg_length_sec: read this amount of seconds. If None, read the rest of the file.
 
     Returns:
-        audio: numpy array of shape (n_samples,)
+        audio: numpy array of shape (n_total_samples,)
     """
 
     assert (seg_length_sec is None) or (seg_length_sec > 0.0), 'seg_length_sec should be positive'\
