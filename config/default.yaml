@@ -48,7 +48,7 @@ MODEL:
     N_MELS : 256 # Number of mel-frequency bins.
     EMB_SZ : 128  # Dimension of fingerprint, d in this paper.
     BN : 'layer_norm2d' # or 'batch_norm'
-    SCALE_INPUTS: True # Scale the log-power mel-spectrogram to [-1,1].
+    SCALE_INPUTS: True # Scale the power mel-spectrogram to [-1,1].
     # NOTE:
     # - In the current version, modifying {FS, DUR, HOB, STFT WIN, STFT HOP}
     #   may cause the model to malfunction or cause input shape mismatch errors.
@@ -66,7 +66,7 @@ BSZ:
 
 # Training parameters
 TRAIN:
-    MAX_EPOCH : 6000
+    MAX_EPOCH : 100
     OPTIMIZER : 'Adam' # 'LAMB' or 'Adam'. LAMB for BSZ >= 240
     LR : 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
     LR_SCHEDULE : 'cos' # ['cos', 'cos-restart', 'None'].
