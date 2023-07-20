@@ -25,6 +25,7 @@ if __name__ == "__main__":
                             "pointing to input.filtered.")
     args = parser.parse_args()
 
+    # Determine output path
     output = args.input+".filtered"
     print(f"The filtered file will be saved to {output}")
 
@@ -53,12 +54,12 @@ if __name__ == "__main__":
             lines = in_f.readlines()
             for j,mp4_path in enumerate(lines[i+1:]):
                 if (j+1) % 10000 == 0:
-                    print(f"Processed {j} files [{j+i+1}/{len(lines)}].")
+                    print(f"Processed {j+1} files [{j+1+i+1}/{len(lines)}].")
                 try:
                     process(mp4_path, out_f)
                 except:
                     print(f"Error processing {mp4_path}")
-            print(f"Processed {j} files [{j+i+1}/{len(lines)}].")
+            print(f"Processed {j+1} files [{j+1+i+1}/{len(lines)}].")
 
     else:
         print(f"Filtering {args.input}...")
