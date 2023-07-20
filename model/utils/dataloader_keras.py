@@ -95,6 +95,7 @@ class genUnbalSequence(Sequence):
         self.random_offset_anchor = random_offset_anchor
         self.offset_margin_hop_rate = offset_margin_hop_rate
         self.offset_margin_frame = int(hop * self.offset_margin_hop_rate * fs)
+        self.bg_hop = duration # For bg samples hop is equal to duration
 
         # Melspec layer
         self.mel_spec = Melspec_layer_essentia(scale=scale,
@@ -221,9 +222,10 @@ class genUnbalSequence(Sequence):
         if self.bg_mix:
             self.bg_snr_range = bg_mix_parameter[2]
             self.fns_bg_seg_dict = get_fns_seg_dict(bg_mix_parameter[1], 
-                                                    'all',
-                                                    self.fs, 
-                                                    self.duration)
+                                                    segment_mode='all',
+                                                    fs=self.fs, 
+                                                    duration=self.duration,
+                                                    hop=self.bg_hop)
             self.bg_fnames = list(self.fns_bg_seg_dict.keys())
             # Load all bg clips in full duration
             self.bg_clips = {fn: load_audio(fn, fs=self.fs, normalize=self.normalize_audio) for fn in self.bg_fnames}
@@ -371,7 +373,8 @@ class genUnbalSequence(Sequence):
         return Xa_batch, Xp_batch
 
     def batch_read_bg(self, fnames):
-        """ Read len(fnames) background samples from the memory.
+        """ Read len(fnames) background samples from the memory. Each sample is
+        randomly offsetted between its offset_min and self.bg_hop/2.
 
         Parameters:
         ----------
@@ -391,16 +394,18 @@ class genUnbalSequence(Sequence):
 
             # Choose a different random segment every epoch
             bg_segments = self.fns_bg_seg_dict[fname]
-            seg_idx, _, offset_max = bg_segments[self.epoch%len(bg_segments)]
+            seg_idx, offset_min, offset_max = bg_segments[self.epoch%len(bg_segments)]
 
             # Randomly offset the segment
-            random_offset_sec = np.random.randint(0, int((self.hop)*self.fs)) / self.fs
+            random_offset_sec = np.random.randint(offset_min, int((self.bg_hop/2)*self.fs)) / self.fs
             offset_sec = np.min([random_offset_sec, offset_max / self.fs])
-            start_frame_idx = np.floor((seg_idx*self.duration + offset_sec)*self.fs).astype(int)
+            # Calculate the start frame index
+            start_frame_idx = np.floor((seg_idx*self.bg_hop + offset_sec)*self.fs).astype(int)
             seg_length_frame = np.floor(self.duration*self.fs).astype(int)
             assert start_frame_idx+seg_length_frame <= X.shape[0], \
                     f"start_frame_idx+seg_length_frame={start_frame_idx+seg_length_frame}" \
                         f"is larger than X.shape[0]={X.shape[0]}"
+
             # Load the offsetted segment
             X_bg_batch.append(X[start_frame_idx:start_frame_idx+seg_length_frame].reshape(1, -1))
 
