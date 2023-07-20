@@ -11,20 +11,23 @@ from scipy.signal import convolve
 
 #### File Check ####
 
-def get_fns_seg_list(fns_list=[],
+def get_fns_seg_dict(fns_list=[],
                      segment_mode='all',
                      fs=22050,
                      duration=1,
                      hop=None):
     """
-    Opens a file, checks its format and sample rate, and returns a list of segments.
+    Opens an audio file, checks its format and sample rate, and creates a list 
+    of segments and possible offset ranges.
 
     Parameters:
+    -----------
         fns_list: list of filenames. Only support .wav
 
-    Returns: 
-        fns_event_seg_list: list of segments.
-        [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
+    Returns:
+    --------
+        fns_event_seg_dict: list of segments.
+        {filename: [[seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]}
             filename is a string
             seg_idx is an integer
             offset_min is 0 or negative integer
@@ -38,8 +41,10 @@ def get_fns_seg_list(fns_list=[],
     n_frames_in_seg = fs * duration
     n_frames_in_hop = fs * hop # 2019 09.05
 
-    fns_event_seg_list = []
+    fns_event_seg_dict = {}
     for filename in fns_list:
+
+        fns_event_seg_dict[filename] = []
 
         # Only support .wav
         file_ext = os.path.splitext(filename)[1]
@@ -66,32 +71,32 @@ def get_fns_seg_list(fns_list=[],
         pt_wav.close()
 
         if segment_mode == 'all': # Load all segments
-            # A segment can be offsetted max by n_frames_in_hop to the left or right
+            # A segment can be randomly offsetted to the left or right without going out of bounds
             for seg_idx in range(n_segs):
                 offset_min, offset_max = int(-1 * n_frames_in_hop), n_frames_in_hop
                 if seg_idx == 0:  # first seg
                     offset_min = 0 # no offset to the left
-                if seg_idx == (n_segs - 1): # last seg
+                if seg_idx == n_segs - 1: # last seg
                     offset_max = residual_frames # Maximal offset to the right is the residual frames
-                fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
+                fns_event_seg_dict[filename].append([seg_idx, offset_min, offset_max])
         elif segment_mode == 'first':
             # Load only the first segment
             seg_idx = 0
             offset_min, offset_max = 0, 0
-            fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
+            fns_event_seg_dict[filename].append([seg_idx, offset_min, offset_max])
         elif segment_mode == 'random_oneshot':
             # Load only one random segment
             seg_idx = np.random.randint(0, n_segs)
             offset_min, offset_max = n_frames_in_hop, n_frames_in_hop
             if seg_idx == 0:  # first seg
                 offset_min = 0
-            if seg_idx == (n_segs - 1):  # last seg
+            if seg_idx == n_segs - 1:  # last seg
                 offset_max = residual_frames
-            fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
+            fns_event_seg_dict[filename].append([seg_idx, offset_min, offset_max])
         else:
             raise NotImplementedError(segment_mode)
 
-    return fns_event_seg_list
+    return fns_event_seg_dict
 
 #### Audio Processing ####
 
