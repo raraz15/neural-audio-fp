@@ -39,7 +39,6 @@ output="$1.shuf"
 echo "Shuffling the data..."
 shuf $1 > $output
 echo $output
-echo
 
 # Get the required number of samples from the shuffled data
 input=$output
@@ -47,25 +46,43 @@ output="$1.shuf.$TOTAL"
 echo "Getting $TOTAL samples..."
 head -n $TOTAL $input > $output
 echo $output
-echo
 
 #######################################################################
 
 # Split the file into train, val, eval and noise sets
 echo "Splitting the data into train, val, eval and noise sets..."
 input=$output
+train="$input.train"
+val="$input.val"
+eval="$input.eval"
+noise="$input.noise"
+
+echo $train
+echo $val
+echo $eval
+echo $noise
+
+#######################################################################
+
+# Empty the files
+echo -n "" > $train
+echo -n "" > $val
+echo -n "" > $eval
+echo -n "" > $noise
+
+echo "Writing to files..."
 
 l=0
-while IFS= read -r line
-do
+while IFS= read -r line; do
+
     if (( $l < $TRAIN )); then
-        echo "$line" >> "$input.train"
+        echo $line >> $train
     elif (( $l < $TRAIN + $VAL )); then
-        echo "$line" >> "$input.val"
+        echo $line >> $val
     elif (( $l < $TRAIN + $VAL + $EVAL )); then
-        echo "$line" >> "$input.eval"
+        echo $line >> $eval
     elif (( $l < $TRAIN + $VAL + $EVAL + $NOISE )); then
-        echo "$line" >> "$input.noise"
+        echo $line >> $noise
     else
         :
     fi
@@ -73,3 +90,7 @@ do
     l=$(($l+1))
 
 done < "$input"
+
+#######################################################################
+
+echo "Done!"
