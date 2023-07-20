@@ -15,10 +15,10 @@ fi
 #######################################################################
 # Specify here the sizes of the train, val, and eval and noise sets
 
-TRAIN=100000
-VAL=20000
-EVAL=20000
-NOISE=800000
+TRAIN=20000
+VAL=4000
+EVAL=4000
+NOISE=160000
 
 TOTAL=$(($TRAIN + $VAL + $EVAL + $NOISE))
 echo "Total number of samples to take: $TOTAL"
