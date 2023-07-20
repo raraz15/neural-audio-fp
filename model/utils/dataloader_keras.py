@@ -173,7 +173,7 @@ class genUnbalSequence(Sequence):
 
         # Shuffle all index events if specified
         if self.shuffle:
-            self.shuffle_index_events()
+            self.shuffle_events()
             self.shuffle_segments()
 
     def __len__(self):
@@ -184,6 +184,58 @@ class genUnbalSequence(Sequence):
         else:
             return int(np.ceil(self.n_tracks / self.n_anchor))
 
+    def __getitem__(self, idx):
+        """ Get anchor (original) and positive (replica) samples of audio and compute 
+        their power mel-spectrograms for the current iteration.
+
+        Parameters:
+        ----------
+            idx (int): iteration index
+
+        Returns:
+        --------
+            Xa_batch: anchor audio samples (n_anchor, T)
+            Xp_batch: positive audio samples (self.n_pos_bsz, T)
+            Xa_batch_mel: power mel-spectrogram of anchor samples (n_anchor, n_mels, T, 1)
+            Xp_batch_mel: power-mel spectrogram of positive samples (n_pos, n_mels, T, 1)
+
+        """
+
+        # Get anchor filenames
+        fnames = [self.event_fnames[i] for i in range(idx*self.n_anchor, (idx + 1)*self.n_anchor)]
+        # Load anchor and positive audio samples
+        Xa_batch, Xp_batch = self.batch_load_tracks(fnames)
+
+        # If positive samples is specified, check for each augmentation
+        if self.n_pos_bsz > 0:
+
+            if self.bg_mix == True:
+                # Prepare BG for positive samples
+                bg_fnames = [self.bg_fnames[i%self.n_bg_samples] for i in range(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz)]
+                bg_batch = self.batch_load_bg(bg_fnames)
+                # Mix
+                Xp_batch = bg_mix_batch(Xp_batch,
+                                        bg_batch,
+                                        snr_range=self.bg_snr_range)
+
+            if self.ir_mix == True:
+                # Prepare IR for positive samples
+                ir_fnames = [self.ir_fnames[i%self.n_ir_samples] for i in range(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz)]
+                ir_batch = self.batch_load_ir(ir_fnames)
+                # Ir aug
+                Xp_batch = ir_aug_batch(Xp_batch, ir_batch)
+
+        # Compute mel spectrograms
+        Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch)
+        Xp_batch_mel = self.mel_spec.compute_batch(Xp_batch)
+
+        # Fix the dimensions
+        Xa_batch_mel = np.expand_dims(Xa_batch_mel, 3).astype(np.float32)
+        if Xp_batch_mel.size>0: # if there are positive samples
+            Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3).astype(np.float32)
+
+        return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
+
     def on_epoch_end(self):
         """ Routines to apply at the end of each epoch."""
 
@@ -192,16 +244,15 @@ class genUnbalSequence(Sequence):
 
         # Shuffle all index events if specified
         if self.shuffle:
-            self.shuffle_index_events()
+            self.shuffle_events()
 
             # TODO: is shuffling different segments with same frequency good?
             # Shuffle the segments of each track every n epochs
             if self.epoch % self.shuffle_segments_every_n_epoch == 0:
                 self.shuffle_segments()
 
-    # TODO: change name?
-    def shuffle_index_events(self):
-        """ Shuffle events."""
+    def shuffle_events(self):
+        """ Shuffle all events."""
 
         # Shuffle the order tracks
         np.random.shuffle(self.event_fnames)
@@ -224,65 +275,13 @@ class genUnbalSequence(Sequence):
             for fname in self.bg_fnames:
                 np.random.shuffle(self.fns_bg_seg_dict[fname])
 
-    def __getitem__(self, idx):
-        """ Get anchor (original) and positive (replica) samples of audio and compute 
-        their power mel-spectrograms for the current iteration.
-
-        Parameters:
-        ----------
-            idx (int): iteration index
-
-        Returns:
-        --------
-            Xa_batch: anchor audio samples (n_anchor, T)
-            Xp_batch: positive audio samples (self.n_pos_bsz, T)
-            Xa_batch_mel: power mel-spectrogram of anchor samples (n_anchor, n_mels, T, 1)
-            Xp_batch_mel: power-mel spectrogram of positive samples (n_pos, n_mels, T, 1)
-
-        """
-
-        # Get anchor filenames
-        anchor_fnames = [self.event_fnames[i] for i in range(idx*self.n_anchor, (idx + 1)*self.n_anchor)]
-        # Load anchor and positive audio samples
-        Xa_batch, Xp_batch = self.__event_batch_load(anchor_fnames)
-
-        # If positive samples is specified, check for each augmentation
-        if self.n_pos_bsz > 0:
-
-            if self.bg_mix == True:
-                # Prepare BG for positive samples
-                bg_fnames = [self.bg_fnames[i%self.n_bg_samples] for i in range(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz)]
-                bg_batch = self.__bg_batch_load(bg_fnames)
-                # Mix
-                Xp_batch = bg_mix_batch(Xp_batch,
-                                        bg_batch,
-                                        snr_range=self.bg_snr_range)
-
-            if self.ir_mix == True:
-                # Prepare IR for positive samples
-                ir_fnames = [self.ir_fnames[i%self.n_ir_samples] for i in range(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz)]
-                ir_batch = self.__ir_batch_load(ir_fnames)
-                # Ir aug
-                Xp_batch = ir_aug_batch(Xp_batch, ir_batch)
-
-        # Compute mel spectrograms
-        Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch)
-        Xp_batch_mel = self.mel_spec.compute_batch(Xp_batch)
-
-        # Fix the dimensions
-        Xa_batch_mel = np.expand_dims(Xa_batch_mel, 3).astype(np.float32)
-        if Xp_batch_mel.size>0: # if there are positive samples
-            Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3).astype(np.float32)
-
-        return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
-
-    def __event_batch_load(self, anchor_fnames):
-        """ Load random segments from tracks with fnames in anchor_fnames.
+    def batch_load_tracks(self, fnames):
+        """ Load random segments from tracks with fnames in fnames.
         Returns Xa_batch (anchor-original) and Xp_batch (positive replica) segments of audio.
 
         Parameters:
         ----------
-            anchor_fnames list(int): list of track fnames in the dataset.
+            fnames list(int): list of track fnames in the dataset.
 
         Returns:
         --------
@@ -292,7 +291,7 @@ class genUnbalSequence(Sequence):
         """
 
         Xa_batch, Xp_batch = [], []
-        for fname in anchor_fnames:
+        for fname in fnames:
 
             # Load anchor track information
             anchor_segments = self.fns_event_seg_dict[fname]
@@ -346,7 +345,7 @@ class genUnbalSequence(Sequence):
 
         return Xa_batch, Xp_batch
 
-    def __bg_batch_load(self, fnames):
+    def batch_load_bg(self, fnames):
         """ Load len(fnames) background samples from the memory.
 
         Parameters:
@@ -385,7 +384,7 @@ class genUnbalSequence(Sequence):
 
         return X_bg_batch
 
-    def __ir_batch_load(self, fnames):
+    def batch_load_ir(self, fnames):
         """ Load Impulse Response samples of given fnames from the memory.
 
         Parameters:
