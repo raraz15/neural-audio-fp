@@ -150,27 +150,26 @@ class genUnbalSequence(Sequence):
             self.bg_clips = {fn: load_audio(fn, fs=self.fs, normalize=self.normalize_audio) for fn in self.bg_fnames}
             self.n_bg_samples = len(self.bg_clips)
 
-        # # Save ir_mix parameters and read ir clips
-        # self.ir_mix = ir_mix_parameter[0]
-        # if self.ir_mix:
-        #     self.fns_ir_seg_list = get_fns_seg_list(ir_mix_parameter[1], 
-        #                                             'first',
-        #                                             self.fs, 
-        #                                             self.duration)
-        #     self.n_ir_samples = len(self.fns_ir_seg_list)
-        #     self.index_ir = np.arange(self.n_ir_samples)
-        #     # Load all ir clips in full duration
-        #     self.ir_clips = {}
-        #     # TODO: load all the ir clips in full duration or load only the first segment?
-        #     for fn, _, _, _ in self.fns_ir_seg_list:
-        #         X = load_audio(fn, 
-        #                     seg_length_sec=self.duration,
-        #                     fs=self.fs,
-        #                     normalize=self.normalize_audio)
-        #         # Truncate IR to MAX_IR_LENGTH, assuming that the remaining samples are zeros
-        #         if len(X) > MAX_IR_LENGTH:
-        #             X = X[:MAX_IR_LENGTH]
-        #         self.ir_clips[fn] = X
+        # Save ir_mix parameters and read ir clips
+        self.ir_mix = ir_mix_parameter[0]
+        if self.ir_mix:
+            self.fns_ir_seg_dict = get_fns_seg_dict(ir_mix_parameter[1], 
+                                                    'first',
+                                                    self.fs, 
+                                                    self.duration)
+            self.ir_fnames = list(self.fns_ir_seg_dict.keys())
+            # Load all ir clips in full duration
+            self.ir_clips = {}
+            for fn in self.ir_fnames:
+                X = load_audio(fn, 
+                            seg_length_sec=self.duration,
+                            fs=self.fs,
+                            normalize=self.normalize_audio)
+                # Truncate IR to MAX_IR_LENGTH
+                if len(X) > MAX_IR_LENGTH:
+                    X = X[:MAX_IR_LENGTH]
+                self.ir_clips[fn] = X
+            self.n_ir_samples = len(self.ir_clips)
 
         # Shuffle all index events if specified
         if self.shuffle:
@@ -195,24 +194,28 @@ class genUnbalSequence(Sequence):
         if self.shuffle:
             self.shuffle_index_events()
 
+            # TODO: is shuffling different segments with same frequency good?
             # Shuffle the segments of each track every n epochs
             if self.epoch % self.shuffle_segments_every_n_epoch == 0:
                 self.shuffle_segments()
 
+    # TODO: change name?
     def shuffle_index_events(self):
-        """ Shuffle index events."""
+        """ Shuffle events."""
 
+        # Shuffle the order tracks
         np.random.shuffle(self.event_fnames)
 
+        # Shuffle the order of augmentation types
         if self.bg_mix == True:
             np.random.shuffle(self.bg_fnames)
-
-        # if self.ir_mix == True:
-        #     # same number with event samples
-        #     self.index_ir = np.random.permutation(self.n_ir_samples)
+        if self.ir_mix == True:
+            np.random.shuffle(self.ir_fnames)
 
     def shuffle_segments(self):
-        """ Shuffle the order of segments of each track and augmentation type."""
+        """ Shuffle the order of segments of each track and background noise.
+        We do not shuffle the order of IRs because we only use the first segment of
+        each IR."""
 
         for fname in self.event_fnames:
             np.random.shuffle(self.fns_event_seg_dict[fname])
@@ -220,9 +223,6 @@ class genUnbalSequence(Sequence):
         if self.bg_mix == True:
             for fname in self.bg_fnames:
                 np.random.shuffle(self.fns_bg_seg_dict[fname])
-
-        # if self.ir_mix == True:
-
 
     def __getitem__(self, idx):
         """ Get anchor (original) and positive (replica) samples of audio and compute 
@@ -238,6 +238,7 @@ class genUnbalSequence(Sequence):
             Xp_batch: positive audio samples (self.n_pos_bsz, T)
             Xa_batch_mel: power mel-spectrogram of anchor samples (n_anchor, n_mels, T, 1)
             Xp_batch_mel: power-mel spectrogram of positive samples (n_pos, n_mels, T, 1)
+
         """
 
         # Get anchor filenames
@@ -249,20 +250,20 @@ class genUnbalSequence(Sequence):
         if self.n_pos_bsz > 0:
 
             if self.bg_mix == True:
-                # Prepare bg for positive samples
+                # Prepare BG for positive samples
                 bg_fnames = [self.bg_fnames[i%self.n_bg_samples] for i in range(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz)]
-                Xp_bg_batch = self.__bg_batch_load(bg_fnames)
+                bg_batch = self.__bg_batch_load(bg_fnames)
                 # Mix
                 Xp_batch = bg_mix_batch(Xp_batch,
-                                        Xp_bg_batch,
+                                        bg_batch,
                                         snr_range=self.bg_snr_range)
 
-            # if self.ir_mix == True:
-            #     # Prepare ir for positive samples
-            #     ir_sel_indices = np.arange(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz) % self.n_ir_samples
-            #     Xp_ir_batch = self.__ir_batch_load(self.index_ir[ir_sel_indices])
-            #     # ir aug
-            #     Xp_batch = ir_aug_batch(Xp_batch, Xp_ir_batch)
+            if self.ir_mix == True:
+                # Prepare IR for positive samples
+                ir_fnames = [self.ir_fnames[i%self.n_ir_samples] for i in range(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz)]
+                ir_batch = self.__ir_batch_load(ir_fnames)
+                # Ir aug
+                Xp_batch = ir_aug_batch(Xp_batch, ir_batch)
 
         # Compute mel spectrograms
         Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch)
@@ -384,18 +385,22 @@ class genUnbalSequence(Sequence):
 
         return X_bg_batch
 
-    def __ir_batch_load(self, idx_list):
-        """ Load len(idx_list) Impulse Response samples from the memory.
+    def __ir_batch_load(self, fnames):
+        """ Load Impulse Response samples of given fnames from the memory.
+
+        Parameters:
+        ----------
+            fnames list(str): list of IR fnames in the dataset.
 
         Returns:
+        --------
             X_ir_batch (self.n_pos_bsz, T)
+
         """
 
         X_ir_batch = []
-        for idx in idx_list:
-            # Get the IR fname
-            fname, _, _, _ = self.fns_ir_seg_list[idx]
-            # Load the IR sample from memory
+        for fname in fnames:
+            # Read the IR sample from memory
             X_ir_batch.append(self.ir_clips[fname].reshape(1, -1))
         # Concatenate the samples to a batch
         X_ir_batch = np.concatenate(X_ir_batch, axis=0)
