@@ -6,8 +6,6 @@ from model.utils.audio_utils import (bg_mix_batch, ir_aug_batch, load_audio,
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 import numpy as np
 
-# TODO: OGUZ: Is this a good idea?
-#MAX_IR_LENGTH = 600 # 50ms with fs=8000
 MAX_IR_LENGTH = 8000 # 1s with fs=8000
 
 class genUnbalSequence(Sequence):
@@ -41,7 +39,6 @@ class genUnbalSequence(Sequence):
         ----------
         fns_event_list : list(str), 
             Song file paths as a list. 
-            [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
         bsz : (int), optional
             In TPUs code, global batch size. The default is 120.
         n_anchor : TYPE, optional
