@@ -128,21 +128,14 @@ class genUnbalSequence(Sequence):
                                                     self.fs,
                                                     self.duration,
                                                     hop=self.hop)
-        # n_segments = set([len(segments) for segments in self.fns_event_seg_dict.values()])
-        # assert len(n_segments)==1, \
-        #                             f'All files should have the same number of segments. {n_segments}'
 
-        # Determine the number of tracks to use for each epoch
+        # Determine the tracks to use for each epoch
         if self.drop_the_last_non_full_batch:
             self.n_tracks = int((len(self.fns_event_seg_dict) // n_anchor) * n_anchor)
             self.fns_event_seg_dict = {k: v for i, (k, v) in enumerate(self.fns_event_seg_dict.items()) if i < self.n_tracks}
         else:
             self.n_tracks = len(self.fns_event_seg_dict) # fp-generation
-        self.fns_event_seg_dict_fnames = list(self.fns_event_seg_dict.keys())
-        self.index_event = np.arange(self.n_tracks)
-
-        # # TODO: NOT TRUE. Not all the tracks have the same number of segments.
-        # self.n_samples = self.n_tracks * n_anchor
+        self.event_fnames = list(self.fns_event_seg_dict.keys())
 
         # Save bg_mix parameters and read bg audio
         self.bg_mix = bg_mix_parameter[0]
@@ -210,7 +203,7 @@ class genUnbalSequence(Sequence):
     def shuffle_index_events(self):
         """ Shuffle index events."""
 
-        self.index_event = np.random.permutation(self.n_tracks)
+        np.random.shuffle(self.event_fnames)
 
         if self.bg_mix == True:
             # same number with event samples
@@ -221,9 +214,9 @@ class genUnbalSequence(Sequence):
             self.index_ir = np.random.permutation(self.n_ir_samples)
 
     def shuffle_track_segments(self):
+        """ Shuffle the order of segments of each track"""
 
-        # Shuffle the segments of each track
-        for fname in self.fns_event_seg_dict_fnames:
+        for fname in self.event_fnames:
             np.random.shuffle(self.fns_event_seg_dict[fname])
 
     def __getitem__(self, idx):
@@ -238,9 +231,8 @@ class genUnbalSequence(Sequence):
             Xp_batch_mel: power-mel spectrogram of positive samples (n_pos, n_mels, T, 1)
         """
 
-        # Get anchor filenames from the index of current iteration
-        anchor_track_indices = self.index_event[idx*self.n_anchor:(idx + 1)*self.n_anchor]
-        anchor_fnames = [self.fns_event_seg_dict_fnames[i] for i in anchor_track_indices]
+        # Get anchor filenames for the current iteration
+        anchor_fnames = [self.event_fnames[i] for i in range(idx*self.n_anchor, (idx + 1)*self.n_anchor)]
 
         # Load anchor and positive audio samples
         Xa_batch, Xp_batch = self.__event_batch_load(anchor_fnames)
