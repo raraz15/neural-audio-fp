@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
-
+import numpy as np
 from tensorflow.keras.utils import Sequence
+
 from model.utils.audio_utils import (bg_mix_batch, ir_aug_batch, load_audio,
                                      get_fns_seg_dict, load_audio_multi_start)
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
-import numpy as np
 
-MAX_IR_LENGTH = 8000 # 1s with fs=8000
+MAX_IR_LENGTH = 600 # 50ms with fs=8000
+#MAX_IR_LENGTH = 8000 # 1s with fs=8000
 
 #TODO: order arguments
 class genUnbalSequence(Sequence):
