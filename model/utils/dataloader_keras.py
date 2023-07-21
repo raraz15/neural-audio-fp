@@ -34,7 +34,6 @@ class genUnbalSequence(Sequence):
         bg_mix_parameter=[False],
         ir_mix_parameter=[False],
         reduce_items_p=0,
-        reduce_batch_first_half=False,
         drop_the_last_non_full_batch=True,
         ):
         """
@@ -74,10 +73,6 @@ class genUnbalSequence(Sequence):
         reduce_items_p : (int), optional
             Reduce dataset size to percent (%). Useful when debugging code 
             with small data. The default is 0.
-        reduce_batch_first_half : (bool), optional
-            Remove the first half of elements from each output batch. The
-            resulting output batch will contain only replicas. This is useful
-            when collecting synthesized queries only. Default is False.
         drop_the_last_non_full_batch : (bool), optional
             Set as False in test. Default is True.
         """
@@ -95,7 +90,7 @@ class genUnbalSequence(Sequence):
         self.normalize_audio = normalize_audio
         self.random_offset_anchor = random_offset_anchor
         self.offset_margin_hop_rate = offset_margin_hop_rate
-        self.offset_margin_frame = int(hop * self.offset_margin_hop_rate * fs)
+        self.offset_margin_sample = int(hop * self.offset_margin_hop_rate * fs)
         self.bg_hop = duration # For bg samples hop is equal to duration
         self.segments_per_track = segments_per_track
 
@@ -121,7 +116,6 @@ class genUnbalSequence(Sequence):
         self.shuffle = shuffle
         self.drop_the_last_non_full_batch = drop_the_last_non_full_batch
         self.reduce_items_p = reduce_items_p
-        self.reduce_batch_first_half = reduce_batch_first_half
 
         # Create segment information for each track
         self.fns_event_seg_dict = get_fns_seg_dict(fns_event_list,
@@ -130,22 +124,27 @@ class genUnbalSequence(Sequence):
                                                     self.duration,
                                                     hop=self.hop)
         # Filter out the tracks with less than segments_per_track
-        self.fns_event_seg_dict = {k: v for k, v in self.fns_event_seg_dict.items() if len(v) >= segments_per_track}
+        self.fns_event_seg_dict = {k: v 
+                                    for k, v in self.fns_event_seg_dict.items() 
+                                    if len(v) >= segments_per_track}
         # Keep only segments_per_track segments for each track
-        self.fns_event_seg_dict = {k: v[:segments_per_track] for k, v in self.fns_event_seg_dict.items()}
+        self.fns_event_seg_dict = {k: v[:segments_per_track] 
+                                   for k, v in self.fns_event_seg_dict.items()}
 
         # TODO: can you salvage more tracks?
         # Determine the tracks to use for each epoch
         if self.drop_the_last_non_full_batch:
             self.n_tracks = int((len(self.fns_event_seg_dict) // n_anchor) * n_anchor)
-            self.fns_event_seg_dict = {k: v for i, (k, v) in enumerate(self.fns_event_seg_dict.items()) if i < self.n_tracks}
+            self.fns_event_seg_dict = {k: v 
+                                       for i, (k, v) in enumerate(self.fns_event_seg_dict.items()) 
+                                       if i < self.n_tracks}
         else:
             self.n_tracks = len(self.fns_event_seg_dict) # fp-generation
         self.event_fnames = list(self.fns_event_seg_dict.keys())
 
         # Save augmentation parameters, read the files, and store them in memory
-        self.load_bg_samples(bg_mix_parameter)
-        self.load_ir_samples(ir_mix_parameter)
+        self.load_and_store_bg_samples(bg_mix_parameter)
+        self.load_and_store_ir_samples(ir_mix_parameter)
 
         # Shuffle all index events if specified
         if self.shuffle:
@@ -161,20 +160,25 @@ class genUnbalSequence(Sequence):
             return int(np.ceil(self.n_tracks * self.segments_per_track / self.n_anchor))
 
     def __getitem__(self, idx):
-        """ Get anchor (original) and positive (replica) samples of audio and compute 
+        """ 
+        Get anchor (original) and positive (replica) samples of audio and compute 
         their power mel-spectrograms for the current iteration.
 
         Parameters:
         ----------
-            idx (int): iteration index
+            idx (int):
+                iteration index
 
         Returns:
         --------
-            Xa_batch: anchor audio samples (n_anchor, T)
-            Xp_batch: positive audio samples (self.n_pos_bsz, T)
-            Xa_batch_mel: power mel-spectrogram of anchor samples (n_anchor, n_mels, T, 1)
-            Xp_batch_mel: power-mel spectrogram of positive samples (n_pos_bsz, n_mels, T, 1)
-
+            Xa_batch (ndarray):
+                anchor audio samples (n_anchor, T)
+            Xp_batch (ndarray):
+                positive audio samples (self.n_pos_bsz, T)
+            Xa_batch_mel (ndarray):
+                power mel-spectrogram of anchor samples (n_anchor, n_mels, T, 1)
+            Xp_batch_mel (ndarray):
+                power-mel spectrogram of positive samples (n_pos_bsz, n_mels, T, 1)
         """
 
         # Get self.n_anchor anchor filenames
@@ -187,6 +191,7 @@ class genUnbalSequence(Sequence):
         if self.n_pos_bsz > 0:
 
             # Indices of both augmentations. We use modulus arithmetic to
+            # cover the whole set of augmentations.
             i0, i1 = idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz
 
             if self.bg_mix == True:
@@ -224,12 +229,15 @@ class genUnbalSequence(Sequence):
 
         Parameters:
         ----------
-            fnames list(int): list of track fnames in the dataset.
+            fnames list(int):
+                list of track fnames in the dataset.
 
         Returns:
         --------
-            Xa_batch: (n_anchor, T)
-            Xp_batch: (n_anchor*n_pos_per_anchor, T)
+            Xa_batch (ndarray):
+                (n_anchor, T)
+            Xp_batch (ndarray):
+                (n_anchor*n_pos_per_anchor, T)
 
         """
 
@@ -247,8 +255,8 @@ class genUnbalSequence(Sequence):
             # If random offset is specified, apply it to the anchor start time
             if self.random_offset_anchor:
                 # Sample a random offset frame
-                anchor_offset_min = np.max([offset_min, -self.offset_margin_frame])
-                anchor_offset_max = np.min([offset_max, self.offset_margin_frame])
+                anchor_offset_min = np.max([offset_min, -self.offset_margin_sample])
+                anchor_offset_max = np.min([offset_max, self.offset_margin_sample])
                 _anchor_offset_frame = np.random.randint(low=anchor_offset_min, high=anchor_offset_max)
                 anchor_start_sec += _anchor_offset_frame / self.fs
             else:
@@ -256,8 +264,8 @@ class genUnbalSequence(Sequence):
 
             # Calculate multiple(=self.n_pos_per_anchor) pos_start_sec
             if self.n_pos_per_anchor > 0:
-                pos_offset_min = np.max([(_anchor_offset_frame - self.offset_margin_frame), offset_min])
-                pos_offset_max = np.min([(_anchor_offset_frame + self.offset_margin_frame), offset_max])
+                pos_offset_min = np.max([(_anchor_offset_frame - self.offset_margin_sample), offset_min])
+                pos_offset_max = np.min([(_anchor_offset_frame + self.offset_margin_sample), offset_max])
                 pos_start_sec_list = seg_idx * self.hop
                 if pos_offset_min==pos_offset_max==0:
                     # Only the case of running extras/dataset2wav.py as offset_margin_hot_rate=0
@@ -277,7 +285,7 @@ class genUnbalSequence(Sequence):
             xs = load_audio_multi_start(fname,
                                         start_sec_list, 
                                         self.duration, 
-                                        self.fs,
+                                        fs=self.fs,
                                         normalize=self.normalize_audio)
             Xa_batch.append(xs[0, :].reshape((1, -1)))
             Xp_batch.append(xs[1:, :]) # If self.n_pos_per_anchor==0: this produces an empty array with shape (0, T)
@@ -295,11 +303,13 @@ class genUnbalSequence(Sequence):
 
         Parameters:
         -----------
-            fnames list(str): list of background fnames in the dataset.
+            fnames list(str):
+                list of background fnames in the dataset.
 
         Returns:
         --------
-            X_bg_batch (self.n_pos_bsz, T)
+            X_bg_batch (ndarray):
+                (self.n_pos_bsz, T)
 
         """
 
@@ -336,11 +346,13 @@ class genUnbalSequence(Sequence):
 
         Parameters:
         ----------
-            fnames list(str): list of IR fnames in the dataset.
+            fnames list(str):
+                list of IR fnames in the dataset.
 
         Returns:
         --------
-            X_ir_batch (self.n_pos_bsz, T)
+            X_ir_batch (ndarray):
+                (self.n_pos_bsz, T)
 
         """
 
@@ -353,7 +365,7 @@ class genUnbalSequence(Sequence):
 
         return X_ir_batch
 
-    # TODO: is shuffling different segments with same frequency good?
+    # TODO: is shuffling different things with same frequency good?
     # TODO: the current definition of epoch may lead to catastrophic forgetting?
     # TODO: can we shuffle the bg segments in a way that more of it is seen during training?
     def on_epoch_end(self):
@@ -367,7 +379,7 @@ class genUnbalSequence(Sequence):
     def shuffle_events(self):
         """ Shuffle all events."""
 
-        # Shuffle the order tracks
+        # Shuffle the order of tracks
         np.random.shuffle(self.event_fnames)
 
         # Shuffle the order of augmentation types
@@ -381,14 +393,16 @@ class genUnbalSequence(Sequence):
         We do not shuffle the order of IRs because we only use the first segment of
         each IR."""
 
+        # Shuffle the order of segments of each track
         for fname in self.event_fnames:
             np.random.shuffle(self.fns_event_seg_dict[fname])
 
+        # Shuffle the order of bg segments
         if self.bg_mix == True:
             for fname in self.bg_fnames:
                 np.random.shuffle(self.fns_bg_seg_dict[fname])
 
-    def load_bg_samples(self, bg_mix_parameter):
+    def load_and_store_bg_samples(self, bg_mix_parameter):
         """ Load background noise samples in memory and their segmentation
         information.
 
@@ -409,10 +423,11 @@ class genUnbalSequence(Sequence):
                                                     hop=self.bg_hop)
             self.bg_fnames = list(self.fns_bg_seg_dict.keys())
             # Load all bg clips in full duration
-            self.bg_clips = {fn: load_audio(fn, fs=self.fs, normalize=self.normalize_audio) for fn in self.bg_fnames}
+            self.bg_clips = {fn: load_audio(fn, fs=self.fs, normalize=self.normalize_audio) 
+                             for fn in self.bg_fnames}
             self.n_bg_samples = len(self.bg_clips)
 
-    def load_ir_samples(self, ir_mix_parameter):
+    def load_and_store_ir_samples(self, ir_mix_parameter):
         """ Load Impulse Response samples in memory and their segmentation
         information. We only use the first segment of each IR clip. These segments
         are truncated to MAX_IR_LENGTH.

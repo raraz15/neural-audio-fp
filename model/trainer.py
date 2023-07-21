@@ -83,6 +83,7 @@ def val_step(X, m_fp, loss_obj, helper):
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
+# TODO: return only l2(gf)
 @tf.function
 def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
@@ -245,7 +246,6 @@ def trainer(cfg, checkpoint_name):
 
         # Mini-search-validation (optional)
         if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:
-            accs_by_scope, scopes, key_strs = mini_search_validation(
-                val_ds, m_fp)
+            accs_by_scope, scopes, key_strs = mini_search_validation(val_ds, m_fp)
             for k in key_strs:
                 helper.update_minitest_acc(accs_by_scope[k], scopes, k)

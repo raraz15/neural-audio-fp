@@ -143,7 +143,7 @@ class Dataset:
             random_offset_anchor=True,
             bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_snr],
             ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps],
-            reduce_items_p=reduce_items_p
+            reduce_items_p=reduce_items_p,
             )
 
     def get_val_ds(self, max_song=500):
@@ -178,8 +178,7 @@ class Dataset:
 
     # TODO: why does ts_n_anchor=ts_batch_sz makes it faster?
     def get_test_dummy_db_ds(self):
-        """
-        Test-dummy-DB without augmentation:
+        """Test-dummy-DB without augmentation:
             In this case, high-speed fingerprinting is possible without
             augmentation by setting ts_n_anchor=ts_batch_sz.
         """
@@ -299,7 +298,6 @@ class Dataset:
                 random_offset_anchor=False,
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps],
-                reduce_batch_first_half=True,
                 drop_the_last_non_full_batch=False)
 
             _db_ts_n_anchor = self.ts_batch_sz
