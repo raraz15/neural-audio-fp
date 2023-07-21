@@ -126,7 +126,7 @@ class Dataset:
                       recursive=True))
 
         return genUnbalSequence(
-            fns_event_list=self.tr_source_fps,
+            track_paths=self.tr_source_fps,
             bsz=self.tr_batch_sz,
             n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
             duration=self.dur,  # duration in seconds
@@ -157,7 +157,7 @@ class Dataset:
                       '**/*.wav', recursive=True))[:max_song]
 
         return genUnbalSequence(
-            fns_event_list=self.val_source_fps,
+            track_paths=self.val_source_fps,
             bsz=self.val_batch_sz,
             n_anchor=self.val_n_anchor,
             duration=self.dur,
@@ -199,7 +199,7 @@ class Dataset:
 
         _ts_n_anchor = self.ts_batch_sz
         return genUnbalSequence(
-            fns_event_list=self.ts_dummy_db_source_fps,
+            track_paths=self.ts_dummy_db_source_fps,
             bsz=self.ts_batch_sz,
             n_anchor=_ts_n_anchor,
             duration=self.dur,
@@ -245,7 +245,7 @@ class Dataset:
 
             _ts_n_anchor = self.ts_batch_sz
             ds_query = genUnbalSequence(
-                fns_event_list=self.ts_query_icassp_fps,
+                track_paths=self.ts_query_icassp_fps,
                 bsz=self.ts_batch_sz,
                 n_anchor=_ts_n_anchor,
                 duration=self.dur,
@@ -262,7 +262,7 @@ class Dataset:
                 random_offset_anchor=False,
                 drop_the_last_non_full_batch=False) # No augmentations...
             ds_db = genUnbalSequence(
-                fns_event_list=self.ts_db_icassp_fps,
+                track_paths=self.ts_db_icassp_fps,
                 bsz=self.ts_batch_sz,
                 n_anchor=_ts_n_anchor,
                 duration=self.dur,
@@ -287,7 +287,7 @@ class Dataset:
             _query_ts_batch_sz = self.ts_batch_sz * 2
             _query_ts_n_anchor = self.ts_batch_sz
             ds_query = genUnbalSequence(
-                fns_event_list=self.ts_query_db_unseen_fps,
+                track_paths=self.ts_query_db_unseen_fps,
                 bsz=_query_ts_batch_sz,
                 n_anchor=_query_ts_n_anchor,
                 duration=self.dur,
@@ -302,7 +302,7 @@ class Dataset:
 
             _db_ts_n_anchor = self.ts_batch_sz
             ds_db = genUnbalSequence(
-                fns_event_list=self.ts_query_db_unseen_fps,
+                track_paths=self.ts_query_db_unseen_fps,
                 bsz=self.ts_batch_sz,
                 n_anchor=_db_ts_n_anchor,
                 duration=self.dur,

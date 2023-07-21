@@ -9,17 +9,15 @@ MAX_IR_LENGTH = 600 # 50ms with fs=8000
 #MAX_IR_LENGTH = 8000 # 1s with fs=8000
 
 # TODO: padd clips to the same length?
-# TODO: order arguments
 # TODO: calculate segments per track in Dataset class
 # TODO: fnames basename?
 class genUnbalSequence(Sequence):
     def __init__(
         self,
-        fns_event_list,
-        bsz=120,
-        n_anchor=60,
+        track_paths,
         duration=1,
         hop=.5,
+        normalize_audio=True,
         fs=8000,
         scale=True,
         n_fft=1024,
@@ -28,9 +26,9 @@ class genUnbalSequence(Sequence):
         f_min=300,
         f_max=4000,
         segments_per_track=58,
+        bsz=120,
+        n_anchor=60,
         shuffle=False,
-        seg_mode="all",
-        normalize_audio=True,
         random_offset_anchor=False,
         offset_margin_hop_rate=0.4,
         bg_mix_parameter=[False],
@@ -41,29 +39,27 @@ class genUnbalSequence(Sequence):
         """
         Parameters
         ----------
-        fns_event_list : list(str), 
-            Song file paths as a list. 
+        track_paths : list(str), 
+            Track file paths as a list. 
+        duration : (float), optional
+            Duration in seconds. The default is 1.
+        hop : (float), optional
+            Hop-size in seconds. The default is .5.
+        normalize_audio : (str), optional
+            DESCRIPTION. The default is True.
+        fs : (int), optional
+            Sampling rate. The default is 8000.
+        scale : (bool), optional
+            Scale the power mel-spectrogram. The default is True.
         bsz : (int), optional
             In TPUs code, global batch size. The default is 120.
         n_anchor : TYPE, optional
             ex) bsz=40, n_anchor=8 --> 4 positive samples for each anchor
             (In TPUs code, global n_anchor). The default is 60.
-        duration : (float), optional
-            Duration in seconds. The default is 1.
-        hop : (float), optional
-            Hop-size in seconds. The default is .5.
-        fs : (int), optional
-            Sampling rate. The default is 8000.
-        scale : (bool), optional
-            Scale the output. The default is True.
         shuffle : (bool), optional
             Randomize samples from the original songs. BG/IRs will not be 
             affected by this parameter (BG/IRs are always shuffled). 
             The default is False.
-        seg_mode : (str), optional
-            DESCRIPTION. The default is "all".
-        normalize_audio : (str), optional
-            DESCRIPTION. The default is True.
         random_offset_anchor : (bool), optional
             DESCRIPTION. The default is False.
         offset_margin_hop_rate : (float), optional
@@ -82,13 +78,11 @@ class genUnbalSequence(Sequence):
         # Check parameters
         assert bsz >= n_anchor, "bsz should be >= n_anchor"
         assert n_anchor > 0, "n_anchor should be > 0"
-        assert seg_mode in {'random_oneshot', 'all'}, "seg_mode should be 'random_oneshot' or 'all'"
 
         # Save the Input parameters
         self.duration = duration
         self.hop = hop
         self.fs = fs
-        self.seg_mode = seg_mode
         self.normalize_audio = normalize_audio
         self.random_offset_anchor = random_offset_anchor
         self.offset_margin_hop_rate = offset_margin_hop_rate
@@ -120,10 +114,10 @@ class genUnbalSequence(Sequence):
         self.reduce_items_p = reduce_items_p
 
         # Create segment information for each track
-        self.track_seg_dict = get_fns_seg_dict(fns_event_list,
-                                                self.seg_mode,
-                                                self.fs,
-                                                self.duration,
+        self.track_seg_dict = get_fns_seg_dict(track_paths,
+                                                segment_mode='all',
+                                                fs=self.fs,
+                                                duration=self.duration,
                                                 hop=self.hop)
         # Filter out the tracks with less than segments_per_track
         self.track_seg_dict = {k: v 
@@ -467,9 +461,9 @@ class genUnbalSequence(Sequence):
         self.ir_mix = ir_mix_parameter[0]
         if self.ir_mix:
             self.fns_ir_seg_dict = get_fns_seg_dict(ir_mix_parameter[1], 
-                                                    'first',
-                                                    self.fs, 
-                                                    self.duration)
+                                                    segment_mode='first',
+                                                    fs=self.fs, 
+                                                    duration=self.duration)
             self.ir_fnames = list(self.fns_ir_seg_dict.keys())
             # Load all ir clips in full duration
             self.ir_clips = {}
