@@ -439,6 +439,19 @@ class genUnbalSequence(Sequence):
                              for fn in self.bg_fnames}
             self.n_bg_samples = len(self.bg_clips)
 
+            # Check if we have enough bg samples. Ideally, every segment of every bg track 
+            # should be used at least once. If not, we warn the user.
+            total_seen = len(self.track_fnames)*self.segments_per_track / len(self.bg_fnames)
+            x = 0
+            for fname in self.bg_fnames:
+                n_segments = len(self.fns_bg_seg_dict[fname])
+                if total_seen < n_segments:
+                    x += n_segments - total_seen
+            if x > 0:
+                print(f"WARNING: {100*x/sum([len(l) for l in self.fns_bg_seg_dict]):.2f} percent of"
+                    " Background Noise segments won't be used."
+                    "\nIncrease tracks or decrease segments_per_track to avoid this warning.")
+
     def load_and_store_ir_samples(self, ir_mix_parameter):
         """ Load Impulse Response samples in memory and their segmentation
         information. We only use the first segment of each IR clip. These segments
@@ -470,3 +483,16 @@ class genUnbalSequence(Sequence):
                     X = X[:MAX_IR_LENGTH]
                 self.ir_clips[fn] = X
             self.n_ir_samples = len(self.ir_clips)
+
+            # Check if we have enough ir samples. Ideally, every segment of every ir track
+            # should be used at least once. If not, we warn the user.
+            total_seen = len(self.track_fnames)*self.segments_per_track / len(self.ir_fnames)
+            x = 0
+            for fname in self.ir_fnames:
+                n_segments = len(self.fns_ir_seg_dict[fname])
+                if total_seen < n_segments:
+                    x += n_segments - total_seen
+            if x > 0:
+                print(f"WARNING: {100*x/sum([len(l) for l in self.fns_ir_seg_dict]):.2f} percent of"
+                    " Impulse Response segments won't be used."
+                    "\nIncrease tracks or decrease segments_per_track to avoid this warning.")
