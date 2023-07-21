@@ -121,25 +121,25 @@ class genUnbalSequence(Sequence):
 
         # Create segment information for each track
         self.track_seg_dict = get_fns_seg_dict(fns_event_list,
-                                                    self.seg_mode,
-                                                    self.fs,
-                                                    self.duration,
-                                                    hop=self.hop)
+                                                self.seg_mode,
+                                                self.fs,
+                                                self.duration,
+                                                hop=self.hop)
         # Filter out the tracks with less than segments_per_track
         self.track_seg_dict = {k: v 
-                                    for k, v in self.track_seg_dict.items() 
-                                    if len(v) >= segments_per_track}
+                                for k, v in self.track_seg_dict.items() 
+                                if len(v) >= segments_per_track}
         # Keep only segments_per_track segments for each track
         self.track_seg_dict = {k: v[:segments_per_track] 
-                                   for k, v in self.track_seg_dict.items()}
+                                for k, v in self.track_seg_dict.items()}
 
         # TODO: can you salvage more tracks?
         # Determine the tracks to use for each epoch
         if self.drop_the_last_non_full_batch:
             self.n_tracks = int((len(self.track_seg_dict) // n_anchor) * n_anchor)
             self.track_seg_dict = {k: v 
-                                       for i, (k, v) in enumerate(self.track_seg_dict.items()) 
-                                       if i < self.n_tracks}
+                                    for i, (k, v) in enumerate(self.track_seg_dict.items()) 
+                                    if i < self.n_tracks}
         else:
             self.n_tracks = len(self.track_seg_dict) # fp-generation
         self.track_fnames = list(self.track_seg_dict.keys())
@@ -156,11 +156,11 @@ class genUnbalSequence(Sequence):
     def __len__(self):
         """ Returns the number of batches per epoch. """
 
-        n = (self.n_tracks / self.n_anchor) * self.segments_per_track
+        n = np.ceil((self.n_tracks / self.n_anchor) * self.segments_per_track)
         if self.reduce_items_p != 0:
-            return int(np.ceil(n) * (self.reduce_items_p / 100))
+            return int(n * (self.reduce_items_p / 100))
         else:
-            return int(np.ceil(n))
+            return int(n)
 
     def __getitem__(self, idx):
         """ Get a batch of anchor (original) and positive (replica) samples of audio 
@@ -245,15 +245,21 @@ class genUnbalSequence(Sequence):
 
         """
 
-        # print(len(fnames))
-
         Xa_batch, Xp_batch = [], []
         for fname in fnames:
 
             # Load the segment information of the anchor track
             anchor_segments = self.track_seg_dict[fname]
             # Get a different segment from the track at each iteration
-            seg_idx, offset_min, offset_max = anchor_segments[idx%self.segments_per_track]
+
+            # If the number of segments is odd, all segments will be seen once, which is what we want
+            random_idx = idx % self.segments_per_track
+            # If the number of segments is even, half of the segments will be seen twice and the other 
+            # half none. We want to see all segments once, so we make sure that the second half of the
+            # segments are seen once.
+            if self.segments_per_track%2==0 and idx>=self.__len__()/2:
+                random_idx = (idx+1) % self.segments_per_track
+            seg_idx, offset_min, offset_max = anchor_segments[random_idx]
 
             # Determine the anchor start time
             anchor_start_sec = seg_idx * self.hop
