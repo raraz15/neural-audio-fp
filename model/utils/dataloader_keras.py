@@ -8,8 +8,10 @@ from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 MAX_IR_LENGTH = 600 # 50ms with fs=8000
 #MAX_IR_LENGTH = 8000 # 1s with fs=8000
 
-#TODO: order arguments
+# TODO: padd clips to the same length?
+# TODO: order arguments
 # TODO: calculate segments per track in Dataset class
+# TODO: fnames basename?
 class genUnbalSequence(Sequence):
     def __init__(
         self,
@@ -118,29 +120,29 @@ class genUnbalSequence(Sequence):
         self.reduce_items_p = reduce_items_p
 
         # Create segment information for each track
-        self.fns_event_seg_dict = get_fns_seg_dict(fns_event_list,
+        self.track_seg_dict = get_fns_seg_dict(fns_event_list,
                                                     self.seg_mode,
                                                     self.fs,
                                                     self.duration,
                                                     hop=self.hop)
         # Filter out the tracks with less than segments_per_track
-        self.fns_event_seg_dict = {k: v 
-                                    for k, v in self.fns_event_seg_dict.items() 
+        self.track_seg_dict = {k: v 
+                                    for k, v in self.track_seg_dict.items() 
                                     if len(v) >= segments_per_track}
         # Keep only segments_per_track segments for each track
-        self.fns_event_seg_dict = {k: v[:segments_per_track] 
-                                   for k, v in self.fns_event_seg_dict.items()}
+        self.track_seg_dict = {k: v[:segments_per_track] 
+                                   for k, v in self.track_seg_dict.items()}
 
         # TODO: can you salvage more tracks?
         # Determine the tracks to use for each epoch
         if self.drop_the_last_non_full_batch:
-            self.n_tracks = int((len(self.fns_event_seg_dict) // n_anchor) * n_anchor)
-            self.fns_event_seg_dict = {k: v 
-                                       for i, (k, v) in enumerate(self.fns_event_seg_dict.items()) 
+            self.n_tracks = int((len(self.track_seg_dict) // n_anchor) * n_anchor)
+            self.track_seg_dict = {k: v 
+                                       for i, (k, v) in enumerate(self.track_seg_dict.items()) 
                                        if i < self.n_tracks}
         else:
-            self.n_tracks = len(self.fns_event_seg_dict) # fp-generation
-        self.event_fnames = list(self.fns_event_seg_dict.keys())
+            self.n_tracks = len(self.track_seg_dict) # fp-generation
+        self.track_fnames = list(self.track_seg_dict.keys())
 
         # Save augmentation parameters, read the files, and store them in memory
         self.load_and_store_bg_samples(bg_mix_parameter)
@@ -154,20 +156,20 @@ class genUnbalSequence(Sequence):
     def __len__(self):
         """ Returns the number of batches per epoch. """
 
+        n = (self.n_tracks / self.n_anchor) * self.segments_per_track
         if self.reduce_items_p != 0:
-            return int(np.ceil(self.n_tracks * self.segments_per_track / self.n_anchor) * (self.reduce_items_p / 100))
+            return int(np.ceil(n) * (self.reduce_items_p / 100))
         else:
-            return int(np.ceil(self.n_tracks * self.segments_per_track / self.n_anchor))
+            return int(np.ceil(n))
 
     def __getitem__(self, idx):
-        """ 
-        Get anchor (original) and positive (replica) samples of audio and compute 
-        their power mel-spectrograms for the current iteration.
+        """ Get a batch of anchor (original) and positive (replica) samples of audio 
+        with their power mel-spectrograms.
 
         Parameters:
         ----------
             idx (int):
-                iteration index
+                Batch index
 
         Returns:
         --------
@@ -179,11 +181,13 @@ class genUnbalSequence(Sequence):
                 power mel-spectrogram of anchor samples (n_anchor, n_mels, T, 1)
             Xp_batch_mel (ndarray):
                 power-mel spectrogram of positive samples (n_pos_bsz, n_mels, T, 1)
+
         """
 
         # Get self.n_anchor anchor filenames
         i0, i1 = idx*self.n_anchor, (idx+1)*self.n_anchor
-        fnames = [self.event_fnames[i%self.n_tracks] for i in range(i0, i1)]
+        fnames = [self.track_fnames[i%self.n_tracks] for i in range(i0, i1)]
+
         # Load anchor and positive audio samples
         Xa_batch, Xp_batch = self.batch_load_track_segments(fnames, idx)
 
@@ -241,12 +245,14 @@ class genUnbalSequence(Sequence):
 
         """
 
+        # print(len(fnames))
+
         Xa_batch, Xp_batch = [], []
         for fname in fnames:
 
             # Load the segment information of the anchor track
-            anchor_segments = self.fns_event_seg_dict[fname]
-            # Get a random segment from the track
+            anchor_segments = self.track_seg_dict[fname]
+            # Get a different segment from the track at each iteration
             seg_idx, offset_min, offset_max = anchor_segments[idx%self.segments_per_track]
 
             # Determine the anchor start time
@@ -319,7 +325,7 @@ class genUnbalSequence(Sequence):
             # Read the complete background noise sample from memory
             X = self.bg_clips[fname]
 
-            # Choose a different random segment every iteration
+            # Choose a different segment every iteration
             bg_segments = self.fns_bg_seg_dict[fname]
             seg_idx, offset_min, offset_max = bg_segments[index%len(bg_segments)]
 
@@ -367,7 +373,7 @@ class genUnbalSequence(Sequence):
 
     # TODO: is shuffling different things with same frequency good?
     # TODO: the current definition of epoch may lead to catastrophic forgetting?
-    # TODO: can we shuffle the bg segments in a way that more of it is seen during training?
+    # TODO: does the imbalance in bg_sample lengths affect the training beacuse of shuffling?
     def on_epoch_end(self):
         """ Routines to apply at the end of each epoch."""
 
@@ -380,7 +386,7 @@ class genUnbalSequence(Sequence):
         """ Shuffle all events."""
 
         # Shuffle the order of tracks
-        np.random.shuffle(self.event_fnames)
+        np.random.shuffle(self.track_fnames)
 
         # Shuffle the order of augmentation types
         if self.bg_mix == True:
@@ -394,8 +400,8 @@ class genUnbalSequence(Sequence):
         each IR."""
 
         # Shuffle the order of segments of each track
-        for fname in self.event_fnames:
-            np.random.shuffle(self.fns_event_seg_dict[fname])
+        for fname in self.track_fnames:
+            np.random.shuffle(self.track_seg_dict[fname])
 
         # Shuffle the order of bg segments
         if self.bg_mix == True:
