@@ -301,7 +301,6 @@ class Dataset:
         else:
             raise NotImplementedError(self.datasel_test_query_db)
 
-    # TODO: define parameters explicitly
     def get_custom_db_ds(self, source_root_dir):
         """ Construct DB (or query) from custom source files. """
         fps = sorted(
