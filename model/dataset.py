@@ -6,6 +6,7 @@
 
 import glob
 from model.utils.dataloader_keras import genUnbalSequence
+from model.utils.generation_dataloader_keras import genUnbalSequenceGeneration
 
 class Dataset:
     """
@@ -32,6 +33,7 @@ class Dataset:
     get_custom_db_ds(source_root_dir)
 
     """
+
     def __init__(self, cfg=dict()):
 
         # Data location
@@ -192,16 +194,13 @@ class Dataset:
         elif self.datasel_test_dummy_db == '100k_full_icassp':
             self.ts_dummy_db_source_fps = self.ts_dummy_db_source_fps
         elif self.datasel_test_dummy_db.isnumeric():
-            self.ts_dummy_db_source_fps = self.ts_dummy_db_source_fps[:int(
-                self.datasel_test_db)]
+            self.ts_dummy_db_source_fps = self.ts_dummy_db_source_fps[:int(self.datasel_test_db)]
         else:
             raise NotImplementedError(self.datasel_test_dummy_db)
 
-        _ts_n_anchor = self.ts_batch_sz
-        return genUnbalSequence(
+        return genUnbalSequenceGeneration(
             track_paths=self.ts_dummy_db_source_fps,
-            bsz=self.ts_batch_sz,
-            n_anchor=_ts_n_anchor,
+            bsz=self.ts_batch_sz, # Only anchors
             duration=self.dur,
             hop=self.hop,
             fs=self.fs,
@@ -211,12 +210,9 @@ class Dataset:
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
-            f_max=self.fmax,
-            shuffle=False,
-            random_offset_anchor=False,
-            drop_the_last_non_full_batch=False) # No augmentations...
+            f_max=self.fmax) # No augmentations...
 
-    def get_test_query_db_ds(self, datasel=None):
+    def get_test_query_db_ds(self):
         """
         To select test dataset, you can use config file or datasel parameter.
 
@@ -232,8 +228,6 @@ class Dataset:
         (ds_query, ds_db)
 
         """
-        if datasel:
-            self.datasel
 
         if self.datasel_test_query_db=='unseen_icassp':
             self.ts_query_icassp_fps = sorted(
@@ -243,11 +237,9 @@ class Dataset:
                 glob.glob(self.source_root_dir + 'test-query-db-500-30s/' +
                       'db/**/*.wav', recursive=True))
 
-            _ts_n_anchor = self.ts_batch_sz
-            ds_query = genUnbalSequence(
+            ds_query = genUnbalSequenceGeneration(
                 track_paths=self.ts_query_icassp_fps,
                 bsz=self.ts_batch_sz,
-                n_anchor=_ts_n_anchor,
                 duration=self.dur,
                 hop=self.hop,
                 fs=self.fs,
@@ -257,14 +249,10 @@ class Dataset:
                 stft_hop=self.stft_hop,
                 n_mels=self.n_mels,
                 f_min=self.fmin,
-                f_max=self.fmax,
-                shuffle=False,
-                random_offset_anchor=False,
-                drop_the_last_non_full_batch=False) # No augmentations...
-            ds_db = genUnbalSequence(
+                f_max=self.fmax) # No augmentations...
+            ds_db = genUnbalSequenceGeneration(
                 track_paths=self.ts_db_icassp_fps,
                 bsz=self.ts_batch_sz,
-                n_anchor=_ts_n_anchor,
                 duration=self.dur,
                 hop=self.hop,
                 fs=self.fs,
@@ -274,67 +262,60 @@ class Dataset:
                 stft_hop=self.stft_hop,
                 n_mels=self.n_mels,
                 f_min=self.fmin,
-                f_max=self.fmax,
-                shuffle=False,
-                random_offset_anchor=False,
-                drop_the_last_non_full_batch=False) # No augmentations...
+                f_max=self.fmax) # No augmentations...
             return ds_query, ds_db
-        elif self.datasel_test_query_db=='unseen_syn':
-            self.ts_query_db_unseen_fps = sorted(
-            glob.glob(self.source_root_dir + 'val-query-db-500-30s/' +
-                      'db/**/*.wav', recursive=True))
+        # elif self.datasel_test_query_db=='unseen_syn':
+        #     self.ts_query_db_unseen_fps = sorted(
+        #     glob.glob(self.source_root_dir + 'val-query-db-500-30s/' +
+        #               'db/**/*.wav', recursive=True))
 
-            _query_ts_batch_sz = self.ts_batch_sz * 2
-            _query_ts_n_anchor = self.ts_batch_sz
-            ds_query = genUnbalSequence(
-                track_paths=self.ts_query_db_unseen_fps,
-                bsz=_query_ts_batch_sz,
-                n_anchor=_query_ts_n_anchor,
-                duration=self.dur,
-                hop=self.hop,
-                fs=self.fs,
-                normalize_audio=self.normalize_audio,
-                shuffle=False,
-                random_offset_anchor=False,
-                bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_snr],
-                ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps],
-                drop_the_last_non_full_batch=False)
+        #     _query_ts_batch_sz = self.ts_batch_sz * 2
+        #     _query_ts_n_anchor = self.ts_batch_sz
+        #     ds_query = genUnbalSequence(
+        #         track_paths=self.ts_query_db_unseen_fps,
+        #         bsz=_query_ts_batch_sz,
+        #         n_anchor=_query_ts_n_anchor,
+        #         duration=self.dur,
+        #         hop=self.hop,
+        #         fs=self.fs,
+        #         normalize_audio=self.normalize_audio,
+        #         shuffle=False,
+        #         random_offset_anchor=False,
+        #         bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_snr],
+        #         ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps],
+        #         drop_the_last_non_full_batch=False)
 
-            _db_ts_n_anchor = self.ts_batch_sz
-            ds_db = genUnbalSequence(
-                track_paths=self.ts_query_db_unseen_fps,
-                bsz=self.ts_batch_sz,
-                n_anchor=_db_ts_n_anchor,
-                duration=self.dur,
-                hop=self.hop,
-                fs=self.fs,
-                normalize_audio=self.normalize_audio,
-                shuffle=False,
-                random_offset_anchor=False,
-                drop_the_last_non_full_batch=False)
-            return ds_query, ds_db
+        #     _db_ts_n_anchor = self.ts_batch_sz
+        #     ds_db = genUnbalSequence(
+        #         track_paths=self.ts_query_db_unseen_fps,
+        #         bsz=self.ts_batch_sz,
+        #         n_anchor=_db_ts_n_anchor,
+        #         duration=self.dur,
+        #         hop=self.hop,
+        #         fs=self.fs,
+        #         normalize_audio=self.normalize_audio,
+        #         shuffle=False,
+        #         random_offset_anchor=False,
+        #         drop_the_last_non_full_batch=False)
+        #     return ds_query, ds_db
         else:
             raise NotImplementedError(self.datasel_test_query_db)
 
+    # TODO: define parameters explicitly
     def get_custom_db_ds(self, source_root_dir):
         """ Construct DB (or query) from custom source files. """
         fps = sorted(
             glob.glob(source_root_dir + '/**/*.wav', recursive=True))
-        _ts_n_anchor = self.ts_batch_sz # Only anchors...
-        return genUnbalSequence(
-            fps,
-            self.ts_batch_sz,
-            _ts_n_anchor,
-            self.dur,
-            self.hop,
-            self.fs,
+        return genUnbalSequenceGeneration(
+            track_paths=fps,
+            bsz=self.ts_batch_sz, # Only anchors
+            duration=self.dur,
+            hop=self.hop,
+            fs=self.fs,
             normalize_audio=self.normalize_audio,
             scale=self.scale,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
-            f_max=self.fmax,
-            shuffle=False,
-            random_offset_anchor=False,
-            drop_the_last_non_full_batch=False) # No augmentations, No drop-samples.
+            f_max=self.fmax) # No augmentations, No drop-samples.

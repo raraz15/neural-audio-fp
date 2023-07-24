@@ -194,6 +194,7 @@ def load_audio(filename=str(),
     else:
         return x
 
+# TODO: append instead of None
 def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),

@@ -129,13 +129,15 @@ class genUnbalSequence(Sequence):
 
         # TODO: can you salvage more tracks?
         # Determine the tracks to use for each epoch
-        if self.drop_the_last_non_full_batch:
+        if self.drop_the_last_non_full_batch: # Training
             self.n_tracks = int((len(self.track_seg_dict) // n_anchor) * n_anchor)
             self.track_seg_dict = {k: v 
                                     for i, (k, v) in enumerate(self.track_seg_dict.items()) 
                                     if i < self.n_tracks}
-        else:
-            self.n_tracks = len(self.track_seg_dict) # fp-generation
+            self.n_samples = self.n_tracks * self.segments_per_track
+        else: # fp-generation
+            self.n_tracks = len(self.track_seg_dict)
+            self.n_samples = sum([len(l) for l in self.track_seg_dict.values()])
         self.track_fnames = list(self.track_seg_dict.keys())
 
         # Save augmentation parameters, read the files, and store them in memory
@@ -150,7 +152,7 @@ class genUnbalSequence(Sequence):
     def __len__(self):
         """ Returns the number of batches per epoch. """
 
-        n = np.ceil((self.n_tracks / self.n_anchor) * self.segments_per_track)
+        n = np.ceil(self.n_samples/self.n_anchor) 
         if self.reduce_items_p != 0:
             return int(n * (self.reduce_items_p / 100))
         else:
@@ -158,7 +160,8 @@ class genUnbalSequence(Sequence):
 
     def __getitem__(self, idx):
         """ Get a batch of anchor (original) and positive (replica) samples of audio 
-        with their power mel-spectrograms.
+        with their power mel-spectrograms. During training we follow a strategy that 
+        allows us to use all the pre-defined number of segments of each track.
 
         Parameters:
         ----------
@@ -178,11 +181,12 @@ class genUnbalSequence(Sequence):
 
         """
 
-        # Get self.n_anchor anchor filenames
+        # Indices of items in the batch
         i0, i1 = idx*self.n_anchor, (idx+1)*self.n_anchor
+        # Get self.n_anchor anchor filenames
         fnames = [self.track_fnames[i%self.n_tracks] for i in range(i0, i1)]
 
-        # Load anchor and positive audio samples
+        # Load anchor and positive audio samples for each filename
         Xa_batch, Xp_batch = self.batch_load_track_segments(fnames, idx)
 
         # If positive samples is specified, check for each augmentation

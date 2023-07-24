@@ -92,6 +92,7 @@ def generate_fingerprint(cfg,
     # Build the model checkpoint
     m_fp = get_fingerprinter(cfg, trainable=False)
 
+    # TODO: inform about the checkpoint type
     # Load from checkpoint
     if checkpoint_type.lower()=='best':
         checkpoint_dir = cfg['DIR']['BEST_CHECKPOINT_DIR']
@@ -167,7 +168,7 @@ def generate_fingerprint(cfg,
         i = 0
         while i < len(enq.sequence):
             progbar.update(i)
-            _, _, Xa, _ = next(enq.get())
+            _, Xa = next(enq.get())
             emb = m_fp(Xa)
             arr[i*bsz : (i+1)*bsz, :] = emb.numpy() # Writing on disk.
             i += 1
