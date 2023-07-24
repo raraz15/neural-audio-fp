@@ -130,6 +130,7 @@ def load_audio(filename=str(),
     """ Loads a wav file if the sample rate is correct.
 
     Parameters:
+    -----------
         filename: string
         seg_start_sec: start reading from this time in seconds
         offset_sec: offset the seg_start_sec by this amount of seconds
@@ -137,8 +138,11 @@ def load_audio(filename=str(),
         seg_pad_offset_sec: If padding is required (seg_length_sec is longer than file duration),
             pad the segment from the rgiht and give an offset from the left 
             with this amount of seconds.
-            
+        fs: sample rate
+        normalize: max-normalize the audio signal
+
     Returns:
+    --------
         audio: numpy array of shape (n_samples,)
 
     """
@@ -194,26 +198,30 @@ def load_audio(filename=str(),
     else:
         return x
 
-# TODO: append instead of None
 def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),
                            fs=8000,
                            normalize=True):
-    """ Load_audio wrapper for loading audio with multiple start indices each with same duration. """
+    """ Load_audio wrapper for loading audio with multiple start indices each 
+    with same duration. 
 
-    out = None
+    Returns
+    -------
+        out : 2D array (float)
+            Batch of audio signals. (B, T)
+
+    """
+
+    out = []
     for seg_start_sec in seg_start_sec_list:
         x = load_audio(filename=filename,
                        seg_start_sec=seg_start_sec,
                        seg_length_sec=seg_length_sec,
                        fs=fs,
                        normalize=normalize)
-        x = x.reshape((1, -1))
-        if out is None:
-            out = x
-        else:
-            out = np.vstack((out, x))
+        out.append(x.reshape((1, -1)))
+    out = np.vstack((out, x))
     return out  # (B,T)
 
 def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
