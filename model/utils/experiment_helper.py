@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 """ experiment_helper.py """
-import os
 import tensorflow as tf
 import tensorflow.keras as K
 from tensorflow.summary import create_file_writer
 from model.utils.plotter import get_imshow_image
 
-# TODO: checkpoint_name= model_name
 class ExperimentHelper():
     """
     Experiment Helper class for conducting experiment.
@@ -40,7 +38,7 @@ class ExperimentHelper():
             checkpoint_name,
             optimizer,
             model_to_checkpoint,
-            best_loss="val_loss", # "tr_loss" or "val_loss
+            best_loss="val_loss",
             max_to_keep=10,
             cfg=None):
         """
@@ -55,14 +53,11 @@ class ExperimentHelper():
             Model to train.
         best_loss : (str), optional
             The loss to determine the best model. The default is "val_loss".
+            Can be either "val_loss" or "tr_loss".
         max_to_keep : (int), optional
             Maximum number of checkpoints to keep. The default is 10.
         cfg : (dict), optional
             Config file, if available. The default is None.
-
-        Returns
-        -------
-        None.
 
         """
 
@@ -174,12 +169,13 @@ class ExperimentHelper():
                 self.c_manager.latest_checkpoint))
             status = self._checkpoint.restore(self.c_manager.latest_checkpoint)
             status.expect_partial()
-            self.epoch = int(self.c_manager.latest_checkpoint.split(sep='ckpt-')[-1])
+            self.epoch = int(self.c_manager.latest_checkpoint.split(sep='ckpt-')[-1]) + 1
         else:
             tf.print("-----------Initializing model from scratch-----------")
 
     def save_checkpoint(self):
         """Save current model and optimizer states to checkpoint."""
+
         self.c_manager.save()
 
     def update_tr_loss(self, value, tb=None):

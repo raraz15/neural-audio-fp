@@ -66,7 +66,7 @@ BSZ:
 
 # Training parameters
 TRAIN:
-    MAX_EPOCH : 100
+    MAX_EPOCH : 200
     OPTIMIZER : 'Adam' # 'LAMB' or 'Adam'. LAMB for BSZ >= 240
     LR : 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
     LR_SCHEDULE : 'cos' # ['cos', 'cos-restart', 'None'].
