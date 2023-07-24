@@ -221,7 +221,7 @@ def load_audio_multi_start(filename=str(),
                        fs=fs,
                        normalize=normalize)
         out.append(x.reshape((1, -1)))
-    out = np.vstack((out, x))
+    out = np.vstack(out)
     return out  # (B,T)
 
 def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
