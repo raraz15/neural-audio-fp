@@ -12,22 +12,23 @@ from scipy.signal import convolve
 
 #### File Check ####
 
-def get_fns_seg_list(fns_list=[],
+def get_fns_seg_dict(fns_list=[],
                      segment_mode='all',
                      fs=8000,
                      duration=1,
                      hop=None):
     """
-    Opens a file, checks its format and sample rate, and returns a list of segments.
+    Opens an audio file, checks its format and sample rate, and creates a list 
+    of segments and possible offset ranges.
 
     Parameters:
-    ----------
+    -----------
         fns_list: list of filenames. Only support .wav
 
     Returns:
-    -------
-        fns_event_seg_list: list of segments.
-        [[filename, seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]
+    --------
+        fns_event_seg_dict: list of segments.
+        {filename: [[seg_idx, offset_min, offset_max], [ ... ] , ... [ ... ]]}
             filename is a string
             seg_idx is an integer
             offset_min is 0 or negative integer
@@ -41,9 +42,10 @@ def get_fns_seg_list(fns_list=[],
     n_samples_in_seg = int(fs * duration)
     n_samples_in_hop = int(fs * hop) # 2019 09.05
 
-    # Load each file and determine number of segments
-    fns_event_seg_list = []
+    fns_event_seg_dict = {}
     for filename in fns_list:
+
+        fns_event_seg_dict[filename] = []
 
         # Only support .wav
         file_ext = os.path.splitext(filename)[1]
@@ -72,30 +74,33 @@ def get_fns_seg_list(fns_list=[],
 
         # Create a list of segments from the file
         if segment_mode == 'all': # Load all segments
+            # A segment can be randomly offsetted to the left or right without going out of bounds
             for seg_idx in range(n_segs):
                 # A segment can be offsetted max by n_samples_in_hop to the left or right
                 offset_min, offset_max = -1*n_samples_in_hop, n_samples_in_hop
                 if seg_idx == 0: # first seg
                     offset_min = 0 # no offset to the left
-                elif seg_idx == (n_segs - 1): # last seg
+                if seg_idx == n_segs - 1: # last seg
                     offset_max = residual_samples # Maximal offset to the right is the residual frames
-                fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
-        elif segment_mode == 'first': # Load only the first segment
+                fns_event_seg_dict[filename].append([seg_idx, offset_min, offset_max])
+        elif segment_mode == 'first':
+            # Load only the first segment
             seg_idx = 0
             offset_min, offset_max = 0, 0
-            fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
-        elif segment_mode == 'random_oneshot':  # Load only one random segment
+            fns_event_seg_dict[filename].append([seg_idx, offset_min, offset_max])
+        elif segment_mode == 'random_oneshot':
+            # Load only one random segment
             seg_idx = np.random.randint(0, n_segs)
             offset_min, offset_max = n_samples_in_hop, n_samples_in_hop
             if seg_idx == 0:  # first seg
                 offset_min = 0
-            if seg_idx == (n_segs - 1):  # last seg
+            if seg_idx == n_segs - 1:  # last seg
                 offset_max = residual_samples
-            fns_event_seg_list.append([filename, seg_idx, offset_min, offset_max])
+            fns_event_seg_dict[filename].append([seg_idx, offset_min, offset_max])
         else:
             raise NotImplementedError(segment_mode)
 
-    return fns_event_seg_list
+    return fns_event_seg_dict
 
 #### Audio Processing ####
 
@@ -129,14 +134,20 @@ def load_wav(filename=str(),
     Opens a wav file, checks its format and sample rate, and returns a segment.
 
     Parameters:
+    -----------
         filename: string
         seg_start_sec: Start of the segment in seconds.
         offset_sec: Offset from seg_start_sec in seconds.
         seg_length_sec: Length of the segment in seconds.
         seg_pad_offset_sec: If padding is required (seg_length_sec is longer than file duration),
-        pad the segment from the right and give an offset from the left with 
-        this amount of seconds.
-        fs: Sample rate.
+            pad the segment from the rgiht and give an offset from the left 
+            with this amount of seconds.
+        fs: sample rate
+        normalize: max-normalize the audio signal
+
+    Returns:
+    --------
+        audio: numpy array of shape (n_samples,)
 
     Returns:
         x: Segment (T,)
@@ -298,20 +309,25 @@ def load_audio_multi_start(filename=str(),
                            seg_length_sec=float(),
                            fs=8000,
                            normalize=True):
-    """ Load_audio wrapper for loading audio with multiple start indices each with same duration. """
+    """ Load_audio wrapper for loading audio with multiple start indices each 
+    with same duration. 
 
-    out = None
+    Returns
+    -------
+        out : 2D array (float)
+            Batch of audio signals. (B, T)
+
+    """
+
+    out = []
     for seg_start_sec in seg_start_sec_list:
         x = load_audio(filename=filename,
                        seg_start_sec=seg_start_sec,
                        seg_length_sec=seg_length_sec,
                        fs=fs,
                        normalize=normalize)
-        x = x.reshape((1, -1))
-        if out is None:
-            out = x
-        else:
-            out = np.vstack((out, x))
+        out.append(x.reshape((1, -1)))
+    out = np.vstack(out)
     return out  # (B,T)
 
 def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):

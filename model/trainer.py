@@ -83,6 +83,7 @@ def val_step(X, m_fp, loss_obj, helper):
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
+# TODO: return only l2(gf)
 @tf.function
 def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
@@ -133,7 +134,7 @@ def trainer(cfg, checkpoint_name):
     # Initialize the datasets
     tf.print('-----------Initializing the datasets-----------')
     train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
-    val_ds = dataset.get_val_ds() # max 500
+    val_ds = dataset.get_val_ds()
 
     # Build models.
     m_specaug, m_fp = build_fp(cfg)
@@ -196,6 +197,9 @@ def trainer(cfg, checkpoint_name):
     # Training loop
     ep_start = helper.epoch
     ep_max = cfg['TRAIN']['MAX_EPOCH']
+    if ep_start != 0:
+        assert ep_start <= ep_max, f"When continuing training, MAX_EPOCH={ep_max} "\
+        f"must be greater than or equal to where training was left off, which is {ep_start}"
     for ep in range(ep_start, ep_max + 1):
         tf.print(f'EPOCH: {ep}/{ep_max}')
 
@@ -245,7 +249,6 @@ def trainer(cfg, checkpoint_name):
 
         # Mini-search-validation (optional)
         if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:
-            accs_by_scope, scopes, key_strs = mini_search_validation(
-                val_ds, m_fp)
+            accs_by_scope, scopes, key_strs = mini_search_validation(val_ds, m_fp)
             for k in key_strs:
                 helper.update_minitest_acc(accs_by_scope[k], scopes, k)

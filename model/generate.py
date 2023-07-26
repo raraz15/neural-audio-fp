@@ -63,7 +63,7 @@ def get_data_source(cfg, source_root_dir, skip_dummy):
         else:
             raise ValueError(dataset.datasel_test_query_db)
 
-    tf.print(f'\x1b[1;32mData source: {ds.keys()}\x1b[0m',
+    tf.print(f'\x1b[1;32mData source: {list(ds.keys())}\x1b[0m',
              f'{dataset.datasel_test_query_db}')
     return ds
 
@@ -92,6 +92,7 @@ def generate_fingerprint(cfg,
     # Build the model checkpoint
     m_fp = get_fingerprinter(cfg, trainable=False)
 
+    # TODO: inform about the checkpoint type
     # Load from checkpoint
     if checkpoint_type.lower()=='best':
         checkpoint_dir = cfg['DIR']['BEST_CHECKPOINT_DIR']
@@ -167,9 +168,9 @@ def generate_fingerprint(cfg,
         i = 0
         while i < len(enq.sequence):
             progbar.update(i)
-            _, _, Xa, _ = next(enq.get())
+            _, Xa = next(enq.get())
             emb = m_fp(Xa)
-            arr[i * bsz:(i + 1) * bsz, :] = emb.numpy() # Writing on disk.
+            arr[i*bsz : (i+1)*bsz, :] = emb.numpy() # Writing on disk.
             i += 1
         progbar.update(i, finalize=True)
         enq.stop()
@@ -187,5 +188,5 @@ def generate_fingerprint(cfg,
     if 'custom_source' in ds.keys():
         pass
     elif sz_check['db'] != sz_check['query']:
-        print("\033[93mWarning: 'db' and 'qeury' size does not match. This can cause a problem in evaluataion stage.\033[0m")
+        print("\033[93mWarning: 'db' and 'qeury' size does not match. This can cause a problem in evaluation stage.\033[0m")
     return
