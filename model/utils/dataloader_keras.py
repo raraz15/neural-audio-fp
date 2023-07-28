@@ -275,24 +275,24 @@ class genUnbalSequence(Sequence):
                                                           high=anchor_offset_max)
             else:
                 _anchor_offset_sample = 0
+
             # Apply the offset to the anchor start time
             anchor_start_sec += _anchor_offset_sample / self.fs
 
-            # Based on the anchor offset time, sample a positive sample for each self.n_pos_per_anchor
+            # Based on the anchor offset time, sample an offset for each self.n_pos_per_anchor
             if self.n_pos_per_anchor > 0:
                 pos_offset_min = np.max([offset_min, _anchor_offset_sample - self.offset_margin_sample])
                 pos_offset_max = np.min([offset_max, _anchor_offset_sample + self.offset_margin_sample])
-                pos_start_sec_list = seg_idx * self.hop
                 if pos_offset_min==pos_offset_max==0:
-                    # Only the case of running extras/dataset2wav.py as offset_margin_hot_rate=0
-                    pos_start_sec_list = [pos_start_sec_list]
+                    # Only the case of running extras/dataset2wav.py as offset_margin_hop_rate=0
+                    pos_start_sec_list = [seg_idx * self.hop]
                 else:
                     # Otherwise, we apply random offset to replicas 
                     _pos_offset_frame_list = np.random.randint(low=pos_offset_min,
                                                                 high=pos_offset_max,
                                                                 size=self.n_pos_per_anchor)
                     _pos_offset_sec_list = _pos_offset_frame_list / self.fs
-                    pos_start_sec_list += _pos_offset_sec_list
+                    pos_start_sec_list = [seg_idx * self.hop] + _pos_offset_sec_list
             else:
                 pos_start_sec_list = []
 
