@@ -78,6 +78,11 @@ class genUnbalSequence(Sequence):
         # Check parameters
         assert bsz >= n_anchor, "bsz should be >= n_anchor"
         assert n_anchor > 0, "n_anchor should be > 0"
+        assert offset_margin_hop_rate >= 0 and offset_margin_hop_rate<1, \
+                            "offset_margin_hop_rate should be >= 0 and < 1"
+        if random_offset_anchor:
+            assert offset_margin_hop_rate > 0, \
+            "When random_offset_anchor is specified offset_margin_hop_rate should be > 0"
 
         # Save the Input parameters
         self.duration = duration
@@ -246,36 +251,37 @@ class genUnbalSequence(Sequence):
         Xa_batch, Xp_batch = [], []
         for fname in fnames:
 
-            # Load the segment information of the anchor track
-            anchor_segments = self.track_seg_dict[fname]
-            # Get a different segment from the track at each iteration
-
-            # If the number of segments is odd, all segments will be seen once, which is what we want
+            # If segments_per_track is odd, all segments will be seen once each epoch
             random_idx = idx % self.segments_per_track
-            # If the number of segments is even, half of the segments will be seen twice and the other 
-            # half none. We want to see all segments once, so we make sure that the second half of the
-            # segments are seen once.
+            # If segments_per_track is even, half of the segments will be seen twice 
+            # and the other half none. We want to see all segments once, so we make 
+            # sure that the second half of the segments are seen once.
             if self.segments_per_track%2==0 and idx>=self.__len__()/2:
                 random_idx = (idx+1) % self.segments_per_track
-            seg_idx, offset_min, offset_max = anchor_segments[random_idx]
+
+            # Get the segment information of the random_idx segment of the track
+            seg_idx, offset_min, offset_max = self.track_seg_dict[fname][random_idx]
 
             # Determine the anchor start time
             anchor_start_sec = seg_idx * self.hop
 
-            # If random offset is specified, apply it to the anchor start time
+            # If random offset is specified, determine a random offset based on the offset margin
+            # This means that at each iteration we will have a different shifted version of the anchor
             if self.random_offset_anchor:
-                # Sample a random offset frame
-                anchor_offset_min = np.max([offset_min, -self.offset_margin_sample])
+                # Sample a random offset sample
+                anchor_offset_min = np.max([offset_min, - self.offset_margin_sample])
                 anchor_offset_max = np.min([offset_max, self.offset_margin_sample])
-                _anchor_offset_frame = np.random.randint(low=anchor_offset_min, high=anchor_offset_max)
-                anchor_start_sec += _anchor_offset_frame / self.fs
+                _anchor_offset_sample = np.random.randint(low=anchor_offset_min, 
+                                                          high=anchor_offset_max)
             else:
-                _anchor_offset_frame = 0
+                _anchor_offset_sample = 0
+            # Apply the offset to the anchor start time
+            anchor_start_sec += _anchor_offset_sample / self.fs
 
-            # Calculate multiple(=self.n_pos_per_anchor) pos_start_sec
+            # Based on the anchor offset time, sample a positive sample for each self.n_pos_per_anchor
             if self.n_pos_per_anchor > 0:
-                pos_offset_min = np.max([(_anchor_offset_frame - self.offset_margin_sample), offset_min])
-                pos_offset_max = np.min([(_anchor_offset_frame + self.offset_margin_sample), offset_max])
+                pos_offset_min = np.max([offset_min, _anchor_offset_sample - self.offset_margin_sample])
+                pos_offset_max = np.min([offset_max, _anchor_offset_sample + self.offset_margin_sample])
                 pos_start_sec_list = seg_idx * self.hop
                 if pos_offset_min==pos_offset_max==0:
                     # Only the case of running extras/dataset2wav.py as offset_margin_hot_rate=0
