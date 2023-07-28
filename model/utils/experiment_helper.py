@@ -91,6 +91,8 @@ class ExperimentHelper():
         # Tensorboard writers
         self._tr_summary_writer = create_file_writer(self._log_dir + '/train')
         self._val_summary_writer = create_file_writer(self._log_dir + '/val')
+        self._lr_summary_writer = create_file_writer(self._log_dir + '/lr')
+        self._lr_decayed_summary_writer = create_file_writer(self._log_dir + '/lr_reduced')
         self._minitest_summary_writer_dict = dict()
         for key in ['f', 'L2(f)', 'g(f)']:
             self._minitest_summary_writer_dict[key] = create_file_writer(
@@ -131,6 +133,9 @@ class ExperimentHelper():
             )
 
         self.load_checkpoint()
+        # TODO: can this overwrite the loaded checkpoint?
+        if self._cfg_use_tensorboard:
+            self.write_lr()
 
     def update_on_epoch_end(self, save_checkpoint_now=True):
         """ Update current epoch index, and loss metrics. """
@@ -158,6 +163,10 @@ class ExperimentHelper():
         self._tr_loss.reset_states()
         self._val_loss.reset_states()
         self.epoch += 1
+
+        # Save learning rate to tensorboard
+        if self._cfg_use_tensorboard:
+            self.write_lr()
 
     def load_checkpoint(self):
         """ Try loading a saved checkpoint. If no checkpoint, initialize from
@@ -272,3 +281,15 @@ class ExperimentHelper():
                                  step=self.optimizer.iterations)
         else:
             pass; # Not implemented yet
+
+    def write_lr(self):
+
+        with self._lr_summary_writer.as_default():
+            tf.summary.scalar('lr', 
+                              self.optimizer.lr(self.optimizer.iterations),
+                              step=self.optimizer.iterations)
+
+        with self._lr_decayed_summary_writer.as_default():
+            tf.summary.scalar('lr', 
+                              self.optimizer._decayed_lr(tf.float32), 
+                              step=self.optimizer.iterations)
