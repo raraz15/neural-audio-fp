@@ -5,8 +5,7 @@ from model.utils.audio_utils import (bg_mix_batch, ir_aug_batch, load_audio,
                                      get_fns_seg_dict, load_audio_multi_start)
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 
-MAX_IR_LENGTH = 600 # 50ms with fs=8000
-#MAX_IR_LENGTH = 8000 # 1s with fs=8000
+MAX_IR_DURATION = 0.5 # seconds
 
 # TODO: padd clips to the same length?
 # TODO: calculate segments per track in Dataset class
@@ -459,7 +458,7 @@ class genUnbalSequence(Sequence):
     def load_and_store_ir_samples(self, ir_mix_parameter):
         """ Load Impulse Response samples in memory and their segmentation
         information. We only use the first segment of each IR clip. These segments
-        are truncated to MAX_IR_LENGTH.
+        are truncated to MAX_IR_DURATION.
 
         Parameters:
         ----------
@@ -470,6 +469,7 @@ class genUnbalSequence(Sequence):
 
         self.ir_mix = ir_mix_parameter[0]
         if self.ir_mix:
+            self.max_ir_length = int(MAX_IR_DURATION * self.fs)
             self.fns_ir_seg_dict = get_fns_seg_dict(ir_mix_parameter[1], 
                                                     segment_mode='first',
                                                     fs=self.fs, 
@@ -482,9 +482,9 @@ class genUnbalSequence(Sequence):
                             seg_length_sec=self.duration,
                             fs=self.fs,
                             normalize=self.normalize_audio)
-                # Truncate IR to MAX_IR_LENGTH
-                if len(X) > MAX_IR_LENGTH:
-                    X = X[:MAX_IR_LENGTH]
+                # Truncate IR to MAX_IR_DURATION
+                if len(X) > self.max_ir_length:
+                    X = X[:self.max_ir_length]
                 self.ir_clips[fn] = X
             self.n_ir_samples = len(self.ir_clips)
 
