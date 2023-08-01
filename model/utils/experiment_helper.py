@@ -71,28 +71,23 @@ class ExperimentHelper():
         self.best_val_loss = (self.epoch, 1e10)
         self.best_loss_track = best_loss
 
-        # Directories
-        if cfg['DIR']['LOG_ROOT_DIR']:
-            _root_dir = cfg['DIR']['LOG_ROOT_DIR']
+        # Choose the root directory for logs
+        if cfg['DIR']['MODEL']['LOG_ROOT']:
+            _root_dir = cfg['DIR']['MODEL']['LOG_ROOT']
         else:
             _root_dir = './logs/'
-        self._log_dir = _root_dir + 'fit/' + checkpoint_name + '/'
 
-        # Checkpoint directories
-        if cfg['DIR']['CHECKPOINT_DIR']:
-            self._checkpoint_save_dir = cfg["DIR"]["CHECKPOINT_DIR"] + f"{checkpoint_name}/"
-        else:
-            self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
-        if cfg['DIR']['BEST_CHECKPOINT_DIR']:
-            self._best_checkpoint_save_dir = cfg["DIR"]["BEST_CHECKPOINT_DIR"] + f"{checkpoint_name}/"
-        else:
-            self._best_checkpoint_save_dir = _root_dir + f'best_checkpoint/{checkpoint_name}/'
+        # Set the default directories
+        self._log_dir = _root_dir + 'fit/' + checkpoint_name + '/'
+        self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
+        self._best_checkpoint_save_dir = _root_dir + f'best_checkpoint/{checkpoint_name}/'
 
         # Tensorboard writers
         self._tr_summary_writer = create_file_writer(self._log_dir + '/train')
         self._val_summary_writer = create_file_writer(self._log_dir + '/val')
         self._lr_summary_writer = create_file_writer(self._log_dir + '/lr')
-        self._lr_decayed_summary_writer = create_file_writer(self._log_dir + '/lr_reduced')
+        # TODO: delete one of them
+        self._lr_decayed_summary_writer = create_file_writer(self._log_dir + '/lr_decayed')
         self._minitest_summary_writer_dict = dict()
         for key in ['f', 'L2(f)', 'g(f)']:
             self._minitest_summary_writer_dict[key] = create_file_writer(
@@ -290,6 +285,6 @@ class ExperimentHelper():
                               step=self.optimizer.iterations)
 
         with self._lr_decayed_summary_writer.as_default():
-            tf.summary.scalar('lr', 
+            tf.summary.scalar('lr_decayed', 
                               self.optimizer._decayed_lr(tf.float32), 
                               step=self.optimizer.iterations)

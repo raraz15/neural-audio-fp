@@ -33,7 +33,8 @@ def set_seed(seed: int = SEED):
     print(f"Random seed set as {seed}")
 
 def set_global_determinism():
-    # When running on the CuDNN backend, two further options must be set
+    """ When running on the CuDNN backend, two further options must be set"""
+
     os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
     os.environ['TF_DETERMINISTIC_OPS'] = '1'
     print("Global determinism set")
@@ -129,12 +130,11 @@ def mini_search_validation(ds, m_fp, mode='argmin',
 
 def trainer(cfg, checkpoint_name):
 
-    # Dataloader
-    dataset = Dataset(cfg)
-
     # Initialize the datasets
     tf.print('-----------Initializing the datasets-----------')
-    train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
+    dataset = Dataset(cfg)
+
+    train_ds = dataset.get_train_ds(cfg['TRAIN']['REDUCE_ITEMS_P'])
     val_ds = dataset.get_val_ds()
 
     # Build models.
@@ -212,7 +212,7 @@ def trainer(cfg, checkpoint_name):
         enq = tf.keras.utils.OrderedEnqueuer(train_ds, 
                                             use_multiprocessing=True, 
                                             # We shuffle inside the dataset
-                                            # OrderedEnqueuer calls on_epoch_end
+                                            # OrderedEnqueuer calls train_ds.on_epoch_end()
                                             shuffle=False)
         enq.start(workers=cfg['DEVICE']['CPU_N_WORKERS'],
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
