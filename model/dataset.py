@@ -68,6 +68,10 @@ class Dataset:
         self.ts_clean_query_dataset_dir = test_dict['DIR']['CLEAN_QUERY_ROOT']
         self.ts_augmented_query_dataset_dir = test_dict['DIR']['AUGMENTED_QUERY_ROOT']
 
+        self.ts_noise_paths_file = test_dict['DIR']['NOISE_PATHS_FILE']
+        self.ts_clean_query_paths_file = test_dict['DIR']['CLEAN_QUERY_PATHS_FILE']
+        self.ts_augmented_query_paths_file = test_dict['DIR']['AUGMENTED_QUERY_PATHS_FILE']
+
         self.ts_use_bg_aug = test_dict['TD_AUG']['BG_AUG']
         self.ts_use_ir_aug = test_dict['TD_AUG']['IR_AUG']
         self.ts_snr = test_dict['TD_AUG']['BG_AUG_SNR']
@@ -239,13 +243,15 @@ class Dataset:
         """
 
         print(f"Creating the test-dummy-DB dataset (noise tracks)...")
-        self.ts_dummy_db_source_fps = sorted(
-            glob.glob(self.ts_noise_dataset_dir+ '/**/*.mp4', 
-                      recursive=True))
-        print(f"{len(self.ts_dummy_db_source_fps):,} tracks found at "
-              f"{self.ts_noise_dataset_dir}.")
+        if self.ts_noise_paths_file!="":
+            with open(self.ts_noise_paths_file, 'r') as f:
+                self.ts_noise_paths = sorted(f.read().splitlines(keepends=False))
+        else:
+            self.ts_noise_paths = sorted(glob.glob(self.ts_noise_dataset_dir+ '/**/*.mp4', 
+                        recursive=True))
+        print(f"{len(self.ts_noise_paths):,} tracks found.")
         return genUnbalSequenceGeneration(
-            track_paths=self.ts_dummy_db_source_fps,
+            track_paths=self.ts_noise_paths,
             bsz=self.ts_batch_sz, # Only anchors
             duration=self.ts_segment_dur,
             hop=self.ts_segment_hop,
@@ -271,11 +277,14 @@ class Dataset:
         """
 
         print(f"Creating the clean query dataset for testing...")
-        self.ts_query_clean = sorted(
-                glob.glob(self.ts_clean_query_dataset_dir + '/**/*.mp4', 
-                          recursive=True))
-        print(f"{len(self.ts_query_clean):,} clean query tracks found at "
-              f"{self.ts_clean_query_dataset_dir}.")
+        if self.ts_clean_query_paths_file!="":
+            with open(self.ts_clean_query_paths_file, 'r') as f:
+                self.ts_query_clean = sorted(f.read().splitlines(keepends=False))
+        else:
+            self.ts_query_clean = sorted(
+                    glob.glob(self.ts_clean_query_dataset_dir + '/**/*.mp4', 
+                            recursive=True))
+        print(f"{len(self.ts_query_clean):,} clean query tracks found.")
         ds_db = genUnbalSequenceGeneration(
             track_paths=self.ts_query_clean,
             bsz=self.ts_batch_sz, # Only anchors
@@ -290,12 +299,15 @@ class Dataset:
             f_min=self.fmin,
             f_max=self.fmax)
         print(f"Creating the augmented query dataset...")
-        if not (self.ts_use_bg_aug or self.ts_use_ir_aug):
-            self.ts_query_augmented = sorted(
-                glob.glob(self.ts_augmented_query_dataset_dir + '/**/*.mp4', 
-                          recursive=True))
-            print(f"{len(self.ts_query_augmented):,} augmented query tracks found at "
-                  f"{self.ts_augmented_query_dataset_dir}.")
+        if not (self.ts_use_bg_aug and self.ts_use_ir_aug):
+            if self.ts_augmented_query_paths_file!="":
+                with open(self.ts_augmented_query_paths_file, 'r') as f:
+                    self.ts_query_augmented = sorted(f.read().splitlines(keepends=False))
+            else:
+                self.ts_query_augmented = sorted(
+                    glob.glob(self.ts_augmented_query_dataset_dir + '/**/*.mp4', 
+                            recursive=True))
+            print(f"{len(self.ts_query_augmented):,} augmented query tracks found")
             ds_query = genUnbalSequenceGeneration(
                 track_paths=self.ts_query_augmented,
                 bsz=self.ts_batch_sz, # Only anchors

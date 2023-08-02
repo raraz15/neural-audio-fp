@@ -64,7 +64,7 @@ TRAIN:
                     # NOTE:
                     # - MINI_TEST_IN_TRAIN=True performs mini-search-test using part of
                     #   validation dataset at the end of every epoch in training.
-    REDUCE_ITEMS_P : 5
+    REDUCE_ITEMS_P : 100
                 # Reduce training tracks size to percentage (%).
     SEGMENTS_PER_TRACK: 59
 
@@ -74,13 +74,13 @@ TEST:
     TS_BATCH_SZ : 125
     # Time-domain augmentation parameters
     TD_AUG:
-        BG_AUG : False # We augment the test set beforehand.
+        BG_AUG : True # If you augment beforehand, set this to False.
         # If True, augment the query segments in real time during testing. Otherwise,
         # does not apply augmentations. For simulating real life scenarios,
         # you should either augment the queries beforehand and provide 
         # augment=True option.
         BG_AUG_SNR : [0, 10] # Active in real-time synthesis of test queries.
-        IR_AUG : False # We augment the test set beforehand.
+        IR_AUG : True # If you augment beforehand, set this to False.
         # If you set TD_AUG.TS_IR_AUG=True or 
         # TD_AUG.TS_BG_AUG=True, you must provide the corresponding augmentation. 
         # Setting them to True will not use the tracks in AUGMENTED_QUERY_ROOT
@@ -93,6 +93,13 @@ TEST:
                             # You can provide empty string to AUGMENTED_QUERY_ROOT and set
                             # TD_AUG.TS_BG_AUG=True and TD_AUG.TS_IR_AUG=True to enable
                             # real-time augmentation during testing. 
+        # To create the noise files in the DB you can either specify a directory that contains
+        # noise files, and the dataset will read all the .mp4 files in that directory.
+        # Or a text file that contains the paths to the noise files. When NOISE_PATHS_FILE is
+        # provided, NOISE_ROOT is ignored.
+        NOISE_PATHS_FILE : '../neural-audio-fp-dataset/music/discotube_2023-188000/discotube-2023.txt.filtered.shuf.188000.durations.test_noise'
+        CLEAN_QUERY_PATHS_FILE : '../neural-audio-fp-dataset/music/discotube_2023-188000/discotube-2023.txt.filtered.shuf.188000.durations.test_query'
+        AUGMENTED_QUERY_PATHS_FILE: ''
         BG_ROOT : '../neural-audio-fp-dataset/aug/bg/ts/'
         IR_ROOT : '../neural-audio-fp-dataset/aug/ir/ts/'
 
