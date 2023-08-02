@@ -46,33 +46,23 @@ def prevent_overwrite(key, target_path):
         answer = input(f'{target_path} exists. Will you overwrite (y/N)?')
         if answer.lower() not in ['y', 'yes']: sys.exit()
 
-def get_data_source(cfg, source_root_dir, skip_dummy):
+def get_data_source(cfg, skip_dummy):
     dataset = Dataset(cfg)
     ds = dict()
-    if source_root_dir:
-        ds['custom_source'] = dataset.get_custom_db_ds(source_root_dir)
+    if skip_dummy:
+        tf.print("Excluding \033[33m'dummy_db'\033[0m from source.")
     else:
-        if skip_dummy:
-            tf.print("Excluding \033[33m'dummy_db'\033[0m from source.")
-            pass
-        else:
-            ds['dummy_db'] = dataset.get_test_noise_ds()
-
-        # TODO: fix these hard-coded values
-        if dataset.datasel_test_query_db in ['unseen_icassp', 'unseen_syn']:
-            ds['query'], ds['db'] = dataset.get_test_query_ds()
-        else:
-            raise ValueError(dataset.datasel_test_query_db)
-
+        ds['dummy_db'] = dataset.get_test_noise_ds()
+    # Create the clean and augmented query datasets
+    ds['query'], ds['db'] = dataset.get_test_query_ds()
     tf.print(f'\x1b[1;32mData source: {list(ds.keys())}\x1b[0m',
-             f'{dataset.datasel_test_query_db}')
+             f'{dataset.ts_clean_query_dataset_dir}')
     return ds
 
 def generate_fingerprint(cfg,
                          checkpoint_type,
                          checkpoint_name,
                          checkpoint_index,
-                         source_root_dir,
                          output_root_dir,
                          skip_dummy):
     """
@@ -93,33 +83,33 @@ def generate_fingerprint(cfg,
     # Build the model checkpoint
     m_fp = get_fingerprinter(cfg, trainable=False)
 
-    # TODO: inform about the checkpoint type
     # Load from checkpoint
+    log_root_dir = cfg['MODEL']['LOG_ROOT']
     if checkpoint_type.lower()=='best':
-        checkpoint_dir = cfg['DIR']['BEST_CHECKPOINT_DIR']
+        checkpoint_dir = log_root_dir + "best_checkpoint/"
     elif checkpoint_type.lower()=='custom':
-        checkpoint_dir = cfg['DIR']['CHECKPOINT_DIR']
+        checkpoint_dir = log_root_dir + "checkpoint/"
     else:
-        raise ValueError(f'checkpoint_type mus be one of {{"best", "custom"}}')
+        raise ValueError(f'checkpoint_type must be one of {{"best", "custom"}}')
     checkpoint_index = get_checkpoint_index_and_restore_model(m_fp, 
                                                             checkpoint_dir, 
                                                             checkpoint_name, 
                                                             checkpoint_index)
 
-    # Make output directory
+    # Choose the output directory
     if not output_root_dir:
-        output_root_dir = cfg['DIR']['OUTPUT_ROOT_DIR']
+        output_root_dir = log_root_dir + "emb/"
     # Here the checkpoint_type does not matter because checkpoint_index is specified.
-    output_root_dir += f'{checkpoint_name}/{checkpoint_index}/'
-    os.makedirs(output_root_dir, exist_ok=True)
+    output_dir = output_root_dir + f'{checkpoint_name}/{checkpoint_index}/'
+    os.makedirs(output_dir, exist_ok=True)
     if not skip_dummy:
-        prevent_overwrite('dummy_db', output_root_dir+'dummy_db.mm')
+        prevent_overwrite('dummy_db', output_dir+'dummy_db.mm')
 
     # Get data source
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
-    ds = get_data_source(cfg, source_root_dir, skip_dummy)
+    ds = get_data_source(cfg, skip_dummy)
 
-    bsz = int(cfg['BSZ']['TS_BATCH_SZ'])  # Do not use ds.bsz here.
+    bsz = int(cfg['TEST']['TS_BATCH_SZ'])
     dim = cfg['MODEL']['EMB_SZ']
 
     # Generate
@@ -148,11 +138,11 @@ def generate_fingerprint(cfg,
         """
 
         arr_shape = (n_items, dim)
-        arr = np.memmap(f'{output_root_dir}/{key}.mm',
+        arr = np.memmap(f'{output_dir}/{key}.mm',
                         dtype='float32',
                         mode='w+',
                         shape=arr_shape)
-        np.save(f'{output_root_dir}/{key}_shape.npy', arr_shape)
+        np.save(f'{output_dir}/{key}_shape.npy', arr_shape)
 
         # Fingerprinting loop
         tf.print(
@@ -177,7 +167,7 @@ def generate_fingerprint(cfg,
         enq.stop()
         """ End of Parallelism-------------------------------------------- """
 
-        tf.print(f'=== Succesfully stored {arr_shape[0]} fingerprints to {output_root_dir} ===')
+        tf.print(f'=== Succesfully stored {arr_shape[0]} fingerprints to {output_dir} ===')
         sz_check[key] = len(arr)
         # Close memmap
         arr.flush()
@@ -189,5 +179,6 @@ def generate_fingerprint(cfg,
     if 'custom_source' in ds.keys():
         pass
     elif sz_check['db'] != sz_check['query']:
-        print("\033[93mWarning: 'db' and 'qeury' size does not match. This can cause a problem in evaluation stage.\033[0m")
+        print("\033[93mWarning: 'db' and 'qeury' size does not match. "\
+              "This can cause a problem in evaluation stage.\033[0m")
     return

@@ -184,10 +184,10 @@ def get_specaug_chain_layer(cfg, trainable=False):
     <SpecAugChainer> object
 
     """
-    m = SpecAugChainer(chain_config=cfg['SPEC_AUG']['SPECAUG_CHAIN'],
-                       probs=cfg['SPEC_AUG']['SPECAUG_PROBS'],
-                       n_holes=cfg['SPEC_AUG']['SPECAUG_N_HOLES'],
-                       hole_fill=cfg['SPEC_AUG']['SPECAUG_HOLE_FILL'])
+    m = SpecAugChainer(chain_config=cfg['TRAIN']['SPEC_AUG']['SPECAUG_CHAIN'],
+                       probs=cfg['TRAIN']['SPEC_AUG']['SPECAUG_PROBS'],
+                       n_holes=cfg['TRAIN']['SPEC_AUG']['SPECAUG_N_HOLES'],
+                       hole_fill=cfg['TRAIN']['SPEC_AUG']['SPECAUG_HOLE_FILL'])
     m.trainable = trainable
     return m
     

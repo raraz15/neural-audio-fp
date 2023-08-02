@@ -174,28 +174,28 @@ def trainer(cfg, checkpoint_name):
         cfg=cfg)
 
     # Loss objects
-    if cfg['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
+    if cfg['TRAIN']['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
         loss_obj_train = NTxentLoss(
-            n_org=cfg['BSZ']['TR_N_ANCHOR'],
-            n_rep=cfg['BSZ']['TR_BATCH_SZ'] - cfg['BSZ']['TR_N_ANCHOR'],
-            tau=cfg['LOSS']['TAU'])
+            n_org=cfg['TRAIN']['BSZ']['TR_N_ANCHOR'],
+            n_rep=cfg['TRAIN']['BSZ']['TR_BATCH_SZ'] - cfg['TRAIN']['BSZ']['TR_N_ANCHOR'],
+            tau=cfg['TRAIN']['LOSS']['TAU'])
         loss_obj_val = NTxentLoss(
-            n_org=cfg['BSZ']['VAL_N_ANCHOR'],
-            n_rep=cfg['BSZ']['VAL_BATCH_SZ'] - cfg['BSZ']['VAL_N_ANCHOR'],
-            tau=cfg['LOSS']['TAU'])
-    elif cfg['LOSS']['LOSS_MODE'].upper() == 'ONLINE-TRIPLET': # Now-playing
+            n_org=cfg['TRAIN']['BSZ']['VAL_N_ANCHOR'],
+            n_rep=cfg['TRAIN']['BSZ']['VAL_BATCH_SZ'] - cfg['TRAIN']['BSZ']['VAL_N_ANCHOR'],
+            tau=cfg['TRAIN']['LOSS']['TAU'])
+    elif cfg['TRAIN']['LOSS']['LOSS_MODE'].upper() == 'ONLINE-TRIPLET': # Now-playing
         loss_obj_train = OnlineTripletLoss(
-            bsz=cfg['BSZ']['TR_BATCH_SZ'],
-            n_anchor=cfg['BSZ']['TR_N_ANCHOR'],
+            bsz=cfg['TRAIN']['BSZ']['TR_BATCH_SZ'],
+            n_anchor=cfg['TRAIN']['BSZ']['TR_N_ANCHOR'],
             mode = 'semi-hard',
-            margin=cfg['LOSS']['MARGIN'])
+            margin=cfg['TRAIN']['LOSS']['MARGIN'])
         loss_obj_val = OnlineTripletLoss(
-            bsz=cfg['BSZ']['VAL_BATCH_SZ'],
-            n_anchor=cfg['BSZ']['VAL_N_ANCHOR'],
+            bsz=cfg['TRAIN']['BSZ']['VAL_BATCH_SZ'],
+            n_anchor=cfg['TRAIN']['BSZ']['VAL_N_ANCHOR'],
             mode = 'all', # use 'all' mode for validation
             margin=0.)
     else:
-        raise NotImplementedError(cfg['LOSS']['LOSS_MODE'])
+        raise NotImplementedError(cfg['TRAIN']['LOSS']['LOSS_MODE'])
 
     # Training loop
     ep_start = helper.epoch
