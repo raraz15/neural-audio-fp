@@ -229,6 +229,7 @@ def trainer(cfg, checkpoint_name):
             helper.write_image_tensorboard('tr_sim_mtx', sim_mtx.numpy())
 
         # Validate
+        progbar = Progbar(len(val_ds))
         """ Parallelism to speed up preprocessing.............. """
         enq = tf.keras.utils.OrderedEnqueuer(val_ds, 
                                             use_multiprocessing=True, 
@@ -238,7 +239,8 @@ def trainer(cfg, checkpoint_name):
         i = 0
         while i < len(enq.sequence):
             _, _, Xa, Xp = next(enq.get())
-            _, sim_mtx = val_step((Xa, Xp), m_fp, loss_obj_val, helper)
+            avg_loss, sim_mtx = val_step((Xa, Xp), m_fp, loss_obj_val, helper)
+            progbar.add(1, values=[("val loss", avg_loss)])
             i += 1
         enq.stop()
         """ End of Parallelism................................. """
