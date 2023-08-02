@@ -53,6 +53,7 @@ class Dataset:
         self.tr_n_anchor = train_dict['BSZ']['TR_N_ANCHOR']
         self.val_batch_sz = train_dict['BSZ']['VAL_BATCH_SZ']
         self.val_n_anchor = train_dict['BSZ']['VAL_N_ANCHOR']
+        self.tr_segments_per_track = train_dict['SEGMENTS_PER_TRACK']
 
         self.tr_use_bg_aug = train_dict['TD_AUG']['TR_BG_AUG']
         self.val_use_bg_aug = train_dict['TD_AUG']['VAL_BG_AUG']
@@ -146,9 +147,11 @@ class Dataset:
         print(f"{total_segments:,} segments found.")
 
         if reduce_items_p<100:
-            print(f"Reducing the number of segments in each track to {reduce_items_p}%")
-            self.tr_source_fps = {k: v[:int(len(v)*reduce_items_p/100)]
-                                  for k,v in self.tr_source_fps.items()}
+            print(f"Reducing the number of tracks used to {reduce_items_p}%")
+            self.tr_source_fps = {k: v
+                                  for i,(k,v) in enumerate(self.tr_source_fps.items())
+                                  if i < int(len(self.tr_source_fps)*reduce_items_p/100)}
+            print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
             total_segments = sum([len(v) for v in self.tr_source_fps.values()])
             print(f"Reduced to {total_segments:,} segments.")
 
@@ -158,6 +161,7 @@ class Dataset:
             n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
             fs=self.fs,
             normalize_audio=self.normalize_audio,
+            segments_per_track=self.tr_segments_per_track,
             scale=self.scale,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -209,6 +213,7 @@ class Dataset:
             n_anchor=self.val_n_anchor,
             fs=self.fs,
             normalize_audio=self.normalize_audio,
+            segments_per_track=self.tr_segments_per_track,
             scale=self.scale,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
