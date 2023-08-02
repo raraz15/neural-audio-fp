@@ -307,8 +307,9 @@ class genUnbalSequence(Sequence):
                     e_idx = s_idx + self.sub_segment_length
                     Xp_batch.append(full_segment[s_idx:e_idx].reshape((1, -1)))
 
-        # Create the batch
+        # Create the batch, convert to float16 to save memory
         Xa_batch = np.concatenate(Xa_batch, axis=0)
+        # If there are positive samples, concatenate them to a batch, convert to float16
         if self.n_pos_per_anchor>0:
             Xp_batch = np.concatenate(Xp_batch, axis=0)
 

@@ -107,7 +107,8 @@ if __name__=="__main__":
                 segment_path = os.path.join(segments_dir, 
                                             f"{start}_{end}.npy")
                 with open(segment_path, "wb") as f:
-                    np.save(f, segment)
+                    # Write as float16 to save disk space
+                    np.save(f, segment.astype(np.float16))
                 counter += 1
 
         print(f"{split}: [{i+1}/{len(paths)}]")
