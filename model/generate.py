@@ -56,10 +56,11 @@ def get_data_source(cfg, source_root_dir, skip_dummy):
             tf.print("Excluding \033[33m'dummy_db'\033[0m from source.")
             pass
         else:
-            ds['dummy_db'] = dataset.get_test_dummy_db_ds()
+            ds['dummy_db'] = dataset.get_test_noise_ds()
 
+        # TODO: fix these hard-coded values
         if dataset.datasel_test_query_db in ['unseen_icassp', 'unseen_syn']:
-            ds['query'], ds['db'] = dataset.get_test_query_db_ds()
+            ds['query'], ds['db'] = dataset.get_test_query_ds()
         else:
             raise ValueError(dataset.datasel_test_query_db)
 

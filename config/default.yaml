@@ -3,8 +3,12 @@ DIR:
         # Train, Validation, Augmentation and Test Data directories
         TRAIN_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/train/'
         VAL_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/val/'
-        TEST_DUMMY_DB_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/test/noise/'
-        TEST_QUERY_DB_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/test/query_clean/'
+        TEST_NOISE_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/test/noise/'
+        TEST_CLEAN_QUERY_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/test/query_clean/'
+        TEST_AUGMENTED_QUERY_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/test/query_augmented/'
+                                  # You can provide empty string to TEST_AUGMENTED_QUERY_ROOT and set
+                                  # TD_AUG.TS_BG_AUG=True and TD_AUG.TS_IR_AUG=True to enable
+                                  # real-time augmentation during testing. 
         BG_ROOT : '../neural-audio-fp-dataset/aug/bg/'
         IR_ROOT : '../neural-audio-fp-dataset/aug/ir/'
     MODEL:
@@ -68,15 +72,25 @@ LOSS:
 
 # Time-domain augmentation parameters
 TD_AUG:
-    TR_SNR : [0, 10] # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
-    TS_SNR : [0, 10] # Active in real-time synthesis of test queries. TEST_QUERY='unseen_icassp' will inactivate this.
-    VAL_SNR : [0, 10]
+
     TR_BG_AUG : True
-    TS_BG_AUG : True # TEST_QUERY='unseen_icassp' will inactivate this.
-    VAL_BG_AUG : True # Validation set always flollow this even in 'generate' command.
+    TR_SNR : [0, 10] # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
     TR_IR_AUG : True
-    TS_IR_AUG : True # TEST_QUERY='unseen_icassp' will inactivate this.
+
+    VAL_BG_AUG : True # Validation set always follows this even in 'generate' command.
+    VAL_SNR : [0, 10]
     VAL_IR_AUG: True
+
+    # If True, augment the query segments in real time during testing. Otherwise,
+    # does not apply augmentations. For simulating real life scenarios,
+    # you should either augment the queries beforehand and provide 
+    # augment=True option.
+    TS_BG_AUG : False # We augment the test set beforehand.
+    TS_SNR : [0, 10] # Active in real-time synthesis of test queries.
+    TS_IR_AUG : False # We augment the test set beforehand.
+    # If you set TD_AUG.TS_IR_AUG=True or 
+    # TD_AUG.TS_BG_AUG=True, you must provide the corresponding augmentation. 
+    # Setting them to True will not use the tracks in TEST_AUGMENTED_QUERY_ROOT
 
 # Specaug parameters
 SPEC_AUG:
@@ -89,4 +103,3 @@ SPEC_AUG:
 DEVICE:
     CPU_N_WORKERS : 8 # 4 for minimal system. 8 is recommended.
     CPU_MAX_QUEUE : 10 # 10 for minimal system. 20 is recommended.
-

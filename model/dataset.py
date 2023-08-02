@@ -25,7 +25,6 @@ class Dataset:
     get_val_ds()
     get_test_dummy_db_ds()
     get_test_query_db_ds()
-    get_custom_db_ds(source_root_dir)
     """
 
     def __init__(self, cfg=dict()):
@@ -33,8 +32,9 @@ class Dataset:
         # Data locations
         self.dataset_dir_train = cfg['DIR']['DATA']['TRAIN_ROOT']
         self.dataset_dir_val = cfg['DIR']['DATA']['VAL_ROOT']
-        self.dataset_dir_test_dummy_db = cfg['DIR']['DATA']['TEST_DUMMY_DB_ROOT']
-        self.dataset_dir_test_query_db = cfg['DIR']['DATA']['TEST_QUERY_DB_ROOT']
+        self.dataset_dir_test_noise = cfg['DIR']['DATA']['TEST_NOISE_ROOT']
+        self.dataset_dir_test_clean_query = cfg['DIR']['DATA']['TEST_CLEAN_QUERY_ROOT']
+        self.dataset_dir_test_augmented_query = cfg['DIR']['DATA']['TEST_AUGMENTED_QUERY_ROOT']
         self.bg_root_dir = cfg['DIR']['DATA']['BG_ROOT']
         self.ir_root_dir = cfg['DIR']['DATA']['IR_ROOT']
 
@@ -215,17 +215,23 @@ class Dataset:
             )
 
     # TODO: why does ts_n_anchor=ts_batch_sz makes it faster?
-    def get_test_dummy_db_ds(self):
-        """Test-dummy-DB without augmentation. Adds noise tracks to the DB.:
+    def get_test_noise_ds(self):
+        """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.:
             In this case, high-speed fingerprinting is possible without
             augmentation by setting ts_n_anchor=ts_batch_sz.
+
+            Returns:
+            --------
+                ds_dummy_db : genUnbalSequenceGeneration
+                    The dataset for test-dummy-DB. Noise tracks without augmentation.
         """
 
-        # Source (music) file paths for test-dummy-DB set
+        print(f"Creating the test-dummy-DB dataset (noise tracks)...")
         self.ts_dummy_db_source_fps = sorted(
-            glob.glob(self.source_root_dir + 'test-dummy-db-100k-full/' +
-                      '**/*.wav', recursive=True))
-
+            glob.glob(self.dataset_dir_test_noise+ '/**/*.mp4', 
+                      recursive=True))
+        print(f"{len(self.ts_dummy_db_source_fps):,} tracks found at "
+              f"{self.dataset_dir_test_noise}.")
         return genUnbalSequenceGeneration(
             track_paths=self.ts_dummy_db_source_fps,
             bsz=self.ts_batch_sz, # Only anchors
@@ -238,102 +244,34 @@ class Dataset:
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
-            f_max=self.fmax) # No augmentations...
+            f_max=self.fmax)
 
-    def get_test_query_db_ds(self):
-        """ To select test dataset, you can use config file or datasel parameter.
+    def get_test_query_ds(self):
+        """ Create 2 databases for query segments. One of them is the augmented 
+        version of the clean queries.
 
-        cfg['DATASEL']['TEST_QUERY_DB']:
+        Parameters:
+        ----------
+            augment : bool (default False)
 
-            'unseen_icassp' will use pre-defined queries and DB.
-                DB has selected clips without augmentations and queries are their
-                augmented versions.
-            'unseen_syn' will synthesize queries from DB in real-time.
 
         Returns
         -------
-        (ds_query, ds_db)
+            (ds_query, ds_db)
+                ds_query is the augmented version of the clean queries.
+                ds_db is the clean queries without augmentation.
 
         """
 
-        if self.dataset_dir_test_query_db=='unseen_icassp':
-            self.ts_query_icassp_fps = sorted(
-                glob.glob(self.source_root_dir + 'test-query-db-500-30s/' +
-                      'query/**/*.wav', recursive=True))
-            self.ts_db_icassp_fps = sorted(
-                glob.glob(self.source_root_dir + 'test-query-db-500-30s/' +
-                      'db/**/*.wav', recursive=True))
+        print(f"Creating the clean and augmented query datasets for testing...")
 
-            ds_query = genUnbalSequenceGeneration(
-                track_paths=self.ts_query_icassp_fps,
-                bsz=self.ts_batch_sz,
-                duration=self.dur,
-                hop=self.hop,
-                fs=self.fs,
-                normalize_audio=self.normalize_audio,
-                scale=self.scale,
-                n_fft=self.n_fft,
-                stft_hop=self.stft_hop,
-                n_mels=self.n_mels,
-                f_min=self.fmin,
-                f_max=self.fmax) # No augmentations...
-            ds_db = genUnbalSequenceGeneration(
-                track_paths=self.ts_db_icassp_fps,
-                bsz=self.ts_batch_sz,
-                duration=self.dur,
-                hop=self.hop,
-                fs=self.fs,
-                normalize_audio=self.normalize_audio,
-                scale=self.scale,
-                n_fft=self.n_fft,
-                stft_hop=self.stft_hop,
-                n_mels=self.n_mels,
-                f_min=self.fmin,
-                f_max=self.fmax) # No augmentations...
-            return ds_query, ds_db
-        elif self.dataset_dir_test_query_db=='unseen_syn':
-            self.ts_query_db_unseen_fps = sorted(
-            glob.glob(self.source_root_dir + 'val-query-db-500-30s/' +
-                      'db/**/*.wav', recursive=True))
-
-            _query_ts_batch_sz = self.ts_batch_sz * 2
-            _query_ts_n_anchor = self.ts_batch_sz
-            ds_query = genUnbalSequenceGeneration(
-                track_paths=self.ts_query_db_unseen_fps,
-                bsz=_query_ts_batch_sz,
-                n_anchor=_query_ts_n_anchor,
-                duration=self.dur,
-                hop=self.hop,
-                fs=self.fs,
-                normalize_audio=self.normalize_audio,
-                shuffle=False,
-                random_offset_anchor=False,
-                bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_snr],
-                ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps],
-                drop_the_last_non_full_batch=False)
-
-            _db_ts_n_anchor = self.ts_batch_sz
-            ds_db = genUnbalSequenceGeneration(
-                track_paths=self.ts_query_db_unseen_fps,
-                bsz=self.ts_batch_sz,
-                n_anchor=_db_ts_n_anchor,
-                duration=self.dur,
-                hop=self.hop,
-                fs=self.fs,
-                normalize_audio=self.normalize_audio,
-                shuffle=False,
-                random_offset_anchor=False,
-                drop_the_last_non_full_batch=False)
-            return ds_query, ds_db
-        else:
-            raise NotImplementedError(self.dataset_dir_test_query_db)
-
-    def get_custom_db_ds(self, source_root_dir):
-        """ Construct DB (or query) from custom source files. """
-        fps = sorted(
-            glob.glob(source_root_dir + '/**/*.wav', recursive=True))
-        return genUnbalSequenceGeneration(
-            track_paths=fps,
+        self.ts_query_clean = sorted(
+                glob.glob(self.dataset_dir_test_clean_query + '/**/*.mp4', 
+                          recursive=True))
+        print(f"{len(self.ts_query_clean):,} clean query tracks found at "
+              f"{self.dataset_dir_test_clean_query}.")
+        ds_db = genUnbalSequenceGeneration(
+            track_paths=self.ts_query_clean,
             bsz=self.ts_batch_sz, # Only anchors
             duration=self.dur,
             hop=self.hop,
@@ -344,4 +282,40 @@ class Dataset:
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
-            f_max=self.fmax) # No augmentations, No drop-samples.
+            f_max=self.fmax)
+
+        if not self.ts_use_bg_aug:
+            self.ts_query_augmented = sorted(
+                glob.glob(self.dataset_dir_test_augmented_query + '/**/*.mp4', 
+                          recursive=True))
+            print(f"{len(self.ts_query_augmented):,} augmented query tracks found at "
+                  f"{self.dataset_dir_test_augmented_query}.")
+            ds_query = genUnbalSequenceGeneration(
+                track_paths=self.ts_query_augmented,
+                bsz=self.ts_batch_sz, # Only anchors
+                duration=self.dur,
+                hop=self.hop,
+                fs=self.fs,
+                normalize_audio=self.normalize_audio,
+                scale=self.scale,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax)
+        else:
+            print("Will augment the clean query tracks in real time. ")
+            ds_query = genUnbalSequenceGeneration(
+                track_paths=self.ts_query_clean,
+                bsz=self.ts_batch_sz * 2, # Anchors and positives=augmentations
+                n_anchor=self.ts_batch_sz,
+                duration=self.dur,
+                hop=self.hop,
+                fs=self.fs,
+                normalize_audio=self.normalize_audio,
+                shuffle=False,
+                random_offset_anchor=False,
+                bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_snr],
+                ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps],
+                drop_the_last_non_full_batch=False)
+        return ds_query, ds_db
