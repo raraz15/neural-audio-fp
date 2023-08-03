@@ -71,16 +71,15 @@ def train(checkpoint_name, config, deterministic):
 """ Generate fingerprint (after training) """
 @cli.command()
 @click.argument('checkpoint_name', required=True)
-@click.option('--checkpoint_type', default='best', type=click.STRING, required=False,
-              help="Checkpoint type must be one of {'best', 'custom'}. " +
-              "Default is 'best'.")
-@click.argument('--checkpoint_index', required=False, type=click.INT,
-                help="Checkpoint index. If not specified, the latest checkpoint " +
-                "in the OUTPUT_ROOT_DIR will be loaded.")
-@click.option('--config', '-c', default='default', required=False, type=click.STRING,
+@click.option('--checkpoint_type', default='best', type=click.STRING,
+              help="Checkpoint type must be one of {'best', 'custom'}. Default is 'best'.")
+@click.option('--checkpoint_index', default=None, type=click.INT,
+            help="Checkpoint index. If not specified, the latest checkpoint " +
+            "in the OUTPUT_ROOT_DIR will be loaded.")
+@click.option('--config', '-c', default='default', type=click.STRING,
               help="Name of the model configuration file located in 'config/'." +
               " Default is 'default'")
-@click.option('--output', '-o', default=None, type=click.STRING, required=False,
+@click.option('--output', '-o', default=None, type=click.STRING,
               help="Root directory where the generated embeddings (uncompressed)" +
               " will be stored. Default is OUTPUT_ROOT_DIR/CHECKPOINT_NAME " +
               "defined in config.")
