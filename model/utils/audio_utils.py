@@ -447,7 +447,6 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
 
 #### Room IR Augmentation ####
 
-# TODO: does len(x) need to be longer than len(x_ir)?
 def ir_aug(x, x_ir):
     """ Augment input signal with impulse response. The returned signal
     has the same length as x and is max-normalized."""

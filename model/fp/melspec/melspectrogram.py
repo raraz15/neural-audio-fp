@@ -97,8 +97,8 @@ class Melspec_layer_essentia():
         # Calculate the Magnitude Mel-spectrogram
         mel_spec = [self.mb(self.spec(self.window(frame))) for frame in self.frame_generator(audio)]
         mel_spec = np.array(mel_spec) # (n_frames, n_mels)
-        # TODO: is this necessary? We are applying dB cutoff later
-        mel_spec = np.where(mel_spec>self.amin, mel_spec, self.amin) # Clip magnitude below amin
+        # Clip magnitude below amin. This is to avoid log(0) in the next step
+        mel_spec = np.where(mel_spec>self.amin, mel_spec, self.amin)
 
         # Convert to Power Mel-spectrogram
         mel_spec = 20*np.log10(mel_spec/np.max(mel_spec))
