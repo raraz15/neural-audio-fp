@@ -252,7 +252,6 @@ class Dataset:
         print(f"{len(self.ts_noise_paths):,} tracks found.")
         return genUnbalSequenceGeneration(
             track_paths=self.ts_noise_paths,
-            bsz=self.ts_batch_sz, # Only anchors
             duration=self.ts_segment_dur,
             hop=self.ts_segment_hop,
             fs=self.fs,
@@ -262,7 +261,8 @@ class Dataset:
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
-            f_max=self.fmax)
+            f_max=self.fmax,
+            bsz=self.ts_batch_sz) # Only anchors
 
     def get_test_query_ds(self):
         """ Create 2 databases for query segments. One of them is the augmented 
@@ -287,7 +287,6 @@ class Dataset:
         print(f"{len(self.ts_query_clean):,} clean query tracks found.")
         ds_db = genUnbalSequenceGeneration(
             track_paths=self.ts_query_clean,
-            bsz=self.ts_batch_sz, # Only anchors
             duration=self.ts_segment_dur,
             hop=self.ts_segment_hop,
             fs=self.fs,
@@ -297,7 +296,8 @@ class Dataset:
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
-            f_max=self.fmax)
+            f_max=self.fmax,
+            bsz=self.ts_batch_sz) # Only anchors
         print(f"Creating the augmented query dataset...")
         if not (self.ts_use_bg_aug and self.ts_use_ir_aug):
             if self.ts_augmented_query_paths_file!="":
@@ -327,8 +327,9 @@ class Dataset:
                 print(f"ts_bg_fps: {len(self.ts_bg_fps):,}")
             if self.ts_use_ir_aug:
                 print(f"ts_ir_fps: {len(self.ts_ir_fps):,}")
-            ds_query = genUnbalSequenceGeneration(
-                track_paths=self.ts_query_clean,
+            # TODO: give the option in genUnbalSequenceGeneration to create augmentations
+            ds_query = genUnbalSequence(
+                self.ts_query_clean,
                 bsz=self.ts_batch_sz * 2, # Anchors and positives=augmentations
                 n_anchor=self.ts_batch_sz,
                 duration=self.ts_segment_dur,
