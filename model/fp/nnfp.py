@@ -16,7 +16,6 @@ import numpy as np
 import tensorflow as tf
 assert tf.__version__ >= "2.0"
 
-
 class ConvLayer(tf.keras.layers.Layer):
     """
     Separable convolution layer
@@ -82,7 +81,6 @@ class ConvLayer(tf.keras.layers.Layer):
        
     def call(self, x):
         return self.forward(x)
-
 
 class DivEncLayer(tf.keras.layers.Layer):
     """
@@ -155,7 +153,6 @@ class DivEncLayer(tf.keras.layers.Layer):
     def call(self, x): # x: (B,1,1,2048)
         x = tf.reshape(x, shape=[x.shape[0], self.q, -1]) # (B,Q,S); Q=num_slices; S=slice length; (B,128,8 or 16)
         return self._split_encoding(x)
-
 
 class FingerPrinter(tf.keras.Model):
     """
@@ -236,32 +233,6 @@ class FingerPrinter(tf.keras.Model):
             return tf.math.l2_normalize(x, axis=1) 
         else:
             return x
-
-
-def get_fingerprinter(cfg, trainable=False):
-    """
-    Input length : 1s or 2s
-    
-    Arguements
-    ----------
-    cfg : (dict)
-        created from the '.yaml' located in /config dicrectory
-
-    Returns
-    -------
-    <tf.keras.Model> FingerPrinter object
-    
-    """
-    emb_sz = cfg['MODEL']['EMB_SZ']
-    norm = cfg['MODEL']['BN']
-    fc_unit_dim = [32, 1]
-    
-    m = FingerPrinter(emb_sz=emb_sz,
-                      fc_unit_dim=fc_unit_dim,
-                      norm=norm)
-    m.trainable = trainable
-    return m
-    
 
 def test():
     input_1s = tf.constant(np.random.randn(3,256,32,1), dtype=tf.float32) # BxFxTx1

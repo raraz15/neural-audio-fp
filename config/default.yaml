@@ -1,16 +1,20 @@
 # TODO: add new parameters sub-segment
 # Model hyper-parameters
 MODEL:
-    FS : 8000 # Sampling rate
-    NORMALIZE_AUDIO: True # Scale the audio to [-1,1].
-    STFT_WIN : 1024
-    STFT_HOP : 256
-    F_MIN : 300. # Frequency range.
-    F_MAX : 4000. # Frequency range.
-    N_MELS : 256 # Number of mel-frequency bins.
-    EMB_SZ : 128  # Dimension of fingerprint, d in this paper.
-    BN : 'layer_norm2d' # or 'batch_norm'
-    SCALE_INPUTS: True # Scale the power mel-spectrogram to [-1,1].
+    AUDIO :
+        FS : 8000 # Sampling rate
+        NORMALIZE_SEGMENTS: True # Scale the segments to [-1,1].
+        SEGMENT_DUR : 1. # 
+    INPUT:
+        STFT_WIN : 1024
+        STFT_HOP : 256
+        F_MIN : 300. # Frequency range.
+        F_MAX : 4000. # Frequency range.
+        N_MELS : 256 # Number of mel-frequency bins.
+        SCALE_INPUTS: True # Scale the power mel-spectrogram to [-1,1].
+    ARCHITECTURE:
+        EMB_SZ : 128  # Dimension of fingerprint, d in this paper.
+        BN : 'layer_norm2d' # or 'batch_norm'
     # NOTE:
     # - In the current version, modifying {FS, DUR, HOB, STFT WIN, STFT HOP}
     #   may cause the model to malfunction or cause input shape mismatch errors.
@@ -23,6 +27,7 @@ MODEL:
 
 # Training parameters
 TRAIN:
+    INPUT_AUDIO_DUR : 2. # Audio segment duration of the dataset in seconds.
     MAX_EPOCH : 100
     BSZ: # Batch-size
         TR_BATCH_SZ : 120 # Training batch size N must be EVEN number.

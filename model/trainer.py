@@ -13,7 +13,7 @@ from tensorflow.keras.utils import Progbar
 
 from model.dataset import Dataset
 from model.fp.specaug_chain.specaug_chain import get_specaug_chain_layer
-from model.fp.nnfp import get_fingerprinter
+from model.fp.nnfp import FingerPrinter
 from model.fp.NTxent_loss_single_gpu import NTxentLoss
 from model.fp.online_triplet_loss import OnlineTripletLoss
 from model.fp.lamb_optimizer import LAMB
@@ -38,6 +38,30 @@ def set_global_determinism():
     os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
     os.environ['TF_DETERMINISTIC_OPS'] = '1'
     print("Global determinism set")
+
+def get_fingerprinter(cfg, trainable=False):
+    """
+    Input length : 1s or 2s
+    
+    Arguements
+    ----------
+    cfg : (dict)
+        created from the '.yaml' located in /config dicrectory
+
+    Returns
+    -------
+    <tf.keras.Model> FingerPrinter object
+    
+    """
+    emb_sz = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
+    norm = cfg['MODEL']['ARCHITECTURE']['BN']
+    fc_unit_dim = [32, 1]
+    
+    m = FingerPrinter(emb_sz=emb_sz,
+                      fc_unit_dim=fc_unit_dim,
+                      norm=norm)
+    m.trainable = trainable
+    return m
 
 def build_fp(cfg):
     """ Build fingerprinter """

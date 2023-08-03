@@ -31,20 +31,21 @@ class Dataset:
 
         # Model parameters
         model_dict = cfg['MODEL']
-        self.normalize_audio = model_dict['NORMALIZE_AUDIO']
-        self.fs = model_dict['FS']
-        self.scale = model_dict['SCALE_INPUTS'] # TODO: change name
-        self.stft_hop = model_dict['STFT_HOP']
-        self.n_fft = model_dict['STFT_WIN']
-        self.n_mels = model_dict['N_MELS']
-        self.fmin = model_dict['F_MIN']
-        self.fmax = model_dict['F_MAX']
-        # TODO: set full_segment_length
+        self.segment_duration = model_dict['AUDIO']['SEGMENT_DUR']
+        self.normalize_audio = model_dict['AUDIO']['NORMALIZE_SEGMENTS']
+        self.fs = model_dict['AUDIO']['FS']
+        self.stft_hop = model_dict['INPUT']['STFT_HOP']
+        self.n_fft = model_dict['INPUT']['STFT_WIN']
+        self.n_mels = model_dict['INPUT']['N_MELS']
+        self.fmin = model_dict['INPUT']['F_MIN']
+        self.fmax = model_dict['INPUT']['F_MAX']
+        self.scale = model_dict['INPUT']['SCALE_INPUTS'] # TODO: change name
 
         # Train, Val Parameters
         train_dict = cfg['TRAIN']
         self.tr_dataset_dir = train_dict['DIR']['TRAIN_ROOT']
         self.val_dataset_dir = train_dict['DIR']['VAL_ROOT']
+        self.dataset_audio_segment_duration = train_dict['INPUT_AUDIO_DUR']
 
         self.tr_batch_sz = train_dict['BSZ']['TR_BATCH_SZ']
         self.tr_n_anchor = train_dict['BSZ']['TR_N_ANCHOR']
@@ -164,6 +165,8 @@ class Dataset:
 
         return genUnbalSequence(
             segment_dict=self.tr_source_fps,
+            segment_duration=self.segment_duration,
+            full_segment_duration=self.dataset_audio_segment_duration,
             bsz=self.tr_batch_sz,
             n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
             fs=self.fs,
@@ -318,15 +321,19 @@ class Dataset:
                 print(f"ts_ir_fps: {len(self.ts_ir_fps):,}")
             ds_query = genUnbalSequenceGeneration(
                 self.ts_query_clean,
-                bsz=self.ts_segments_per_track * 2, # Anchors + positives=augmentations
-                n_anchor=self.ts_segments_per_track,
+                segments_per_track=self.ts_segments_per_track,
+                # bsz=self.ts_segments_per_track * 2, # Anchors + positives=augmentations
                 duration=self.ts_segment_dur,
                 hop=self.ts_segment_hop,
-                fs=self.fs,
                 normalize_audio=self.normalize_audio,
-                shuffle=False,
-                random_offset_anchor=False,
+                fs=self.fs,
+                scale=self.scale,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax,
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
-                drop_the_last_non_full_batch=False)
+                )
         return ds_query, ds_db
