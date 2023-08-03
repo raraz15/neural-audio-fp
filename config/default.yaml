@@ -16,7 +16,7 @@ MODEL:
     #   may cause the model to malfunction or cause input shape mismatch errors.
     #   In that case, you will need to modify the kernel size strides of Conv
     #   layers in 'model/fp/nnfp.py'.
-    LOG_ROOT : './logs/'
+    LOG_ROOT_DIR : './logs/'
             # Directories to store the model checkpoints, its training process and 
             # generated embeddings (uncompressed fingerprints) will be stored.
             # The embedding directory can later be changed in generate.py

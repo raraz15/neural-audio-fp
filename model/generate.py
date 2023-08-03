@@ -84,7 +84,7 @@ def generate_fingerprint(cfg,
     m_fp = get_fingerprinter(cfg, trainable=False)
 
     # Load from checkpoint
-    log_root_dir = cfg['MODEL']['LOG_ROOT']
+    log_root_dir = cfg['MODEL']['LOG_ROOT_DIR']
     if checkpoint_type.lower()=='best':
         checkpoint_dir = log_root_dir + "best_checkpoint/"
     elif checkpoint_type.lower()=='custom':

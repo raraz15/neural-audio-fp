@@ -72,8 +72,8 @@ class ExperimentHelper():
         self.best_loss_track = best_loss
 
         # Choose the root directory for logs
-        if cfg['MODEL']['LOG_ROOT']:
-            _root_dir = cfg['MODEL']['LOG_ROOT']
+        if cfg['MODEL']['LOG_ROOT_DIR']:
+            _root_dir = cfg['MODEL']['LOG_ROOT_DIR']
         else:
             _root_dir = './logs/'
 
