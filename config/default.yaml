@@ -81,6 +81,7 @@ TEST:
         # augment=True option.
         BG_AUG_SNR : [0, 10] # Active in real-time synthesis of test queries.
         IR_AUG : True # If you augment beforehand, set this to False.
+        IR_AUG_MAX_DUR : 0.5 
         # If you set TD_AUG.TS_IR_AUG=True or 
         # TD_AUG.TS_BG_AUG=True, you must provide the corresponding augmentation. 
         # Setting them to True will not use the tracks in AUGMENTED_QUERY_ROOT

@@ -69,12 +69,12 @@ class Dataset:
         self.ts_augmented_query_dataset_dir = test_dict['DIR']['AUGMENTED_QUERY_ROOT']
 
         self.ts_use_bg_aug = test_dict['TD_AUG']['BG_AUG']
-        self.ts_use_ir_aug = test_dict['TD_AUG']['IR_AUG']
         self.ts_snr = test_dict['TD_AUG']['BG_AUG_SNR']
+        self.ts_use_ir_aug = test_dict['TD_AUG']['IR_AUG']
+        self.ts_max_ir_dur = test_dict['TD_AUG']['IR_AUG_MAX_DUR']
 
         self.ts_segment_dur = test_dict['SEGMENT_DUR']
         self.ts_segment_hop = test_dict['SEGMENT_HOP']
-        # self.ts_batch_sz = test_dict['TS_BATCH_SZ']
         self.ts_segments_per_track = test_dict['SEGMENTS_PER_TRACK']
 
         # Pre-load file paths for augmentation
@@ -234,7 +234,7 @@ class Dataset:
             Returns:
             --------
                 ds_dummy_db : genUnbalSequenceGeneration
-                    The dataset for test-dummy-DB. Noise tracks without augmentation.
+                    The dataset for test-dummy-DB.
         """
 
         print(f"Creating the test-dummy-DB dataset (noise tracks)...")
@@ -269,13 +269,9 @@ class Dataset:
         """
 
         print(f"Creating the clean query dataset for testing...")
-        if self.ts_clean_query_paths_file!="":
-            with open(self.ts_clean_query_paths_file, 'r') as f:
-                self.ts_query_clean = sorted(f.read().splitlines(keepends=False))
-        else:
-            self.ts_query_clean = sorted(
-                    glob.glob(self.ts_clean_query_dataset_dir + '/**/*.mp4', 
-                            recursive=True))
+        self.ts_query_clean = sorted(
+                glob.glob(self.ts_clean_query_dataset_dir + '/**/*.npy', 
+                        recursive=True))
         print(f"{len(self.ts_query_clean):,} clean query tracks found.")
         ds_db = genUnbalSequenceGeneration(
             track_paths=self.ts_query_clean,
@@ -289,20 +285,15 @@ class Dataset:
             n_mels=self.n_mels,
             f_min=self.fmin,
             f_max=self.fmax,
-            bsz=self.ts_batch_sz) # Only anchors
+            segments_per_track=self.ts_segments_per_track)
         print(f"Creating the augmented query dataset...")
         if not (self.ts_use_bg_aug and self.ts_use_ir_aug):
-            if self.ts_augmented_query_paths_file!="":
-                with open(self.ts_augmented_query_paths_file, 'r') as f:
-                    self.ts_query_augmented = sorted(f.read().splitlines(keepends=False))
-            else:
-                self.ts_query_augmented = sorted(
-                    glob.glob(self.ts_augmented_query_dataset_dir + '/**/*.mp4', 
-                            recursive=True))
+            self.ts_query_augmented = sorted(
+                glob.glob(self.ts_augmented_query_dataset_dir + '/**/*.npy', 
+                        recursive=True))
             print(f"{len(self.ts_query_augmented):,} augmented query tracks found")
             ds_query = genUnbalSequenceGeneration(
                 track_paths=self.ts_query_augmented,
-                bsz=self.ts_batch_sz, # Only anchors
                 duration=self.ts_segment_dur,
                 hop=self.ts_segment_hop,
                 fs=self.fs,
@@ -312,18 +303,18 @@ class Dataset:
                 stft_hop=self.stft_hop,
                 n_mels=self.n_mels,
                 f_min=self.fmin,
-                f_max=self.fmax)
+                f_max=self.fmax,
+                segments_per_track=self.ts_segments_per_track)
         else:
             print("Will augment the clean query tracks in real time. ")
             if self.ts_use_bg_aug:
                 print(f"ts_bg_fps: {len(self.ts_bg_fps):,}")
             if self.ts_use_ir_aug:
                 print(f"ts_ir_fps: {len(self.ts_ir_fps):,}")
-            # TODO: give the option in genUnbalSequenceGeneration to create augmentations
-            ds_query = genUnbalSequence(
+            ds_query = genUnbalSequenceGeneration(
                 self.ts_query_clean,
-                bsz=self.ts_batch_sz * 2, # Anchors and positives=augmentations
-                n_anchor=self.ts_batch_sz,
+                bsz=self.ts_segments_per_track * 2, # Anchors + positives=augmentations
+                n_anchor=self.ts_segments_per_track,
                 duration=self.ts_segment_dur,
                 hop=self.ts_segment_hop,
                 fs=self.fs,
@@ -331,6 +322,6 @@ class Dataset:
                 shuffle=False,
                 random_offset_anchor=False,
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_snr],
-                ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps],
+                ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
                 drop_the_last_non_full_batch=False)
         return ds_query, ds_db
