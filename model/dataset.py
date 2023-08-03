@@ -39,7 +39,7 @@ class Dataset:
         self.n_mels = model_dict['INPUT']['N_MELS']
         self.fmin = model_dict['INPUT']['F_MIN']
         self.fmax = model_dict['INPUT']['F_MAX']
-        self.scale = model_dict['INPUT']['SCALE_INPUTS'] # TODO: change name
+        self.scale_inputs = model_dict['INPUT']['SCALE_INPUTS']
 
         # Train, Val Parameters
         train_dict = cfg['TRAIN']
@@ -172,7 +172,7 @@ class Dataset:
             fs=self.fs,
             normalize_audio=self.normalize_audio,
             segments_per_track=self.tr_segments_per_track,
-            scale=self.scale,
+            scale=self.scale_inputs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
@@ -224,7 +224,7 @@ class Dataset:
             fs=self.fs,
             normalize_audio=self.normalize_audio,
             segments_per_track=self.tr_segments_per_track,
-            scale=self.scale,
+            scale=self.scale_inputs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
@@ -256,7 +256,7 @@ class Dataset:
             hop=self.ts_segment_hop,
             fs=self.fs,
             normalize_audio=self.normalize_audio,
-            scale=self.scale,
+            scale=self.scale_inputs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
@@ -287,7 +287,7 @@ class Dataset:
             hop=self.ts_segment_hop,
             fs=self.fs,
             normalize_audio=self.normalize_audio,
-            scale=self.scale,
+            scale=self.scale_inputs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
@@ -306,7 +306,7 @@ class Dataset:
                 hop=self.ts_segment_hop,
                 fs=self.fs,
                 normalize_audio=self.normalize_audio,
-                scale=self.scale,
+                scale=self.scale_inputs,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
                 n_mels=self.n_mels,
@@ -327,7 +327,7 @@ class Dataset:
                 hop=self.ts_segment_hop,
                 normalize_audio=self.normalize_audio,
                 fs=self.fs,
-                scale=self.scale,
+                scale=self.scale_inputs,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
                 n_mels=self.n_mels,
