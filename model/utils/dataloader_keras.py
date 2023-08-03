@@ -12,12 +12,12 @@ class genUnbalSequence(Sequence):
         full_segment_duration=2,
         normalize_audio=True,
         fs=8000,
-        scale=True, # TODO: change name
         n_fft=1024,
         stft_hop=256,
         n_mels=256,
         f_min=300,
         f_max=4000,
+        scale_output=True,
         segments_per_track=59,
         bsz=120,
         n_anchor=60,
@@ -95,7 +95,7 @@ class genUnbalSequence(Sequence):
         self.normalize_audio = normalize_audio
 
         # Melspec layer
-        self.mel_spec = Melspec_layer_essentia(scale=scale,
+        self.mel_spec = Melspec_layer_essentia(scale=scale_output,
                                             n_fft=n_fft, 
                                             stft_hop=stft_hop, 
                                             n_mels=n_mels, 
