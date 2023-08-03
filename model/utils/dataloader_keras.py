@@ -8,8 +8,8 @@ class genUnbalSequence(Sequence):
     def __init__(
         self,
         segment_dict,
-        sub_segment_duration=1,
-        segment_duration=2,
+        segment_duration=1,
+        full_segment_duration=2,
         normalize_audio=True,
         fs=8000,
         scale=True, # TODO: change name
@@ -72,23 +72,27 @@ class genUnbalSequence(Sequence):
         assert n_anchor > 0, "n_anchor should be > 0"
         assert segments_per_track > 0, "segments_per_track should be > 0"
 
-        # Save the Input parameters
-        self.fs = fs
-        self.sub_segment_duration = sub_segment_duration
-        self.full_segment_duration = segment_duration
-        assert sub_segment_duration<=segment_duration, \
-                "sub_segment_duration should be <= segment_duration"
-        self.sub_segment_length = int(self.sub_segment_duration * self.fs)
-        self.full_segment_length = int(self.full_segment_duration * self.fs)
+        # Determine the length of the audio segments in the dataset 
+        # and hwo much of it will be used for training
+        assert segment_duration<=full_segment_duration, \
+                "segment_duration should be <= segment_duration"
+        self.segment_duration = segment_duration
+        self.full_segment_duration = full_segment_duration
+        self.sub_segment_length = int(self.segment_duration * fs)
+        self.full_segment_length = int(self.full_segment_duration * fs)
 
+        # Based on the segment duration, determine the maximum allowed offset
+        # for the anchor and positive samples. We align the centers of the 
+        # segment and the full_segment
         self.offset_duration = offset_duration
-        assert self.offset_duration <= (segment_duration - sub_segment_duration)/2, \
+        self.max_possible_offset_duration = (full_segment_duration - segment_duration) / 2
+        assert self.offset_duration <= self.max_possible_offset_duration, \
                 "offset_duration should be <= (segment_duration - sub_segment_duration)/2"
         self.max_offset_sample = int(self.offset_duration * fs)
-        self.random_offset_anchor = random_offset_anchor
+
+        # Save the remaining Input parameters
+        self.fs = fs
         self.normalize_audio = normalize_audio
-        self.bg_hop = sub_segment_duration # For bg samples hop is equal to duration
-        self.segments_per_track = segments_per_track
 
         # Melspec layer
         self.mel_spec = Melspec_layer_essentia(scale=scale,
@@ -96,11 +100,14 @@ class genUnbalSequence(Sequence):
                                             stft_hop=stft_hop, 
                                             n_mels=n_mels, 
                                             fs=fs, 
-                                            dur=sub_segment_duration, 
+                                            dur=segment_duration, 
                                             f_min=f_min, 
                                             f_max=f_max)
 
         # Training parameters
+        self.segments_per_track = segments_per_track
+        self.random_offset_anchor = random_offset_anchor
+        self.bg_hop = segment_duration # For bg samples hop is equal to duration
         self.bsz = bsz
         self.n_anchor = n_anchor
         if bsz != n_anchor:
@@ -122,13 +129,14 @@ class genUnbalSequence(Sequence):
 
         # Determine the tracks to use for each epoch
         if self.drop_the_last_non_full_batch: # Training
-            # Remove the tracks that do not fill the last batch
+            # Remove the tracks that do not fill the last batch. Each batch contains
+            # segments from exactly n_anchor tracks.
             self.n_tracks = int((len(self.track_seg_dict) // n_anchor) * n_anchor)
             self.track_seg_dict = {k: v 
                                     for i, (k, v) in enumerate(self.track_seg_dict.items()) 
                                     if i < self.n_tracks}
             self.n_samples = self.n_tracks * self.segments_per_track
-        else: # fp-generation
+        else:
             self.n_tracks = len(self.track_seg_dict)
             self.n_samples = sum([len(l) for l in self.track_seg_dict.values()])
         self.track_fnames = list(self.track_seg_dict.keys())
@@ -214,10 +222,10 @@ class genUnbalSequence(Sequence):
         return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
 
     def batch_load_track_segments(self, fnames, idx):
-        """ Load a single segment conditioned on idx from tracks with fnames. 
-        Since we shuffle the segments of each track, we can use idx to get a
-        different segment from each track. If self.n_pos_per_anchor > 0, we
-        also load self.n_pos_per_anchor replicas for each anchor.
+        """ Load a single segment conditioned on idx from the tracks with fnames. 
+        Since we shuffle the segments of each track at epoch end, we can use idx 
+        to get a different segment from each track. If self.n_pos_per_anchor > 0, 
+        we also load self.n_pos_per_anchor replicas for each anchor.
 
         Parameters:
         ----------
@@ -225,8 +233,7 @@ class genUnbalSequence(Sequence):
                 list of track fnames in the dataset.
             idx (int):
                 Batch index, used to get different segments from each 
-                track throughout the epoch. Each track's segments are shuffled
-                at the end of each epoch.
+                track throughout the epoch.
 
         Returns:
         --------
@@ -277,19 +284,20 @@ class genUnbalSequence(Sequence):
                 anchor_offset = 0
             # Apply the offset to the anchor start time
             anchor_start += anchor_offset
-            anchor_end = anchor_start + self.sub_segment_length
             assert anchor_start>=0, "Start point is out of bounds"
+            anchor_end = anchor_start + self.sub_segment_length
             assert anchor_end<=self.full_segment_length, "End point is out of bounds"
             # Get the anchor sample and append it to the batch
             Xa_batch.append(full_segment[anchor_start:anchor_end].reshape((1, -1)))
 
             # Randomly offset each positive sample with respect to the anchor
             if self.n_pos_per_anchor > 0:
+                # Determine the distance to the segment edges from the anchor's offset
+                dist_l = - max_possible_offset - anchor_offset
+                dist_r = max_possible_offset - anchor_offset
                 # Make sure that the offset range is within the full-segment
-                pos_offset_min = np.max([-self.max_offset_sample, 
-                                         anchor_offset - max_possible_offset])
-                pos_offset_max = np.min([self.max_offset_sample, 
-                                         max_possible_offset - anchor_offset])
+                pos_offset_min = np.max([-self.max_offset_sample, dist_l])
+                pos_offset_max = np.min([self.max_offset_sample, dist_r])
                 assert anchor_start+pos_offset_min>=0, \
                     "Start point range is out of bounds for the positive samples"
                 assert anchor_start+pos_offset_max+self.sub_segment_length<=self.full_segment_length, \
@@ -305,9 +313,9 @@ class genUnbalSequence(Sequence):
                     e_idx = s_idx + self.sub_segment_length
                     Xp_batch.append(full_segment[s_idx:e_idx].reshape((1, -1)))
 
-        # Create the batch, convert to float16 to save memory
+        # Create the batch
         Xa_batch = np.concatenate(Xa_batch, axis=0)
-        # If there are positive samples, concatenate them to a batch, convert to float16
+        # If there are positive samples, concatenate them to a batch
         if self.n_pos_per_anchor>0:
             Xp_batch = np.concatenate(Xp_batch, axis=0)
 
@@ -345,7 +353,7 @@ class genUnbalSequence(Sequence):
             offset_sec = np.min([random_offset_sec, offset_max / self.fs])
             # Calculate the start frame index
             start_frame_idx = np.floor((seg_idx*self.bg_hop + offset_sec)*self.fs).astype(int)
-            seg_length_frame = np.floor(self.sub_segment_duration*self.fs).astype(int)
+            seg_length_frame = np.floor(self.segment_duration*self.fs).astype(int)
             assert start_frame_idx+seg_length_frame <= X.shape[0], \
                     f"start_frame_idx+seg_length_frame={start_frame_idx+seg_length_frame}" \
                         f"is larger than X.shape[0]={X.shape[0]}"
@@ -437,7 +445,7 @@ class genUnbalSequence(Sequence):
             self.fns_bg_seg_dict = get_fns_seg_dict(bg_mix_parameter[1], 
                                                     segment_mode='all',
                                                     fs=self.fs, 
-                                                    duration=self.sub_segment_duration,
+                                                    duration=self.segment_duration,
                                                     hop=self.bg_hop)
             self.bg_fnames = list(self.fns_bg_seg_dict.keys())
             # Load all bg clips in full duration
@@ -477,13 +485,13 @@ class genUnbalSequence(Sequence):
             self.fns_ir_seg_dict = get_fns_seg_dict(ir_mix_parameter[1], 
                                                     segment_mode='first',
                                                     fs=self.fs, 
-                                                    duration=self.sub_segment_duration)
+                                                    duration=self.segment_duration)
             self.ir_fnames = list(self.fns_ir_seg_dict.keys())
             # Load all ir clips in full duration
             self.ir_clips = {}
             for fn in self.ir_fnames:
                 X = load_audio(fn, 
-                            seg_length_sec=self.sub_segment_duration,
+                            seg_length_sec=self.segment_duration,
                             fs=self.fs,
                             normalize=self.normalize_audio)
                 # Truncate IR to max_ir_length
