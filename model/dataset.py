@@ -45,9 +45,6 @@ class Dataset:
         train_dict = cfg['TRAIN']
         self.tr_dataset_dir = train_dict['DIR']['TRAIN_ROOT']
         self.val_dataset_dir = train_dict['DIR']['VAL_ROOT']
-        self.tr_bg_root_dir = train_dict['DIR']['BG_ROOT']
-        self.tr_ir_root_dir = train_dict['DIR']['IR_ROOT']
-        # # We use the same augmentation for train and validation sets.
 
         self.tr_batch_sz = train_dict['BSZ']['TR_BATCH_SZ']
         self.tr_n_anchor = train_dict['BSZ']['TR_N_ANCHOR']
@@ -55,12 +52,20 @@ class Dataset:
         self.val_n_anchor = train_dict['BSZ']['VAL_N_ANCHOR']
         self.tr_segments_per_track = train_dict['SEGMENTS_PER_TRACK']
 
-        self.tr_use_bg_aug = train_dict['TD_AUG']['TR_BG_AUG']
-        self.val_use_bg_aug = train_dict['TD_AUG']['VAL_BG_AUG']
-        self.tr_use_ir_aug = train_dict['TD_AUG']['TR_IR_AUG']
-        self.val_use_ir_aug = train_dict['TD_AUG']['VAL_IR_AUG']
-        self.tr_snr = train_dict['TD_AUG']['TR_BG_SNR']
-        self.val_snr = train_dict['TD_AUG']['VAL_BG_SNR']
+        self.tr_bg_root_dir = train_dict['DIR']['BG_ROOT']
+        self.tr_use_bg_aug = train_dict['TD_AUG']['BG_AUG']
+        self.tr_bg_snr = train_dict['TD_AUG']['BG_AUG_SNR']
+        self.tr_ir_root_dir = train_dict['DIR']['IR_ROOT']
+        self.tr_use_ir_aug = train_dict['TD_AUG']['IR_AUG']
+        self.tr_max_ir_dur = train_dict['TD_AUG']['IR_AUG_MAX_DUR']
+
+        # # We use the same augmentations for train and validation sets.
+        self.val_bg_root_dir = self.tr_bg_root_dir
+        self.val_use_bg_aug = self.tr_use_bg_aug
+        self.val_bg_snr = self.tr_bg_snr
+        self.val_ir_root_dir = self.tr_ir_root_dir
+        self.val_use_ir_aug = self.tr_use_ir_aug
+        self.val_max_ir_dur = self.tr_max_ir_dur
 
         # Test Parameters
         test_dict = cfg['TEST']
@@ -69,7 +74,7 @@ class Dataset:
         self.ts_augmented_query_dataset_dir = test_dict['DIR']['AUGMENTED_QUERY_ROOT']
 
         self.ts_use_bg_aug = test_dict['TD_AUG']['BG_AUG']
-        self.ts_snr = test_dict['TD_AUG']['BG_AUG_SNR']
+        self.ts_bg_snr = test_dict['TD_AUG']['BG_AUG_SNR']
         self.ts_use_ir_aug = test_dict['TD_AUG']['IR_AUG']
         self.ts_max_ir_dur = test_dict['TD_AUG']['IR_AUG_MAX_DUR']
 
@@ -172,8 +177,8 @@ class Dataset:
             f_max=self.fmax,
             shuffle=True,
             random_offset_anchor=True,
-            bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_snr],
-            ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps])
+            bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
+            ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
 
     def get_val_ds(self):
         """ Source (music) file paths for validation set. The folder structure
@@ -224,8 +229,8 @@ class Dataset:
             f_max=self.fmax,
             shuffle=False,
             random_offset_anchor=False,
-            bg_mix_parameter=[self.val_use_bg_aug, self.val_bg_fps, self.val_snr],
-            ir_mix_parameter=[self.val_use_ir_aug, self.val_ir_fps],
+            bg_mix_parameter=[self.val_use_bg_aug, self.val_bg_fps, self.val_bg_snr],
+            ir_mix_parameter=[self.val_use_ir_aug, self.val_ir_fps, self.val_max_ir_dur],
             )
 
     def get_test_noise_ds(self):
@@ -321,7 +326,7 @@ class Dataset:
                 normalize_audio=self.normalize_audio,
                 shuffle=False,
                 random_offset_anchor=False,
-                bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_snr],
+                bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
                 drop_the_last_non_full_batch=False)
         return ds_query, ds_db

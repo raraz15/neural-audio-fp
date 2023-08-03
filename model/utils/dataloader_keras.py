@@ -4,8 +4,6 @@ from tensorflow.keras.utils import Sequence
 from model.utils.audio_utils import bg_mix_batch, ir_aug_batch, load_audio, get_fns_seg_dict
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 
-MAX_IR_DURATION = 0.5 # seconds
-
 class genUnbalSequence(Sequence):
     def __init__(
         self,
@@ -57,7 +55,7 @@ class genUnbalSequence(Sequence):
         random_offset_anchor : (bool), optional
             DESCRIPTION. The default is False.
         offset_margin : (float), optional
-            
+            # TODO: update
         bg_mix_parameter : list([(bool), list(str), (int, int)]), optional
             [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. The default is [False].
         ir_mix_parameter : list([(bool), list(str)], optional
@@ -475,7 +473,7 @@ class genUnbalSequence(Sequence):
         self.ir_mix = ir_mix_parameter[0]
         if self.ir_mix:
             print("Loading Impulse Response samples in memory...")
-            self.max_ir_length = int(MAX_IR_DURATION * self.fs)
+            self.max_ir_length = int(ir_mix_parameter[2] * self.fs)
             self.fns_ir_seg_dict = get_fns_seg_dict(ir_mix_parameter[1], 
                                                     segment_mode='first',
                                                     fs=self.fs, 
@@ -488,7 +486,7 @@ class genUnbalSequence(Sequence):
                             seg_length_sec=self.sub_segment_duration,
                             fs=self.fs,
                             normalize=self.normalize_audio)
-                # Truncate IR to MAX_IR_DURATION
+                # Truncate IR to max_ir_length
                 if len(X) > self.max_ir_length:
                     X = X[:self.max_ir_length]
                 self.ir_clips[fn] = X

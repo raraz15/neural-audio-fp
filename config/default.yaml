@@ -40,12 +40,10 @@ TRAIN:
         ALPHA : 1e-4 # Minimum learning rate value for decay as a fraction of INITIAL_RATE.
     # Time-domain augmentation parameters
     TD_AUG:
-        TR_BG_AUG : True
-        TR_BG_SNR : [0, 10] # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
-        TR_IR_AUG : True
-        VAL_BG_AUG : True # Validation set always follows this even in 'generate' command.
-        VAL_BG_SNR : [0, 10]
-        VAL_IR_AUG: True
+        BG_AUG : True
+        BG_AUG_SNR : [0, 10] # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
+        IR_AUG : True
+        IR_AUG_MAX_DUR : 0.5 # Maximum duration of the impulse response in seconds.
     # Specaug parameters
     SPEC_AUG:
         SPECAUG_CHAIN : ['cutout', 'horizontal'] # 'cutout', 'horizontal', 'vertical'
@@ -81,7 +79,7 @@ TEST:
         # augment=True option.
         BG_AUG_SNR : [0, 10] # Active in real-time synthesis of test queries.
         IR_AUG : True # If you augment beforehand, set this to False.
-        IR_AUG_MAX_DUR : 0.5 
+        IR_AUG_MAX_DUR : 0.5 # Maximum duration of the impulse response in seconds.
         # If you set TD_AUG.TS_IR_AUG=True or 
         # TD_AUG.TS_BG_AUG=True, you must provide the corresponding augmentation. 
         # Setting them to True will not use the tracks in AUGMENTED_QUERY_ROOT
