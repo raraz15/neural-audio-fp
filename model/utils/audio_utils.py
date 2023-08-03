@@ -200,7 +200,7 @@ def load_wav(filename=str(),
 def read_cut_resample(filename, 
                     seg_start_sec=0.0, 
                     offset_sec=0.0, 
-                    seg_length_sec=1.0, 
+                    seg_length_sec=None, 
                     fs=8000, 
                     resample_quality=4):
     """
@@ -209,32 +209,44 @@ def read_cut_resample(filename,
     file format supported by FFmpeg.
 
     Parameters:
-        filename: string
-        seg_start_sec: Start of the segment in seconds.
-        offset_sec: Offset from seg_start_sec in seconds.
-        seg_length_sec: Length of the segment in seconds.
-        fs: Sample rate.
-        resample_quality: Quality of the resampling. 0 is the fastest, 4 is the slowest.
+        filename: (string)
+        seg_start_sec: (float)
+            Start of the segment in seconds.
+        offset_sec: (float)
+            Offset from seg_start_sec in seconds.
+        seg_length_sec: (float)
+            Length of the segment in seconds. If None, read the rest of the file.
+        fs: (int)
+            Sample rate.
+        resample_quality: (int)
+            Quality of the resampling. 0 is the slowest, 4 is the fastest.
 
     Returns:
         x: Segment (T,)
     """
 
-    assert seg_length_sec>0.0, "The duration must be positive"
-    assert seg_start_sec>=0.0, "The start time must be positive"
+    if seg_length_sec is not None:
+        assert seg_length_sec>0.0, \
+            "If specified, duration must be positive"
+    assert seg_start_sec>=0.0, \
+        "The start time must be positive"
+    assert resample_quality in {0,1,2,3,4}, \
+        "resample_quality should be in {0,1,2,3,4}"
 
     # Load the audio
-    audio, Fs1, numberChannels, _, _, _ = es.AudioLoader(filename=filename)()
+    audio, _fs, numberChannels, _, _, _ = es.AudioLoader(filename=filename)()
 
-    # Calculate the start and end times
+    # Calculate the start and end samples
     t0 = seg_start_sec + offset_sec
-    t1 = t0 + seg_length_sec
+    n0 = int(t0*_fs)
+    assert n0>=0, "The start time + offset is before the start of the audio"
 
-    # Convert the times to samples
-    n0 = int(t0*Fs1)
-    n1 = int(t1*Fs1)
-    assert n1<=len(audio), "The end time is after the end of the audio"
-    assert n0>=0, "The start time is before the start of the audio"
+    if seg_length_sec is None:
+        n1 = len(audio)
+    else:
+        n1 = n0 + int(_fs*seg_length_sec)
+        assert n1<=len(audio), \
+        "The end time is after the end of the audio. Specify a shorter duration."
 
     # Cut the audio
     audio = audio[n0:n1]
@@ -244,19 +256,18 @@ def read_cut_resample(filename,
         audio = np.mean(audio, axis=1)
 
     # Resample if necessary
-    if Fs1!=fs:
-        resampler = es.Resample(inputSampleRate=Fs1, 
+    if _fs!=fs:
+        resampler = es.Resample(inputSampleRate=_fs, 
                                 outputSampleRate=fs, 
                                 quality=resample_quality)
         audio = resampler(audio)
 
-    # Pad or cut the audio to the correct length
-    if len(audio)<int(seg_length_sec*fs):
+    # Pad the audio to the correct length if necessary
+    N_desired = int(seg_length_sec*fs)
+    if (seg_length_sec is not None) and len(audio)<N_desired:
         audio = np.pad(audio, 
-                        (0, int(seg_length_sec*fs)-len(audio)), 
-                        mode='constant')
-    elif len(audio)>int(seg_length_sec*fs):
-        audio = audio[:int(seg_length_sec*fs)]
+                    (0, N_desired-len(audio)), 
+                    mode='constant')
 
     return audio
 
