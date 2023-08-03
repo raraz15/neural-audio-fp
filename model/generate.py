@@ -116,9 +116,8 @@ def generate_fingerprint(cfg,
     sz_check = dict() # for warning message
     for key in ds.keys():
 
-        # n_items = len(ds[key]) * bsz
         n_items = ds[key].n_samples
-        assert n_items > 0
+        assert n_items > 0, f"Dataset '{key}' is empty."
 
         # Create memmap, and save shapes
         """
