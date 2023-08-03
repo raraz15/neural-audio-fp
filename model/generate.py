@@ -109,7 +109,7 @@ def generate_fingerprint(cfg,
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
     ds = get_data_source(cfg, skip_dummy)
 
-    bsz = int(cfg['TEST']['TS_BATCH_SZ'])
+    bsz = int(cfg['TEST']['SEGMENTS_PER_TRACK'])
     dim = cfg['MODEL']['EMB_SZ']
 
     # Generate

@@ -68,16 +68,14 @@ class Dataset:
         self.ts_clean_query_dataset_dir = test_dict['DIR']['CLEAN_QUERY_ROOT']
         self.ts_augmented_query_dataset_dir = test_dict['DIR']['AUGMENTED_QUERY_ROOT']
 
-        self.ts_noise_paths_file = test_dict['DIR']['NOISE_PATHS_FILE']
-        self.ts_clean_query_paths_file = test_dict['DIR']['CLEAN_QUERY_PATHS_FILE']
-        self.ts_augmented_query_paths_file = test_dict['DIR']['AUGMENTED_QUERY_PATHS_FILE']
-
         self.ts_use_bg_aug = test_dict['TD_AUG']['BG_AUG']
         self.ts_use_ir_aug = test_dict['TD_AUG']['IR_AUG']
         self.ts_snr = test_dict['TD_AUG']['BG_AUG_SNR']
+
         self.ts_segment_dur = test_dict['SEGMENT_DUR']
         self.ts_segment_hop = test_dict['SEGMENT_HOP']
-        self.ts_batch_sz = test_dict['TS_BATCH_SZ']
+        # self.ts_batch_sz = test_dict['TS_BATCH_SZ']
+        self.ts_segments_per_track = test_dict['SEGMENTS_PER_TRACK']
 
         # Pre-load file paths for augmentation
         self.__set_augmentation_fps()
@@ -230,11 +228,8 @@ class Dataset:
             ir_mix_parameter=[self.val_use_ir_aug, self.val_ir_fps],
             )
 
-    # TODO: why does ts_n_anchor=ts_batch_sz makes it faster?
     def get_test_noise_ds(self):
-        """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.:
-            In this case, high-speed fingerprinting is possible without
-            augmentation by setting ts_n_anchor=ts_batch_sz.
+        """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.
 
             Returns:
             --------
@@ -243,13 +238,10 @@ class Dataset:
         """
 
         print(f"Creating the test-dummy-DB dataset (noise tracks)...")
-        if self.ts_noise_paths_file!="":
-            with open(self.ts_noise_paths_file, 'r') as f:
-                self.ts_noise_paths = sorted(f.read().splitlines(keepends=False))
-        else:
-            self.ts_noise_paths = sorted(glob.glob(self.ts_noise_dataset_dir+ '/**/*.mp4', 
-                        recursive=True))
-        print(f"{len(self.ts_noise_paths):,} tracks found.")
+        self.ts_noise_paths = sorted(
+            glob.glob(self.ts_noise_dataset_dir+ '/**/*.npy', 
+                    recursive=True))
+        print(f"{len(self.ts_noise_paths):,} noise tracks found.")
         return genUnbalSequenceGeneration(
             track_paths=self.ts_noise_paths,
             duration=self.ts_segment_dur,
@@ -262,7 +254,7 @@ class Dataset:
             n_mels=self.n_mels,
             f_min=self.fmin,
             f_max=self.fmax,
-            bsz=self.ts_batch_sz) # Only anchors
+            segments_per_track=self.ts_segments_per_track)
 
     def get_test_query_ds(self):
         """ Create 2 databases for query segments. One of them is the augmented 

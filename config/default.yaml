@@ -71,7 +71,7 @@ TRAIN:
 TEST:
     SEGMENT_DUR : 1. # Unit segment length in seconds.
     SEGMENT_HOP : .5 # Hop-size of the segment window in seconds.
-    TS_BATCH_SZ : 125
+    SEGMENTS_PER_TRACK: 120 # Number of segments per track.
     # Time-domain augmentation parameters
     TD_AUG:
         BG_AUG : True # If you augment beforehand, set this to False.
@@ -89,7 +89,7 @@ TEST:
     DIR:
         NOISE_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/test/noise/'
         CLEAN_QUERY_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/test/query_clean/'
-        AUGMENTED_QUERY_ROOT : '../neural-audio-fp-dataset/music/discotube_2023-188000/test/query_augmented/'
+        AUGMENTED_QUERY_ROOT : Null
                             # You can provide empty string to AUGMENTED_QUERY_ROOT and set
                             # TD_AUG.TS_BG_AUG=True and TD_AUG.TS_IR_AUG=True to enable
                             # real-time augmentation during testing. 
@@ -97,9 +97,6 @@ TEST:
         # noise files, and the dataset will read all the .mp4 files in that directory.
         # Or a text file that contains the paths to the noise files. When NOISE_PATHS_FILE is
         # provided, NOISE_ROOT is ignored.
-        NOISE_PATHS_FILE : '../neural-audio-fp-dataset/music/discotube_2023-188000/discotube-2023.txt.filtered.shuf.188000.durations.test_noise'
-        CLEAN_QUERY_PATHS_FILE : '../neural-audio-fp-dataset/music/discotube_2023-188000/discotube-2023.txt.filtered.shuf.188000.durations.test_query'
-        AUGMENTED_QUERY_PATHS_FILE: ''
         BG_ROOT : '../neural-audio-fp-dataset/aug/bg/ts/'
         IR_ROOT : '../neural-audio-fp-dataset/aug/ir/ts/'
 
