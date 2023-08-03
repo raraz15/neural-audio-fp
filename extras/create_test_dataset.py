@@ -3,8 +3,6 @@ import argparse
 import essentia.standard as es
 import numpy as np
 
-SAMPLE_RATE = 8000
-
 def cut_segments(audio, L, H):
     """ Cut the audio into consecutive segments of length L with hop size H.
     Discards the last segment."""
@@ -15,10 +13,10 @@ def cut_segments(audio, L, H):
     remainder = len(audio) - L - (N_cut-1)*H
     assert remainder < L, "remainder should be smaller than L"
 
-    # Cut the signal into N_segments segments and discard the remainder
+    # Cut the signal into segments and discard the remainder
     start_indices = np.arange(N_cut)*H
     end_indices = start_indices + L
-    assert np.all(end_indices < len(audio)), "end times are out of bounds"
+    assert np.all(end_indices <= len(audio)), "end times are out of bounds"
 
     # Get the segments
     segments = []
@@ -28,7 +26,6 @@ def cut_segments(audio, L, H):
 
     return segments
 
-# TODO: augmentation?
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='Extracts segments from audio files.')
@@ -40,9 +37,9 @@ if __name__=="__main__":
                         help='Path to the text file containing test_noise audio paths.')
     parser.add_argument('output_dir', 
                         type=str,
-                        help='Path to the output directory. Taken frames will be written '
-                         'here as .npy files. The directory structure will be '
-                         'output_dir/test/split/audio_name[:2]/audio_name/segment_start_segment_end.npy')
+                        help='Path to the output directory. Frames will be written '
+                         'here as in single .npz file. The directory structure will be '
+                         'output_dir/test/<split>/audio_name[:2]/audio_name.npz')
     parser.add_argument('--segment_duration', 
                         type=float, 
                         default=1.0,
@@ -51,12 +48,24 @@ if __name__=="__main__":
                         type=float, 
                         default=0.5,
                         help='Hop duration of segments in seconds.')
+    parser.add_argument('--min_duration',
+                        type=float,
+                        default=60,
+                        help='Minimum duration of audio files in seconds. '
+                        'Files shorter than this will be skipped.')
+    parser.add_argument("--sample_rate",
+                        type=int,
+                        default=8000,
+                        help="Sample rate to use for audio files.")
     args = parser.parse_args()
 
     # Calculate the number of samples for each segment and hop
-    L = int(args.segment_duration * SAMPLE_RATE)
-    H = int(args.hop_duration * SAMPLE_RATE)
+    L = int(args.segment_duration * args.sample_rate)
+    H = int(args.hop_duration * args.sample_rate)
     assert L > H, "segment duration should be larger than hop duration"
+
+    # Calculate the minimum number of samples required for each audio file
+    min_samples = int(args.min_duration * args.sample_rate)
 
     # Read the text files
     with open(args.query_text, "r") as f:
@@ -65,7 +74,7 @@ if __name__=="__main__":
         noise_paths = [line.strip() for line in f.readlines()]
 
     # Cut segments from each audio file for each set and write them to disk
-    for split, paths in zip(["query_clean", "noise"], [query_paths, noise_paths]):
+    for split, paths in zip(["noise", "query_clean"], [noise_paths, query_paths]):
 
         # Count the number of total segments
         counter = 0
@@ -82,36 +91,46 @@ if __name__=="__main__":
             if (i+1) % 10000 == 0:
                 print(f"{split}: [{i+1}/{len(paths)}]")
 
+            # if split == "noise" and i >= MAX_NOISE_TRACKS:
+            #     print(f"Reached max number of noise tracks: {MAX_NOISE_TRACKS}")
+            #     break
+
             # Create a directory for the audio segments following the same
             # directory structure as the original discotube dataset
             audio_name = os.path.splitext(os.path.basename(audio_path))[0]
-            segments_dir = os.path.join(split_dir, audio_name[:2], audio_name)
-            os.makedirs(segments_dir, exist_ok=True)
+            audio_dir = os.path.join(split_dir, audio_name[:2])
+            os.makedirs(audio_dir, exist_ok=True)
 
-            # Load the audio and downsample to SAMPLE_RATE, 
+            # Load the audio and downsample to args.sample_rate, 
             # use the lowest quality for high speed downsampling
             audio = es.MonoLoader(filename=audio_path, 
-                                sampleRate=SAMPLE_RATE, 
+                                sampleRate=args.sample_rate, 
                                 resampleQuality=4)()
+            
+            if len(audio) < min_samples:
+                print(f"Skipping {audio_path}, duration is too short.")
+                continue
+
+            # Get a random min_samples segment from the audio
+            start = np.random.randint(0, len(audio) - min_samples)
+            audio = audio[start:start+min_samples]
 
             # Cut the audio into segments
             try:
-                segments = cut_segments(audio, L, H)
+                segments = np.array([s[2] for s in cut_segments(audio, L, H)])
             except AssertionError as e:
                 print(f"Skipping {audio_path}")
                 print(e)
                 continue
 
-            # Write the segments to disk
-            for start,end, segment in segments:
-                segment_path = os.path.join(segments_dir, 
-                                            f"{start}_{end}.npy")
-                with open(segment_path, "wb") as f:
-                    # Write as float16 to save disk space
-                    np.save(f, segment.astype(np.float16))
-                counter += 1
+            # Write the segments to disk as npz files
+            segments_path = os.path.join(audio_dir, audio_name+".npz")
+            with open(segments_path, "wb") as f:
+                # Write as float16 to save disk space
+                np.savez(f, segments.astype(np.float16))
+            counter += 1
 
         print(f"{split}: [{i+1}/{len(paths)}]")
-        print(f"Total number of successfully saved segments: {counter}")
+        print(f"Total number of successfully segmented tracks: {counter}")
 
     print("Done!")
