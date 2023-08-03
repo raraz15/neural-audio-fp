@@ -78,7 +78,6 @@ class ConvLayer(tf.keras.layers.Layer):
                                             self.BN_3x1
                                             ])
 
-       
     def call(self, x):
         return self.forward(x)
 
@@ -224,8 +223,6 @@ class FingerPrinter(tf.keras.Model):
     @tf.function
     def call(self, inputs):
         """ Input: (B,F,T,1)"""
-
-        inputs = tf.cast(inputs, dtype=tf.float16)
 
         x = self.front_conv(inputs) # (B,D) with D = (T/2^4) x last_hidden_ch
         x = self.div_enc(x) # (B,Q)
