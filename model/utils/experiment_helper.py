@@ -78,7 +78,7 @@ class ExperimentHelper():
             _root_dir = './logs/'
 
         # Set the default directories
-        self._log_dir = _root_dir + 'fit/' + checkpoint_name + '/'
+        self._log_dir = _root_dir + f'fit/{checkpoint_name}/'
         self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
         self._best_checkpoint_save_dir = _root_dir + f'best_checkpoint/{checkpoint_name}/'
 
@@ -94,7 +94,9 @@ class ExperimentHelper():
 
         # Logging loss and acc metrics
         self._tr_loss = K.metrics.Mean(name='train_loss')
+        self._tr_loss.reset_states()
         self._val_loss = K.metrics.Mean(name='val_loss')
+        self._val_loss.reset_states()
         self._minitest_acc = None
 
         # Assign optimizer and model to checkpoint
@@ -161,45 +163,28 @@ class ExperimentHelper():
         if self._cfg_use_tensorboard:
             self.write_lr()
 
-    def load_checkpoint(self):
-        """ Try loading a saved checkpoint. If no checkpoint, initialize from
-            scratch.
-        """
-
-        if self.c_manager.latest_checkpoint:
-            tf.print("-----------Restoring model from {}-----------".format(
-                self.c_manager.latest_checkpoint))
-            status = self._checkpoint.restore(self.c_manager.latest_checkpoint)
-            status.expect_partial()
-            self.epoch = int(self.c_manager.latest_checkpoint.split(sep='ckpt-')[-1]) + 1
-        else:
-            tf.print("-----------Initializing model from scratch-----------")
-
-    def save_checkpoint(self):
-        """Save current model and optimizer states to checkpoint."""
-
-        self.c_manager.save()
-
     def update_tr_loss(self, value, tb=None):
         """
         Parameters
         ----------
-        value : (float)
-            Update training loss value to return the average loss within this epoch.
-        tb : (bool), optional
-            Write to tensorboard if set True. The default is set by config flie or False.
+            value : (float)
+                Loss value of the current train step.
+            tb : (bool), optional
+                Write to tensorboard if set True. The default is True.
 
         Returns
         -------
-        avg_tr_loss: (float) Average training loss within current epoch.
+            avg_val_loss: (float) 
+                Cumulative-average validation loss within current epoch after
+                current iteration.
         """
-
-        # Average the loss over the epoch
-        avg_tr_loss = self._tr_loss(value)
 
         if tb or (tb==None and self._cfg_use_tensorboard):
             with self._tr_summary_writer.as_default():
                 tf.summary.scalar('loss', value, step=self.optimizer.iterations)
+
+        # Average the loss over the epoch
+        avg_tr_loss = self._tr_loss(value)
 
         return avg_tr_loss
 
@@ -207,22 +192,24 @@ class ExperimentHelper():
         """
         Parameters
         ----------
-        value : (float)
-            Update validation loss value to return the average loss within this epoch.
-        tb : (bool), optional
-            Write to tensorboard if set True. The default is True.
+            value : (float)
+                Loss value of the current validation step.
+            tb : (bool), optional
+                Write to tensorboard if set True. The default is True.
 
         Returns
         -------
-        avg_val_loss: (float) Cumulative Average validation loss within current epoch.
+            avg_val_loss: (float) 
+                Cumulative-average validation loss within current epoch after
+                current iteration.
         """
-
-        # Cumulative Average the loss over the epoch
-        avg_val_loss = self._val_loss(value)
 
         if tb or (tb==None and self._cfg_use_tensorboard):
             with self._val_summary_writer.as_default():
                 tf.summary.scalar('loss', value, step=self.optimizer.iterations)
+
+        # Cumulative Average the loss over the epoch
+        avg_val_loss = self._val_loss(value)
 
         return avg_val_loss
 
@@ -281,3 +268,22 @@ class ExperimentHelper():
             tf.summary.scalar('lr', 
                               self.optimizer.lr(self.optimizer.iterations),
                               step=self.optimizer.iterations)
+
+    def load_checkpoint(self):
+        """ Try loading a saved checkpoint. If no checkpoint, initialize from
+            scratch.
+        """
+
+        if self.c_manager.latest_checkpoint:
+            tf.print("-----------Restoring model from {}-----------".format(
+                self.c_manager.latest_checkpoint))
+            status = self._checkpoint.restore(self.c_manager.latest_checkpoint)
+            status.expect_partial()
+            self.epoch = int(self.c_manager.latest_checkpoint.split(sep='ckpt-')[-1]) + 1
+        else:
+            tf.print("-----------Initializing model from scratch-----------")
+
+    def save_checkpoint(self):
+        """Save current model and optimizer states to checkpoint."""
+
+        self.c_manager.save()

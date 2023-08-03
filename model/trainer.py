@@ -93,7 +93,7 @@ def train_step(X, m_specaug, m_fp, loss_obj, helper):
     g = t.gradient(loss, m_fp.trainable_variables)
     helper.optimizer.apply_gradients(zip(g, m_fp.trainable_variables))
     avg_loss = helper.update_tr_loss(loss) # To tensorboard
-    return avg_loss, sim_mtx # avg_loss: average within the current epoch
+    return avg_loss, sim_mtx
 
 @tf.function
 def val_step(X, m_fp, loss_obj, helper):
