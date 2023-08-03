@@ -10,7 +10,7 @@ class genUnbalSequence(Sequence):
         segment_dict,
         segment_duration=1,
         full_segment_duration=2,
-        normalize_audio=True,
+        normalize_audio=True, # TODO: normalize segments
         fs=8000,
         n_fft=1024,
         stft_hop=256,
@@ -196,7 +196,7 @@ class genUnbalSequence(Sequence):
 
             if self.bg_mix == True:
                 # Prepare BG for positive samples
-                bg_fnames = [self.bg_fnames[i%self.n_bg_samples] for i in range(i0, i1)]
+                bg_fnames = [self.bg_fnames[i%self.n_bg_files] for i in range(i0, i1)]
                 bg_batch = self.batch_read_bg(bg_fnames, idx)
                 # Mix
                 Xp_batch = bg_mix_batch(Xp_batch,
@@ -205,19 +205,19 @@ class genUnbalSequence(Sequence):
 
             if self.ir_mix == True:
                 # Prepare IR for positive samples
-                ir_fnames = [self.ir_fnames[i%self.n_ir_samples] for i in range(i0, i1)]
+                ir_fnames = [self.ir_fnames[i%self.n_ir_files] for i in range(i0, i1)]
                 ir_batch = self.batch_read_ir(ir_fnames)
                 # Ir aug
                 Xp_batch = ir_aug_batch(Xp_batch, ir_batch)
 
         # Compute mel spectrograms
-        Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch)
-        Xp_batch_mel = self.mel_spec.compute_batch(Xp_batch)
+        Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch).astype(np.float32)
+        Xp_batch_mel = self.mel_spec.compute_batch(Xp_batch).astype(np.float32)
 
         # Fix the dimensions
-        Xa_batch_mel = np.expand_dims(Xa_batch_mel, 3).astype(np.float32)
+        Xa_batch_mel = np.expand_dims(Xa_batch_mel, 3)
         if Xp_batch_mel.size>0: # if there are positive samples
-            Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3).astype(np.float32)
+            Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3)
 
         return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
 
@@ -451,7 +451,7 @@ class genUnbalSequence(Sequence):
             # Load all bg clips in full duration
             self.bg_clips = {fn: load_audio(fn, fs=self.fs, normalize=self.normalize_audio) 
                              for fn in self.bg_fnames}
-            self.n_bg_samples = len(self.bg_clips)
+            self.n_bg_files = len(self.bg_clips)
 
             # Check if we have enough bg samples. Ideally, every segment of every bg track 
             # should be used at least once. If not, we warn the user.
@@ -498,7 +498,7 @@ class genUnbalSequence(Sequence):
                 if len(X) > self.max_ir_length:
                     X = X[:self.max_ir_length]
                 self.ir_clips[fn] = X
-            self.n_ir_samples = len(self.ir_clips)
+            self.n_ir_files = len(self.ir_clips)
 
             # Check if we have enough ir samples. Ideally, every segment of every ir track
             # should be used at least once. If not, we warn the user.
