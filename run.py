@@ -113,23 +113,22 @@ def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, output,
 @click.argument('checkpoint_index', required=True)
 @click.option('--config', '-c', default='default', required=False,
               type=click.STRING,
-              help="Name of the model configuration file located in 'config/'." +
+              help="Name of the model configuration file located in 'config/'."
               " Default is 'default'.")
 @click.option('--index_type', '-i', default='ivfpq', type=click.STRING,
-              help="Index type must be one of {'L2', 'IVF', 'IVFPQ', " +
+              help="Index type must be one of {'L2', 'IVF', 'IVFPQ', "
               "'IVFPQ-RR', 'IVFPQ-ONDISK', HNSW'}")
 @click.option('--test_seq_len', default='1 3 5 9 11 19', type=click.STRING,
-              help="A set of different number of segments to test. " +
-              "Numbers are separated by spaces. Default is '1 3 5 9 11 19', " +
-              "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec " +
+              help="A set of different number of segments to test. "
+              "Numbers are separated by spaces. Default is '1 3 5 9 11 19', "
+              "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec "
               "segment duration and 0.5 sec hop duration.")
-@click.option('--test_ids', '-t', default='icassp', type=click.STRING,
-              help="One of {'all', 'icassp', 'path/file.npy', (int)}. " +
-              "If 'all', test all IDs from the test. If 'icassp', use the 2,000 " +
-              "sequence starting point IDs of 'eval/test_ids_icassp.npy' " +
-              "located in ./eval directory. You can also specify the 1-D array "
-              "file's location. Any numeric input N (int) > 0 will perform "
-              "search test at random position (ID) N times. Default is 'icassp'.")
+@click.option('--test_ids', '-t', default='all', type=click.STRING,
+              help="One of {'all', 'path/file.npy', (int)}. " 
+              "If 'all', test all IDs from the test. You can also specify a 1-D array "
+              "file's location that contains the start indices to the the evaluation. "
+              "Any numeric input N (int) > 0 will perform search test at random position "
+              "(ID) N times. Default is 'all'.")
 @click.option('--nogpu', default=False, is_flag=True,
               help='Use this flag to use CPU only.')
 def evaluate(checkpoint_name, checkpoint_index, config, index_type, test_seq_len, test_ids, nogpu):

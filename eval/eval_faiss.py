@@ -6,14 +6,12 @@
 import os
 import sys
 import time
-import glob
 import click
 import curses
 import numpy as np
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from eval.utils.get_index_faiss import get_index
 from eval.utils.print_table import PrintTable
-
 
 def load_memmap_data(source_dir,
                      fname,
@@ -61,34 +59,33 @@ def load_memmap_data(source_dir,
         print(f'Load {data_shape[0]:,} items from \033[32m{path_data}\033[0m.')
     return data, data_shape
 
-
 @click.command()
 @click.argument('emb_dir', required=True,type=click.STRING)
 @click.option('--emb_dummy_dir', default=None, type=click.STRING,
-              help="Specify a directory containing 'dummy_db.mm' and " +
+              help="Specify a directory containing 'dummy_db.mm' and "
               "'dummy_db_shape.npy' to use. Default is EMB_DIR.")
 @click.option('--index_type', '-i', default='ivfpq', type=click.STRING,
-              help="Index type must be one of {'L2', 'IVF', 'IVFPQ', " +
+              help="Index type must be one of {'L2', 'IVF', 'IVFPQ', "
               "'IVFPQ-RR', 'IVFPQ-ONDISK', HNSW'}")
 @click.option('--nogpu', default=False, is_flag=True,
               help='Use this flag to use CPU only.')
 @click.option('--max_train', default=1e7, type=click.INT,
               help='Max number of items for index training. Default is 1e7.')
 @click.option('--test_seq_len', default='1 3 5 9 11 19', type=click.STRING,
-              help="A set of different number of segments to test. " +
-              "Numbers are separated by spaces. Default is '1 3 5 9 11 19'," +
-              " which corresponds to '1s, 2s, 3s, 5s, 6s, 10s'.")
-@click.option('--test_ids', '-t', default='icassp', type=click.STRING,
-              help="One of {'all', 'icassp', 'path/file.npy', (int)}. If 'all', " +
-              "test all IDs from the test. If 'icassp', use the 2,000 " +
-              "sequence starting point IDs of 'eval/test_ids_icassp.npy' " +
-              "located in ./eval directory. You can also specify the 1-D array "
-              "file's location. Any numeric input N (int) > 0 will randomly "
-              "select N IDs. Default is 'icassp'.")
+              help="A set of different number of segments to test. "
+              "Numbers are separated by spaces. Default is '1 3 5 9 11 19', "
+              "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec segment "
+              "duration and 0.5 sec hop duration.")
+@click.option('--test_ids', '-t', default='all', type=click.STRING,
+              help="One of {'all', 'path/file.npy', (int)}. "
+              "If 'all', test all IDs from the test. You can also specify a 1-D array "
+              "file's location that contains the start indices to the the evaluation. "
+              "Any numeric input N (int) > 0 will perform search test at random position "
+              "(ID) N times. Default is 'all'.")
 @click.option('--k_probe', '-k', default=20, type=click.INT,
               help="Top k search for each segment. Default is 20")
 @click.option('--display_interval', '-dp', default=10, type=click.INT,
-              help="Display interval. Default is 10, which updates the table" +
+              help="Display interval. Default is 10, which updates the table"
               " every 10 queries.")
 def eval_faiss(emb_dir,
                emb_dummy_dir=None,
@@ -176,12 +173,11 @@ def eval_faiss(emb_dir,
     t = time.time() - start_time
     print(f'Created fake_recon_index, total {index_shape[0]} items. {t:>4.2f} sec.')
 
+    # TODO: is -max() true? I feel like its skipping data
     # Get test_ids
     print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
     if test_ids.lower() == 'all': # will test all segments in query/db set
         test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
-    elif test_ids.lower() == 'icassp':
-        test_ids = np.load(glob.glob('./**/test_ids_icassp2021.npy', recursive=True)[0])
     elif test_ids.isnumeric():
         test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
     else:
