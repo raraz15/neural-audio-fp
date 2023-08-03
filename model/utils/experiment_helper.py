@@ -86,8 +86,6 @@ class ExperimentHelper():
         self._tr_summary_writer = create_file_writer(self._log_dir + '/train')
         self._val_summary_writer = create_file_writer(self._log_dir + '/val')
         self._lr_summary_writer = create_file_writer(self._log_dir + '/lr')
-        # TODO: delete one of them
-        self._lr_decayed_summary_writer = create_file_writer(self._log_dir + '/lr_decayed')
         self._minitest_summary_writer_dict = dict()
         for key in ['f', 'L2(f)', 'g(f)']:
             self._minitest_summary_writer_dict[key] = create_file_writer(
@@ -282,9 +280,4 @@ class ExperimentHelper():
         with self._lr_summary_writer.as_default():
             tf.summary.scalar('lr', 
                               self.optimizer.lr(self.optimizer.iterations),
-                              step=self.optimizer.iterations)
-
-        with self._lr_decayed_summary_writer.as_default():
-            tf.summary.scalar('lr_decayed', 
-                              self.optimizer._decayed_lr(tf.float32), 
                               step=self.optimizer.iterations)
