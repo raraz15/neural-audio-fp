@@ -137,9 +137,9 @@ class Dataset:
             "reduce_items_p should be in (0, 100]"
 
         if self.tr_use_bg_aug:
-            print(f"tr_bg_fps: {len(self.tr_bg_fps):,}")
+            print(f"tr_bg_fps: {len(self.tr_bg_fps):>6,}")
         if self.tr_use_ir_aug:
-            print(f"tr_ir_fps: {len(self.tr_ir_fps):,}")
+            print(f"tr_ir_fps: {len(self.tr_ir_fps):>6,}")
 
         # Find the tracks and their segments
         self.tr_source_fps = {}
@@ -201,9 +201,9 @@ class Dataset:
 
         print(f"Creating the validation dataset from {self.val_dataset_dir}...")
         if self.val_use_bg_aug:
-            print(f"val_bg_fps: {len(self.val_bg_fps):,}")
+            print(f"val_bg_fps: {len(self.val_bg_fps):>6,}")
         if self.val_use_ir_aug:
-            print(f"val_ir_fps: {len(self.val_ir_fps):,}")
+            print(f"val_ir_fps: {len(self.val_ir_fps):>6,}")
 
         self.val_source_fps = {}
         main_dirs = os.listdir(self.val_dataset_dir)
@@ -316,9 +316,9 @@ class Dataset:
         else:
             print("Will augment the clean query tracks in real time. ")
             if self.ts_use_bg_aug:
-                print(f"ts_bg_fps: {len(self.ts_bg_fps):,}")
+                print(f"ts_bg_fps: {len(self.ts_bg_fps):>6,}")
             if self.ts_use_ir_aug:
-                print(f"ts_ir_fps: {len(self.ts_ir_fps):,}")
+                print(f"ts_ir_fps: {len(self.ts_ir_fps):>6,}")
             ds_query = genUnbalSequenceGeneration(
                 self.ts_query_clean,
                 segments_per_track=self.ts_segments_per_track,
