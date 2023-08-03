@@ -105,15 +105,16 @@ def get_fns_seg_dict(fns_list=[],
 #### Audio Processing ####
 
 def max_normalize(x):
-    """
+    """ Max-normalize an audio signal or a batch of audio signals.
+    
     Parameters
     ----------
-    x : (ndarray)
+        x : (ndarray)
 
     Returns
     -------
-    (float)
-        Max-normalized audio signal.
+        x: (float)
+            Max-normalized audio signal.
     """
 
     if len(x.shape)==1:
@@ -128,6 +129,32 @@ def max_normalize(x):
         return x / max_val
     else:
         raise NotImplementedError
+
+def OLA(segments, overlap):
+    """ Overlap and add segments."""
+
+    assert overlap>=0 and overlap<=1, 'overlap should be between 0 and 1'
+    if overlap!=0.5:
+        raise NotImplementedError('We only support overlap=0.5 for now.')
+    assert len(segments.shape) == 2, 'segments should be 2D array'
+
+    # Get the number of segments and samples
+    n_segments, n_samples = segments.shape
+
+    # Calculate the hop size and the number of samples in the output
+    hop = int(n_samples * (1-overlap))
+    n_samples_out = (n_segments - 1) * hop + n_samples
+
+    out = np.zeros(n_samples_out)
+    for i in range(n_segments):
+        out[i*hop: i*hop + n_samples] += segments[i]
+
+    # Since we are adding the segments, we need to divide the overlapping parts by 2
+    out[hop:-hop] /= 2
+
+    return out
+
+# TODO: cut to segment function with and without remainder
 
 #### Audio IO ####
 
@@ -349,6 +376,7 @@ def load_audio_multi_start(filename=str(),
     return out  # (B,T)
 
 def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
+
     import wavio, glob, scipy
 
     fns = glob.glob(root_dir + '**/*.npy', recursive=True)
@@ -425,7 +453,7 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
             SNR range in dB. (min, max)
     """
 
-    assert snr_range[0] < snr_range[1], 'snr_range should be (min, max)'
+    assert snr_range[0] <= snr_range[1], 'snr_range should be (min, max)'
     assert event_batch.shape == bg_batch.shape, \
         'event_batch and bg_batch should have the same shape.'
 
