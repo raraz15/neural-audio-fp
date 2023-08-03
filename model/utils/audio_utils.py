@@ -108,7 +108,7 @@ def max_normalize(x):
     """
     Parameters
     ----------
-    x : (float)
+    x : (ndarray)
 
     Returns
     -------
@@ -116,11 +116,18 @@ def max_normalize(x):
         Max-normalized audio signal.
     """
 
-    max_val = np.max(np.abs(x))
-    if max_val==0:
-        return x
+    if len(x.shape)==1:
+        max_val = np.max(np.abs(x))
+        if max_val==0:
+            return x
+        else:
+            return x / np.max(np.abs(max_val))
+    elif len(x.shape)==2:
+        max_val = np.max(np.abs(x), axis=1, keepdims=True)
+        max_val[max_val==0] = 1
+        return x / max_val
     else:
-        return x / np.max(np.abs(max_val))
+        raise NotImplementedError
 
 #### Audio IO ####
 
