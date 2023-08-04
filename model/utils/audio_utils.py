@@ -155,6 +155,33 @@ def OLA(segments, overlap):
     return out
 
 # TODO: cut to segment function with and without remainder
+def cut_to_segments(audio, L, H):
+    """ Cut the audio into consecutive segments of length L with hop size H.
+    Discards the remainder segment."""
+
+    # Calculate the number of segments that can be cut from the audio
+    N_cut = int(np.floor((len(audio) - L + H) / H))
+    assert N_cut > 0, "audio is too short"
+    remainder = len(audio) - L - (N_cut-1)*H
+    assert remainder < L, "remainder should be smaller than L"
+
+    # Cut the signal into segments and discard the remainder
+    start_indices = np.arange(N_cut)*H
+    end_indices = start_indices + L
+    assert np.all(end_indices <= len(audio)), "end times are out of bounds"
+
+    # Get the segments
+    segments, boundaries = [], []
+    for start,end in zip(start_indices, end_indices):
+        segment = audio[start:end]
+        segments.append(segment)
+        boundaries.append([start, end])
+
+    # Convert to numpy array
+    segments = np.array(segments)
+    boundaries = np.array(boundaries)
+
+    return segments, boundaries
 
 #### Audio IO ####
 
@@ -410,7 +437,7 @@ def background_mix(x, x_bg, snr_db):
     def _RMS_amplitude(x):
         return np.sqrt(np.mean(x**2))
 
-    assert len(x) == len(x_bg), 'x and x_bg should have the same length.'
+    assert len(x) == len(x_bg), f'x=({len(x)}) and x_bg=({len(x_bg)}) should have the same length.'
 
     # Get the RMS Amplitude for each signal
     rms_bg = _RMS_amplitude(x_bg)
