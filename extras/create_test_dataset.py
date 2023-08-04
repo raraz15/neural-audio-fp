@@ -29,17 +29,19 @@ def cut_segments(audio, L, H):
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='Extracts segments from audio files.')
-    parser.add_argument('query_text', 
-                        type=str,
-                        help='Path to the text file containing test_query audio paths.')
-    parser.add_argument('noise_text', 
-                        type=str,
-                        help='Path to the text file containing test_noise audio paths.')
     parser.add_argument('output_dir', 
                         type=str,
                         help='Path to the output directory. Frames will be written '
                          'here as in single .npy file. The directory structure will be '
                          'output_dir/test/<split>/audio_name[:2]/audio_name.npy')
+    parser.add_argument('--query_text', 
+                        type=str,
+                        default=None,
+                        help='Path to the text file containing test_query audio paths.')
+    parser.add_argument('--noise_text', 
+                        type=str,
+                        default=None,
+                        help='Path to the text file containing test_noise audio paths.')
     parser.add_argument('--segment_duration', 
                         type=float, 
                         default=1.0,
@@ -66,14 +68,20 @@ if __name__=="__main__":
     # Calculate the minimum number of samples required for each audio file
     min_samples = int((args.num_segments-1)*H + L)
 
+    assert args.query_text is not None or args.noise_text is not None, \
+        "At least one of --query_text or --noise_text should be provided."
+
     # Read the text files containing the audio paths
-    with open(args.noise_text, "r") as f:
-        noise_paths = [line.strip() for line in f.readlines()]
-    with open(args.query_text, "r") as f:
-        query_paths = [line.strip() for line in f.readlines()]
+    noise_paths, query_paths = [], []
+    if args.noise_text is not None:
+        with open(args.noise_text, "r") as f:
+            noise_paths = [line.strip() for line in f.readlines()]
+    if args.query_text is not None:
+        with open(args.query_text, "r") as f:
+            query_paths = [line.strip() for line in f.readlines()]
 
     # Cut segments from each audio file for each set and write them to disk
-    for split, paths in zip(["noise", "query_clean"], [noise_paths, query_paths]):
+    for split, paths in zip(["query_clean", "noise"], [query_paths, noise_paths]):
 
         # Count the number of total segments
         counter = 0
@@ -96,11 +104,15 @@ if __name__=="__main__":
             audio_dir = os.path.join(split_dir, audio_name[:2])
             os.makedirs(audio_dir, exist_ok=True)
 
-            # Load the audio and downsample to args.sample_rate, 
-            # use the lowest quality for high speed downsampling
-            audio = es.MonoLoader(filename=audio_path, 
-                                sampleRate=args.sample_rate, 
-                                resampleQuality=4)()
+            try:
+                # Load the audio and downsample to args.sample_rate, 
+                # use the lowest quality for high speed downsampling
+                audio = es.MonoLoader(filename=audio_path, 
+                                    sampleRate=args.sample_rate, 
+                                    resampleQuality=4)()
+            except:
+                print(f"Skipping {audio_path}, could not load audio.")
+                continue
 
             if len(audio) < min_samples:
                 print(f"Skipping {audio_path}, duration is too short.")
