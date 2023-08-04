@@ -1,7 +1,7 @@
 import numpy as np
 from tensorflow.keras.utils import Sequence
 
-from model.utils.audio_utils import background_mix, ir_aug, load_audio, get_fns_seg_dict, max_normalize, OLA
+from model.utils.audio_utils import background_mix, ir_aug, load_audio, get_fns_seg_dict, max_normalize, OLA, cut_to_segments
 
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 
@@ -57,6 +57,7 @@ class genUnbalSequenceGeneration(Sequence):
         self.segments_per_track = segments_per_track
         self.segment_length = int(self.fs*self.duration)
         self.hop_length = int(self.fs*self.hop)
+        self.overlap = (self.segment_length - self.hop_length) / self.segment_length
         self.chunk_length = int(((segments_per_track-1)*self.hop + self.duration)*fs)
 
         self.track_paths = track_paths
@@ -121,7 +122,7 @@ class genUnbalSequenceGeneration(Sequence):
         # Apply augmentations if specified
         if self.bg_mix:
             # Apply OLA to the segments
-            X = OLA(X, self.hop_length)
+            X = OLA(X, self.overlap)
             # Get a random background noise sample
             bg_fname = self.bg_fnames[idx%self.n_bg_files]
             bg_noise = self.read_bg(bg_fname)
@@ -133,17 +134,17 @@ class genUnbalSequenceGeneration(Sequence):
                                 bg_noise.reshape(-1),
                                 snr_db=snr)
             # Reshape the track to (n_segments, segment_length)
-            X = X.reshape(self.segments_per_track, -1)
+            X, _ = cut_to_segments(X, self.segment_length, self.hop_length)
         if self.ir_mix:
             # Apply OLA to the segments
-            X = OLA(X, self.hop_length)
+            X = OLA(X, self.overlap)
             # Get a random IR sample
             ir_fname = self.ir_fnames[idx%self.n_ir_files]
             ir = self.read_ir(ir_fname)
             # Convolve with IR
             X = ir_aug(X, ir)
             # Reshape the track to (n_segments, segment_length)
-            X = X.reshape(self.segments_per_track, -1)
+            X, _ = cut_to_segments(X, self.segment_length, self.hop_length)
 
         # Compute mel spectrograms
         X_mel = self.mel_spec.compute_batch(X)
@@ -180,7 +181,8 @@ class genUnbalSequenceGeneration(Sequence):
             # we repeat it until we have a sample of length chunk_length
             n_repeats = int(np.ceil(self.chunk_length / len(bg)))
             bg = np.tile(bg, n_repeats)
-        else:
+            bg = bg[:self.chunk_length]
+        elif len(bg) > self.chunk_length:
             # Otherwise we cut a random part
             start = np.random.randint(0, len(bg) - self.chunk_length)
             bg = bg[start:start+self.chunk_length]
