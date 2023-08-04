@@ -29,11 +29,6 @@ def cut_segments(audio, L, H):
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='Extracts segments from audio files.')
-    parser.add_argument('output_dir', 
-                        type=str,
-                        help='Path to the output directory. Frames will be written '
-                         'here as in single .npy file. The directory structure will be '
-                         'output_dir/test/<split>/audio_name[:2]/audio_name.npy')
     parser.add_argument('--query_text', 
                         type=str,
                         default=None,
@@ -42,6 +37,12 @@ if __name__=="__main__":
                         type=str,
                         default=None,
                         help='Path to the text file containing test_noise audio paths.')
+    parser.add_argument('--output_dir', 
+                        type=str,
+                        default="../test/",
+                        help='Path to the output directory. Frames will be written '
+                         'here as in single .npy file. The directory structure will be '
+                         'output_dir/test/<split>/audio_name[:2]/audio_name.npy')
     parser.add_argument('--segment_duration', 
                         type=float, 
                         default=1.0,
@@ -60,14 +61,6 @@ if __name__=="__main__":
                         help="Sample rate to use for audio files.")
     args = parser.parse_args()
 
-    # Calculate the number of samples for each segment and hop
-    L = int(args.segment_duration * args.sample_rate)
-    H = int(args.hop_duration * args.sample_rate)
-    assert L > H, "segment duration should be larger than hop duration"
-
-    # Calculate the minimum number of samples required for each audio file
-    min_samples = int((args.num_segments-1)*H + L)
-
     assert args.query_text is not None or args.noise_text is not None, \
         "At least one of --query_text or --noise_text should be provided."
 
@@ -76,9 +69,20 @@ if __name__=="__main__":
     if args.noise_text is not None:
         with open(args.noise_text, "r") as f:
             noise_paths = [line.strip() for line in f.readlines()]
+    print(f"Number of noise files: {len(noise_paths)}")
     if args.query_text is not None:
         with open(args.query_text, "r") as f:
             query_paths = [line.strip() for line in f.readlines()]
+    print(f"Number of query files: {len(query_paths)}")
+
+    # Calculate the number of samples for each segment and hop
+    L = int(args.segment_duration * args.sample_rate)
+    H = int(args.hop_duration * args.sample_rate)
+    assert L > H, "segment duration should be larger than hop duration"
+
+    # Calculate the minimum number of samples required for each audio file
+    assert args.num_segments >= 1, "num_segments should be greater than or equal to 1"
+    min_samples = int((args.num_segments-1)*H + L)
 
     # Cut segments from each audio file for each set and write them to disk
     for split, paths in zip(["query_clean", "noise"], [query_paths, noise_paths]):
@@ -86,17 +90,14 @@ if __name__=="__main__":
         # Count the number of total segments
         counter = 0
 
-        # Create the split directory 
         split_dir = os.path.join(args.output_dir, "test", split)
-        os.makedirs(split_dir, exist_ok=True)
-        print(f"Split Directory: {split_dir}")
+
+        if len(paths) == 0:
+            print(f"No files found for {split}, skipping...")
+            continue
 
         # Sample segments from each audio file
         for i, audio_path in enumerate(paths):
-
-            # Print progress
-            if (i+1) % 10000 == 0:
-                print(f"{split}: [{i+1}/{len(paths)}]")
 
             # Create a directory for the audio segments following the same
             # directory structure as the original discotube dataset
@@ -137,7 +138,11 @@ if __name__=="__main__":
                 np.save(f, segments.astype(np.float16))
             counter += 1
 
-        print(f"{split}: [{i+1}/{len(paths)}]")
-        print(f"Total number of successfully segmented tracks: {counter}")
+            # Print progress
+            if (i+1) % 10000 == 0 or i == len(paths)-1:
+                print(f"{split}: [{i+1}/{len(paths)}]")
+        
+        if len(paths) > 0:
+            print(f"Total number of successfully segmented tracks: {counter}")
 
     print("Done!")
