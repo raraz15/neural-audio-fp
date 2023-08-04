@@ -145,7 +145,7 @@ def evaluate(checkpoint_name, checkpoint_index, config, index_type, test_seq_len
     from eval.eval_faiss import eval_faiss
 
     cfg = load_config(config)
-    emb_dir = cfg['MODEL']['LOG_ROOT_DIR'] + f"{checkpoint_name}/{checkpoint_index}/"
+    emb_dir = cfg['MODEL']['LOG_ROOT_DIR'] + f"emb/{checkpoint_name}/{checkpoint_index}/"
 
     if nogpu:
         eval_faiss([emb_dir, "--index_type", index_type, "--test_seq_len",
