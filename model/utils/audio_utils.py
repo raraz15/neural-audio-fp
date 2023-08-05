@@ -417,6 +417,26 @@ def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
 
 #### Background Noise Augmentation ####
 
+def sample_SNR(n, snr_range=(6, 24)):
+    """ Sample n uniformly random SNRs (dB) from snr_range. 
+    
+    Parameters
+    ----------
+        n : int
+            Number of samples to sample.
+        
+        snr_range : tuple (float)
+            SNR range in dB. (min, max)
+    """
+
+    assert snr_range[0] <= snr_range[1], 'snr_range should be (min, max)'
+
+    # Random SNR for each sample in the batch
+    min_snr, max_snr = snr_range
+    snr = np.random.rand(n) * (max_snr - min_snr) + min_snr
+
+    return snr
+
 def background_mix(x, x_bg, snr_db):
     """
     Parameters
@@ -488,9 +508,8 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
     X_bg_mix = np.zeros((event_batch.shape[0], event_batch.shape[1]))
 
     # Random SNR for each sample in the batch
-    min_snr, max_snr = snr_range
-    snrs = np.random.rand(len(event_batch))
-    snrs = snrs * (max_snr - min_snr) + min_snr
+    snrs = sample_SNR(n=event_batch.shape[0], 
+                      snr_range=snr_range)
 
     # Mix each element with random SNR
     for i in range(len(event_batch)):
