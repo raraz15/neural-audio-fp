@@ -1,7 +1,10 @@
 import numpy as np
 from tensorflow.keras.utils import Sequence
 
-from model.utils.audio_utils import background_mix, ir_aug, load_audio, get_fns_seg_dict, max_normalize, OLA, cut_to_segments
+from model.utils.audio_utils import (sample_SNR, background_mix, 
+                                     ir_aug, ir_aug_batch,
+                                     load_audio, get_fns_seg_dict, 
+                                     max_normalize, OLA, cut_to_segments)
 
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 
@@ -121,14 +124,13 @@ class genUnbalSequenceGeneration(Sequence):
 
         # Apply augmentations if specified
         if self.bg_mix:
-            # Apply OLA to the segments
+            # Reconstruct the audio chunk from the segments
             X = OLA(X, self.overlap)
-            # Get a random background noise sample
+            # Get a random background noise samplexw
             bg_fname = self.bg_fnames[idx%self.n_bg_files]
             bg_noise = self.read_bg(bg_fname)
-            # Randoomly sample an SNR
-            snr = np.random.rand()
-            snr = snr * (self.bg_snr_range[1] - self.bg_snr_range[0]) + self.bg_snr_range[0]
+            # Randomly sample an SNR 
+            snr = sample_SNR(1, self.bg_snr_range)
             # Mix the OLA'd track with the background noise
             X = background_mix(X.reshape(-1),
                                 bg_noise.reshape(-1),
@@ -136,15 +138,12 @@ class genUnbalSequenceGeneration(Sequence):
             # Reshape the track to (n_segments, segment_length)
             X, _ = cut_to_segments(X, self.segment_length, self.hop_length)
         if self.ir_mix:
-            # Apply OLA to the segments
-            X = OLA(X, self.overlap)
             # Get a random IR sample
             ir_fname = self.ir_fnames[idx%self.n_ir_files]
-            ir = self.read_ir(ir_fname)
+            ir = self.read_ir(ir_fname).reshape(1,-1)
+            ir = np.repeat(ir, X.shape[0], axis=0)
             # Convolve with IR
-            X = ir_aug(X, ir)
-            # Reshape the track to (n_segments, segment_length)
-            X, _ = cut_to_segments(X, self.segment_length, self.hop_length)
+            X = ir_aug_batch(X, ir)
 
         # Compute mel spectrograms
         X_mel = self.mel_spec.compute_batch(X)
