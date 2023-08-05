@@ -13,6 +13,10 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from eval.utils.get_index_faiss import get_index
 from eval.utils.print_table import PrintTable
 
+# Fix random seed for reproducibility if using test_ids=int
+SEED = 27
+np.random.seed(SEED)
+
 def load_memmap_data(source_dir,
                      fname,
                      append_extra_length=None,
@@ -84,34 +88,32 @@ def load_memmap_data(source_dir,
               "(ID) N times. Default is 'all'.")
 @click.option('--k_probe', '-k', default=20, type=click.INT,
               help="Top k search for each segment. Default is 20")
-@click.option('--display_interval', '-dp', default=10, type=click.INT,
-              help="Display interval. Default is 10, which updates the table"
-              " every 10 queries.")
+@click.option('--display_interval', '-dp', default=100, type=click.INT,
+              help="Display interval. Default is 100, which updates the table"
+              " every 100 queries.")
 def eval_faiss(emb_dir,
                emb_dummy_dir=None,
                index_type='ivfpq',
                nogpu=False,
                max_train=1e7,
-               test_ids='icassp',
+               test_ids='all',
                test_seq_len='1 3 5 9 11 19',
                k_probe=20,
-               display_interval=5):
+               display_interval=100):
     """
     Segment/sequence-wise audio search experiment and evaluation: implementation 
     based on FAISS.
 
-    ex) python eval.py EMB_DIR --index_type ivfpq
+        ex) python eval.py EMB_DIR --index_type ivfpq
 
     EMB_DIR: Directory where {query, db, dummy_db}.mm files are located. The 
     'raw_score.npy' and 'test_ids.npy' will be also created in the same directory.
     """
 
-    # '1 3 5' --> [1, 3, 5]
-    test_seq_len = np.asarray(list(map(int, test_seq_len.split())))
-
     # Load items from {query, db, dummy_db}
     query, query_shape = load_memmap_data(emb_dir, 'query')
     db, db_shape = load_memmap_data(emb_dir, 'db')
+    assert np.all(query_shape == db_shape), 'query and db must have the same shape.'
     if emb_dummy_dir is None:
         emb_dummy_dir = emb_dir
     dummy_db, dummy_db_shape = load_memmap_data(emb_dummy_dir, 'dummy_db')
@@ -141,8 +143,10 @@ def eval_faiss(emb_dir,
     # Add items to index
     start_time = time.time()
 
-    index.add(dummy_db); print(f'{len(dummy_db)} items from dummy DB')
-    index.add(db); print(f'{len(db)} items from reference DB')
+    index.add(dummy_db)
+    print(f'{len(dummy_db)} items from dummy DB')
+    index.add(db)
+    print(f'{len(db)} items from reference DB')
 
     t = time.time() - start_time
     print(f'Added total {index.ntotal} items to DB. {t:>4.2f} sec.')
@@ -173,7 +177,9 @@ def eval_faiss(emb_dir,
     t = time.time() - start_time
     print(f'Created fake_recon_index, total {index_shape[0]} items. {t:>4.2f} sec.')
 
-    # TODO: is -max() true? I feel like its skipping data
+    # '1 3 5' --> [1, 3, 5]
+    test_seq_len = np.asarray(list(map(int, test_seq_len.split())))
+
     # Get test_ids
     print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
     if test_ids.lower() == 'all': # will test all segments in query/db set
@@ -187,7 +193,7 @@ def eval_faiss(emb_dir,
     gt_ids  = test_ids + dummy_db_shape[0]
     print(f'n_test: \033[93m{n_test:n}\033[0m')
 
-    """ Segement/sequence-level search & evaluation """
+    """ Segment/sequence-level search & evaluation """
     # Define metric
     top1_exact = np.zeros((n_test, len(test_seq_len))).astype(int) # (n_test, test_seg_len)
     top1_near = np.zeros((n_test, len(test_seq_len))).astype(int)
@@ -195,9 +201,10 @@ def eval_faiss(emb_dir,
     top10_exact = np.zeros((n_test, len(test_seq_len))).astype(int)
     # top1_song = np.zeros((n_test, len(test_seq_len))).astype(np.int)
 
-    # TODO: understand sequence level search
+    # TODO: understand sequence level search, are the elements independent?
     scr = curses.initscr()
-    pt = PrintTable(scr=scr, test_seq_len=test_seq_len,
+    pt = PrintTable(scr=scr, 
+                    test_seq_len=test_seq_len,
                     row_names=['Top1 exact', 'Top1 near', 'Top3 exact','Top10 exact'])
     start_time = time.time()
     for ti, test_id in enumerate(test_ids):
@@ -265,8 +272,7 @@ def eval_faiss(emb_dir,
     pt.close_table() # close table and print summary
     del fake_recon_index, query, db
     np.save(f'{emb_dir}/raw_score.npy',
-            np.concatenate(
-                (top1_exact, top1_near, top3_exact, top10_exact), axis=1))
+            np.concatenate((top1_exact, top1_near, top3_exact, top10_exact), axis=1))
     np.save(f'{emb_dir}/test_ids.npy', test_ids)
     print(f'Saved test_ids and raw score to {emb_dir}.')
 
