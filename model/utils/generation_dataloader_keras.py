@@ -9,7 +9,7 @@ from model.utils.audio_utils import (sample_SNR, background_mix,
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 
 SEED = 27 # Only used for random augmentation
-np.random.seed(SEED) # TODO: other seeds?
+np.random.seed(SEED)
 
 class genUnbalSequenceGeneration(Sequence):
     def __init__(
