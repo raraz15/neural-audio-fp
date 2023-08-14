@@ -193,9 +193,10 @@ class genUnbalSequence(Sequence):
 
         """
 
-        # Indices of items the batch with index idx
+        # Indices of tracks to use in this batch
         i0, i1 = idx*self.n_anchor, (idx+1)*self.n_anchor
-        # Get their filenames, each file will be used self.segments_per_track times each epoch
+        # Get their filenames, each file will be used self.segments_per_track 
+        # times during an epoch
         fnames = [self.track_fnames[i%self.n_tracks] for i in range(i0, i1)]
 
         # Load anchor and positive audio samples for each filename
@@ -208,7 +209,7 @@ class genUnbalSequence(Sequence):
             # try to cover the whole set of augmentations.
             i0, i1 = idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz
 
-            if self.bg_mix == True:
+            if self.bg_mix:
                 # Prepare BG for positive samples
                 bg_fnames = [self.bg_fnames[i%self.n_bg_files] for i in range(i0, i1)]
                 bg_batch = self.batch_read_bg(bg_fnames, idx)
@@ -217,14 +218,15 @@ class genUnbalSequence(Sequence):
                                                     bg_batch,
                                                     snr_range=self.bg_snr_range)
 
-            if self.ir_mix == True:
+            if self.ir_mix:
                 # Prepare IR for positive samples
                 ir_fnames = [self.ir_fnames[i%self.n_ir_files] for i in range(i0, i1)]
                 ir_batch = self.batch_read_ir(ir_fnames)
-                # Ir aug
+                # Apply Room IR
                 Xp_batch = audio_utils.ir_aug_batch(Xp_batch, ir_batch)
 
         # Compute mel spectrograms
+        # TODO: remove the need for float32
         Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch).astype(np.float32)
         Xp_batch_mel = self.mel_spec.compute_batch(Xp_batch).astype(np.float32)
 
@@ -238,8 +240,8 @@ class genUnbalSequence(Sequence):
     def batch_load_track_segments(self, fnames, idx):
         """ Load a single segment conditioned on idx from the tracks with fnames. 
         Since we shuffle the segments of each track at epoch end, we can use idx 
-        to get a different segment from each track. If self.n_pos_per_anchor > 0, 
-        we also load self.n_pos_per_anchor replicas for each anchor.
+        to get a different segment. If self.n_pos_per_anchor > 0, we also load 
+        self.n_pos_per_anchor replicas for each anchor.
 
         Parameters:
         ----------
@@ -259,8 +261,8 @@ class genUnbalSequence(Sequence):
         """
 
         # If segments_per_track is even, each epoch half of the segments will be
-        # seen twice and the other half none. We want to see all segments once, 
-        # so we make sure that the second half of the segments are seen once.
+        # seen twice and the other half zero. We want to see all segments once, 
+        # so we make sure that the second half of the segments are seen too.
         if self.segments_per_track%2==0 and idx>=self.__len__()/2:
             random_idx = (idx+1) % self.segments_per_track
         else:
@@ -279,7 +281,7 @@ class genUnbalSequence(Sequence):
                     f"full_segment.shape[0]={full_segment.shape[0]} but " \
                     f"self.full_segment_length={self.full_segment_length}"
 
-            # Align the centers of the segments
+            # Align the centers of the full segment and the sub-segment
             relative_position = int((self.full_segment_length - self.sub_segment_length) / 2)
             # Determine the anchor start sample inside the full segment
             anchor_start = relative_position
@@ -296,7 +298,7 @@ class genUnbalSequence(Sequence):
                                                 high=self.max_offset_sample)
             else:
                 anchor_offset = 0
-            # Apply the offset to the anchor start time
+            # Apply the offset to the anchor start sample
             anchor_start += anchor_offset
             assert anchor_start>=0, "Start point is out of bounds"
             anchor_end = anchor_start + self.sub_segment_length
