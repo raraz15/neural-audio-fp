@@ -43,7 +43,7 @@ def get_fingerprinter(cfg, trainable=False):
     """
     Input length : 1s or 2s
     
-    Arguements
+    Arguments
     ----------
     cfg : (dict)
         created from the '.yaml' located in /config dicrectory
@@ -51,16 +51,18 @@ def get_fingerprinter(cfg, trainable=False):
     Returns
     -------
     <tf.keras.Model> FingerPrinter object
-    
+
     """
+
     emb_sz = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
     norm = cfg['MODEL']['ARCHITECTURE']['BN']
-    fc_unit_dim = [32, 1]
-    
+    fc_unit_dim = [32, 1] # TODO: configurable
+
     m = FingerPrinter(emb_sz=emb_sz,
                       fc_unit_dim=fc_unit_dim,
                       norm=norm)
     m.trainable = trainable
+
     return m
 
 def build_fp(cfg):
@@ -109,7 +111,6 @@ def val_step(X, m_fp, loss_obj, helper):
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
-# TODO: return only l2(gf)
 @tf.function
 def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
