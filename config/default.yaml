@@ -5,7 +5,7 @@ MODEL:
     AUDIO :
         SEGMENT_DUR : 1. # Duration of an audio segment the model uses in seconds.
         FS : 8000 # Sampling rate (Hz).
-        NORMALIZE_SEGMENTS: True # Scale the audio segments to [-1,1].
+        NORMALIZE_SEGMENT: True # Scale the audio segments to [-1,1].
     INPUT:
         STFT_WIN : 1024
         STFT_HOP : 256

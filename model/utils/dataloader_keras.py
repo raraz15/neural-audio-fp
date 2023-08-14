@@ -1,8 +1,9 @@
 import numpy as np
 from tensorflow.keras.utils import Sequence
 
-from model.utils.audio_utils import bg_mix_batch, ir_aug_batch, load_audio, get_fns_seg_dict
+#from model.utils.audio_utils import bg_mix_batch, ir_aug_batch, load_audio, get_fns_seg_dict, max_normalize
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
+from model.utils import audio_utils
 
 class genUnbalSequence(Sequence):
     def __init__(
@@ -10,7 +11,7 @@ class genUnbalSequence(Sequence):
         segment_dict,
         segment_duration=1,
         full_segment_duration=2,
-        normalize_audio=True, # TODO: normalize segments
+        normalize_segment=True,
         fs=8000,
         n_fft=1024,
         stft_hop=256,
@@ -37,8 +38,8 @@ class genUnbalSequence(Sequence):
             Duration in seconds. The default is 1.
         hop : (float), optional
             Hop-size in seconds. The default is .5.
-        normalize_audio : (str), optional
-            DESCRIPTION. The default is True.
+        normalize_segment : (str), optional
+            The default is True.
         fs : (int), optional
             Sampling rate. The default is 8000.
         scale : (bool), optional
@@ -92,7 +93,7 @@ class genUnbalSequence(Sequence):
 
         # Save the remaining Input parameters
         self.fs = fs
-        self.normalize_audio = normalize_audio
+        self.normalize_segment = normalize_segment
 
         # Melspec layer
         self.mel_spec = Melspec_layer_essentia(scale=scale_output,
@@ -199,16 +200,16 @@ class genUnbalSequence(Sequence):
                 bg_fnames = [self.bg_fnames[i%self.n_bg_files] for i in range(i0, i1)]
                 bg_batch = self.batch_read_bg(bg_fnames, idx)
                 # Mix
-                Xp_batch = bg_mix_batch(Xp_batch,
-                                        bg_batch,
-                                        snr_range=self.bg_snr_range)
+                Xp_batch = audio_utils.bg_mix_batch(Xp_batch,
+                                                    bg_batch,
+                                                    snr_range=self.bg_snr_range)
 
             if self.ir_mix == True:
                 # Prepare IR for positive samples
                 ir_fnames = [self.ir_fnames[i%self.n_ir_files] for i in range(i0, i1)]
                 ir_batch = self.batch_read_ir(ir_fnames)
                 # Ir aug
-                Xp_batch = ir_aug_batch(Xp_batch, ir_batch)
+                Xp_batch = audio_utils.ir_aug_batch(Xp_batch, ir_batch)
 
         # Compute mel spectrograms
         Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch).astype(np.float32)
@@ -287,8 +288,13 @@ class genUnbalSequence(Sequence):
             assert anchor_start>=0, "Start point is out of bounds"
             anchor_end = anchor_start + self.sub_segment_length
             assert anchor_end<=self.full_segment_length, "End point is out of bounds"
-            # Get the anchor sample and append it to the batch
-            Xa_batch.append(full_segment[anchor_start:anchor_end].reshape((1, -1)))
+
+            # Get the anchor sample and normalize if specified
+            anchor = full_segment[anchor_start:anchor_end].reshape((1, -1))
+            if self.normalize_segment:
+                anchor = audio_utils.max_normalize(anchor)
+            # Append it to the batch
+            Xa_batch.append(anchor)
 
             # Randomly offset each positive sample with respect to the anchor
             if self.n_pos_per_anchor > 0:
@@ -311,7 +317,11 @@ class genUnbalSequence(Sequence):
                 # Load the positive samples and append them to the batch
                 for s_idx in pos_start_list:
                     e_idx = s_idx + self.sub_segment_length
-                    Xp_batch.append(full_segment[s_idx:e_idx].reshape((1, -1)))
+                    positive = full_segment[s_idx:e_idx].reshape((1, -1))
+                    # Normalize if specified
+                    if self.normalize_segment:
+                        positive = audio_utils.max_normalize(positive)
+                    Xp_batch.append(positive)
 
         # Create the batch
         Xa_batch = np.concatenate(Xa_batch, axis=0)
@@ -442,14 +452,15 @@ class genUnbalSequence(Sequence):
         if self.bg_mix:
             print("Loading Background Noise samples in memory...")
             self.bg_snr_range = bg_mix_parameter[2]
-            self.fns_bg_seg_dict = get_fns_seg_dict(bg_mix_parameter[1], 
+            self.fns_bg_seg_dict = audio_utils.get_fns_seg_dict(bg_mix_parameter[1], 
                                                     segment_mode='all',
                                                     fs=self.fs, 
                                                     duration=self.segment_duration,
                                                     hop=self.bg_hop)
             self.bg_fnames = list(self.fns_bg_seg_dict.keys())
             # Load all bg clips in full duration
-            self.bg_clips = {fn: load_audio(fn, fs=self.fs, normalize=self.normalize_audio) 
+            # TODO: do not normalize bg clips?
+            self.bg_clips = {fn: audio_utils.load_audio(fn, fs=self.fs, normalize=self.normalize_segment) 
                              for fn in self.bg_fnames}
             self.n_bg_files = len(self.bg_clips)
 
@@ -482,7 +493,7 @@ class genUnbalSequence(Sequence):
         if self.ir_mix:
             print("Loading Impulse Response samples in memory...")
             self.max_ir_length = int(ir_mix_parameter[2] * self.fs)
-            self.fns_ir_seg_dict = get_fns_seg_dict(ir_mix_parameter[1], 
+            self.fns_ir_seg_dict = audio_utils.get_fns_seg_dict(ir_mix_parameter[1], 
                                                     segment_mode='first',
                                                     fs=self.fs, 
                                                     duration=self.segment_duration)
@@ -490,10 +501,11 @@ class genUnbalSequence(Sequence):
             # Load all ir clips in full duration
             self.ir_clips = {}
             for fn in self.ir_fnames:
-                X = load_audio(fn, 
+                # TODO: do not normalize IR clips?
+                X = audio_utils.load_audio(fn, 
                             seg_length_sec=self.segment_duration,
                             fs=self.fs,
-                            normalize=self.normalize_audio)
+                            normalize=self.normalize_segment)
                 # Truncate IR to max_ir_length
                 if len(X) > self.max_ir_length:
                     X = X[:self.max_ir_length]

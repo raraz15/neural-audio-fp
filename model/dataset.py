@@ -32,7 +32,7 @@ class Dataset:
         # Model parameters
         model_dict = cfg['MODEL']
         self.segment_duration = model_dict['AUDIO']['SEGMENT_DUR']
-        self.normalize_audio = model_dict['AUDIO']['NORMALIZE_SEGMENTS']
+        self.normalize_segment = model_dict['AUDIO']['NORMALIZE_SEGMENTS']
         self.fs = model_dict['AUDIO']['FS']
         self.stft_hop = model_dict['INPUT']['STFT_HOP']
         self.n_fft = model_dict['INPUT']['STFT_WIN']
@@ -132,6 +132,7 @@ class Dataset:
                 reduce_items_p : int (default 100)
                     Reduce the number of items in each track to this percentage.
         """
+
         print(f"Creating the training dataset from {self.tr_dataset_dir}...")
         assert reduce_items_p>0 and reduce_items_p<=100, \
             "reduce_items_p should be in (0, 100]"
@@ -170,7 +171,7 @@ class Dataset:
             bsz=self.tr_batch_sz,
             n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
             fs=self.fs,
-            normalize_audio=self.normalize_audio,
+            normalize_segment=self.normalize_segment,
             segments_per_track=self.tr_segments_per_track,
             scale_output=self.scale_inputs,
             n_fft=self.n_fft,
@@ -222,7 +223,7 @@ class Dataset:
             bsz=self.val_batch_sz,
             n_anchor=self.val_n_anchor,
             fs=self.fs,
-            normalize_audio=self.normalize_audio,
+            normalize_segment=self.normalize_segment,
             segments_per_track=self.tr_segments_per_track,
             scale_output=self.scale_inputs,
             n_fft=self.n_fft,
@@ -255,7 +256,7 @@ class Dataset:
             duration=self.ts_segment_dur,
             hop=self.ts_segment_hop,
             fs=self.fs,
-            normalize_audio=self.normalize_audio,
+            normalize_segment=self.normalize_segment,
             scale=self.scale_inputs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -286,7 +287,7 @@ class Dataset:
             duration=self.ts_segment_dur,
             hop=self.ts_segment_hop,
             fs=self.fs,
-            normalize_audio=self.normalize_audio,
+            normalize_segment=self.normalize_segment,
             scale=self.scale_inputs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -305,7 +306,7 @@ class Dataset:
                 duration=self.ts_segment_dur,
                 hop=self.ts_segment_hop,
                 fs=self.fs,
-                normalize_audio=self.normalize_audio,
+                normalize_segment=self.normalize_segment,
                 scale=self.scale_inputs,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
@@ -325,7 +326,7 @@ class Dataset:
                 # bsz=self.ts_segments_per_track * 2, # Anchors + positives=augmentations
                 duration=self.ts_segment_dur,
                 hop=self.ts_segment_hop,
-                normalize_audio=self.normalize_audio,
+                normalize_segment=self.normalize_segment,
                 fs=self.fs,
                 scale=self.scale_inputs,
                 n_fft=self.n_fft,
