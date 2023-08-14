@@ -55,8 +55,8 @@ class Dataset:
         self.tr_ir_root_dir = cfg['TRAIN']['AUG']['TD']['IR_ROOT']
         self.tr_use_ir_aug = cfg['TRAIN']['AUG']['TD']['IR']
         self.tr_max_ir_dur = cfg['TRAIN']['AUG']['TD']['IR_MAX_DUR']
-        self.tr_bg_fps = None
-        self.tr_ir_fps = None
+        self.tr_bg_fps = []
+        self.tr_ir_fps = []
 
         # Validation Parameters
         self.val_tracks_dir = cfg['TRAIN']['TRACKS']['VAL_ROOT']
@@ -77,29 +77,8 @@ class Dataset:
         self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
         self.ts_use_ir_aug = cfg['TEST']['AUG']['TD']['IR']
         self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
-        self.ts_bg_fps = None
-        self.ts_ir_fps = None
-
-        # Pre-load file paths for augmentation
-        self.__set_augmentation_fps()
-
-    def __set_augmentation_fps(self):
-        """ Set file path lists for augmentations. Only accepts wav files.
-        We use the same augmentations for the train and validation sets."""
-
-        if self.tr_use_bg_aug:
-            self.tr_bg_fps = sorted(glob.glob(self.tr_bg_root_dir + "**/*.wav", 
-                                    recursive=True))
-        if self.ts_use_bg_aug:
-            self.ts_bg_fps = sorted(glob.glob(self.ts_bg_root_dir + "**/*.wav", 
-                                    recursive=True))
-
-        if self.tr_use_ir_aug:
-            self.tr_ir_fps = sorted(glob.glob(self.tr_ir_root_dir + "**/*.wav", 
-                                    recursive=True))
-        if self.ts_use_ir_aug:
-            self.ts_ir_fps = sorted(glob.glob(self.ts_ir_root_dir + "**/*.wav", 
-                                    recursive=True))
+        self.ts_bg_fps = []
+        self.ts_ir_fps = []
 
     def get_train_ds(self, reduce_items_p=100):
         """ Source (music) file paths for training set. The folder structure
@@ -127,13 +106,20 @@ class Dataset:
         """
 
         print("Creating the training dataset...")
+
         assert reduce_items_p>0 and reduce_items_p<=100, \
             "reduce_items_p should be in (0, 100]"
 
         if self.tr_use_bg_aug:
+            self.tr_bg_fps = sorted(glob.glob(self.tr_bg_root_dir + "**/*.wav", 
+                                    recursive=True))
             print(f"tr_bg_fps: {len(self.tr_bg_fps):>6,}")
+            assert len(self.tr_bg_fps)>0, "No background noise found."
         if self.tr_use_ir_aug:
+            self.tr_ir_fps = sorted(glob.glob(self.tr_ir_root_dir + "**/*.wav", 
+                                    recursive=True))
             print(f"tr_ir_fps: {len(self.tr_ir_fps):>6,}")
+            assert len(self.tr_ir_fps)>0, "No impulse response found."
 
         # Find the tracks and their segments
         self.tr_source_fps = {}
@@ -144,8 +130,9 @@ class Dataset:
                 track_dir = os.path.join(self.tr_tracks_dir, main_dir, track_name)
                 segment_paths = sorted(glob.glob(track_dir + '/*.npy', recursive=True))
                 self.tr_source_fps[track_name] = segment_paths
+        assert len(self.tr_source_fps)>0, "No tracks found."
         total_segments = sum([len(v) for v in self.tr_source_fps.values()])
-        print(f"{len(self.tr_source_fps):,} tracks found.")
+        assert total_segments>0, "No segments found."
         print(f"{total_segments:,} segments found.")
 
         if reduce_items_p<100:
@@ -207,7 +194,9 @@ class Dataset:
                 track_dir = os.path.join(self.val_tracks_dir, main_dir, track_name)
                 segment_paths = sorted(glob.glob(track_dir + '/*.npy', recursive=True))
                 self.val_source_fps[track_name] = segment_paths
+        assert len(self.val_source_fps)>0, "No tracks found."
         total_segments = sum([len(v) for v in self.val_source_fps.values()])
+        assert total_segments>0, "No segments found."
         print(f"{len(self.val_source_fps):,} tracks found.")
         print(f"{total_segments:,} segments found.")
 
@@ -243,6 +232,7 @@ class Dataset:
         self.ts_noise_paths = sorted(
             glob.glob(self.ts_noise_tracks_dir+ '/**/*.npy', 
                     recursive=True))
+        assert len(self.ts_noise_paths)>0, "No noise tracks found."
         print(f"{len(self.ts_noise_paths):,} noise tracks found.")
         return genUnbalSequenceGeneration(
             track_paths=self.ts_noise_paths,
@@ -270,10 +260,11 @@ class Dataset:
 
         """
 
-        print(f"Creating the clean query dataset for testing...")
+        print("Creating the clean query dataset...")
         self.ts_query_clean = sorted(
                 glob.glob(self.ts_clean_query_tracks_dir + '/**/*.npy', 
                         recursive=True))
+        assert len(self.ts_query_clean)>0, "No clean query tracks found."
         print(f"{len(self.ts_query_clean):,} clean query tracks found.")
         ds_db = genUnbalSequenceGeneration(
             track_paths=self.ts_query_clean,
@@ -288,12 +279,13 @@ class Dataset:
             f_max=self.fmax,
             scale_output=self.scale_inputs,
             segments_per_track=self.ts_segments_per_track)
-        print(f"Creating the augmented query dataset...")
-        # For now we do not support single augmentation here
-        if not (self.ts_use_bg_aug and self.ts_use_ir_aug):
+
+        print("Creating the augmented query dataset...")
+        if (not self.ts_use_bg_aug) and (not self.ts_use_ir_aug):
             self.ts_query_augmented = sorted(
                 glob.glob(self.ts_augmented_query_tracks_dir + '/**/*.npy', 
                         recursive=True))
+            assert len(self.ts_query_augmented)>0, "No augmented query tracks found."
             print(f"{len(self.ts_query_augmented):,} augmented query tracks found")
             ds_query = genUnbalSequenceGeneration(
                 track_paths=self.ts_query_augmented,
@@ -308,14 +300,18 @@ class Dataset:
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
                 segments_per_track=self.ts_segments_per_track)
-        else:
+        elif self.ts_use_bg_aug and self.ts_use_ir_aug:
             print("Will augment the clean query tracks in real time. ")
-            if self.ts_use_bg_aug:
-                print(f"ts_bg_fps: {len(self.ts_bg_fps):>6,}")
-            if self.ts_use_ir_aug:
-                print(f"ts_ir_fps: {len(self.ts_ir_fps):>6,}")
+            self.ts_bg_fps = sorted(glob.glob(self.ts_bg_root_dir + "**/*.wav", 
+                                    recursive=True))
+            print(f"ts_bg_fps: {len(self.ts_bg_fps):>6,}")
+            assert len(self.ts_bg_fps)>0, "No background noise found."
+            self.ts_ir_fps = sorted(glob.glob(self.ts_ir_root_dir + "**/*.wav", 
+                                    recursive=True))
+            print(f"ts_ir_fps: {len(self.ts_ir_fps):>6,}")
+            assert len(self.ts_ir_fps)>0, "No impulse response found."
             ds_query = genUnbalSequenceGeneration(
-                self.ts_query_clean,
+                self.ts_query_clean, # Augment the clean query tracks
                 segment_duration=self.ts_segment_dur,
                 hop=self.ts_segment_hop,
                 normalize_segment=self.normalize_segment,
@@ -330,4 +326,7 @@ class Dataset:
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
                 )
+        else:
+            # For now we do not support single augmentation
+            raise ValueError("Invalid augmentation parameters.")
         return ds_query, ds_db
