@@ -85,11 +85,12 @@ class genUnbalSequence(Sequence):
         assert segments_per_track > 0, "segments_per_track should be > 0"
 
         # Determine the length of the audio segments in the dataset 
-        # and hwo much of it will be used for training
+        # and how much of it will be used for training
         assert segment_duration<=full_segment_duration, \
                 "segment_duration should be <= segment_duration"
         self.segment_duration = segment_duration
         self.full_segment_duration = full_segment_duration
+        # Convert duration to samples
         self.sub_segment_length = int(self.segment_duration * fs)
         self.full_segment_length = int(self.full_segment_duration * fs)
 
@@ -100,6 +101,7 @@ class genUnbalSequence(Sequence):
         self.max_possible_offset_duration = (full_segment_duration - segment_duration) / 2
         assert self.offset_duration <= self.max_possible_offset_duration, \
                 "offset_duration should be <= (segment_duration - sub_segment_duration)/2"
+        # Convert offset duration to samples
         self.max_offset_sample = int(self.offset_duration * fs)
 
         # Save the remaining Input parameters
@@ -139,10 +141,10 @@ class genUnbalSequence(Sequence):
         self.track_seg_dict = {k: v[:segments_per_track] 
                                 for k, v in self.track_seg_dict.items()}
 
-        # Determine the tracks to use for each epoch
+        # Determine the tracks to use at each epoch
         if self.drop_the_last_non_full_batch: # Training
             # Remove the tracks that do not fill the last batch. Each batch contains
-            # segments from exactly n_anchor tracks.
+            # a single segment from n_anchor tracks.
             self.n_tracks = int((len(self.track_seg_dict) // n_anchor) * n_anchor)
             self.track_seg_dict = {k: v 
                                     for i, (k, v) in enumerate(self.track_seg_dict.items()) 
@@ -157,7 +159,7 @@ class genUnbalSequence(Sequence):
         self.load_and_store_bg_samples(bg_mix_parameter)
         self.load_and_store_ir_samples(ir_mix_parameter)
 
-        # Shuffle all index events if specified
+        # Shuffle all events if specified
         if self.shuffle:
             self.shuffle_events()
             self.shuffle_segments()
@@ -411,9 +413,7 @@ class genUnbalSequence(Sequence):
 
         return X_ir_batch
 
-    # TODO: is shuffling different things with same frequency good?
-    # TODO: the current definition of epoch may lead to catastrophic forgetting?
-    # TODO: does the imbalance in bg_sample lengths affect the training beacuse of shuffling?
+    # TODO: does the imbalance in bg_sample lengths affect the training?
     def on_epoch_end(self):
         """ Routines to apply at the end of each epoch."""
 
@@ -429,9 +429,9 @@ class genUnbalSequence(Sequence):
         np.random.shuffle(self.track_fnames)
 
         # Shuffle the order of augmentation types
-        if self.bg_mix == True:
+        if self.bg_mix:
             np.random.shuffle(self.bg_fnames)
-        if self.ir_mix == True:
+        if self.ir_mix:
             np.random.shuffle(self.ir_fnames)
 
     def shuffle_segments(self):
@@ -464,14 +464,15 @@ class genUnbalSequence(Sequence):
             print("Loading Background Noise samples in memory...")
             self.bg_snr_range = bg_mix_parameter[2]
             self.fns_bg_seg_dict = audio_utils.get_fns_seg_dict(bg_mix_parameter[1], 
-                                                    segment_mode='all',
-                                                    fs=self.fs, 
-                                                    duration=self.segment_duration,
-                                                    hop=self.bg_hop)
+                                                                segment_mode='all',
+                                                                fs=self.fs, 
+                                                                duration=self.segment_duration,
+                                                                hop=self.bg_hop)
             self.bg_fnames = list(self.fns_bg_seg_dict.keys())
             # Load all bg clips in full duration
             # TODO: do not normalize bg clips?
-            self.bg_clips = {fn: audio_utils.load_audio(fn, fs=self.fs, normalize=self.normalize_segment) 
+            self.bg_clips = {fn: audio_utils.load_audio(fn, fs=self.fs, 
+                                                        normalize=self.normalize_segment) 
                              for fn in self.bg_fnames}
             self.n_bg_files = len(self.bg_clips)
 
@@ -505,7 +506,7 @@ class genUnbalSequence(Sequence):
             print("Loading Impulse Response samples in memory...")
             self.max_ir_length = int(ir_mix_parameter[2] * self.fs)
             self.fns_ir_seg_dict = audio_utils.get_fns_seg_dict(ir_mix_parameter[1], 
-                                                    segment_mode='first',
+                                                    segment_mode='first', # TODO: all?
                                                     fs=self.fs, 
                                                     duration=self.segment_duration)
             self.ir_fnames = list(self.fns_ir_seg_dict.keys())
@@ -514,9 +515,9 @@ class genUnbalSequence(Sequence):
             for fn in self.ir_fnames:
                 # TODO: do not normalize IR clips?
                 X = audio_utils.load_audio(fn, 
-                            seg_length_sec=self.segment_duration,
-                            fs=self.fs,
-                            normalize=self.normalize_segment)
+                                            seg_length_sec=self.segment_duration,
+                                            fs=self.fs,
+                                            normalize=self.normalize_segment)
                 # Truncate IR to max_ir_length
                 if len(X) > self.max_ir_length:
                     X = X[:self.max_ir_length]
