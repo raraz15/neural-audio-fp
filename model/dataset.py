@@ -5,7 +5,7 @@ from model.utils.generation_dataloader_keras import genUnbalSequenceGeneration
 
 class Dataset:
     """
-    Build dataset for train, validation and test.
+    Build datasets for training, validation and test sets.
 
     USAGE:
         dataset = Dataset(cfg)
@@ -60,7 +60,7 @@ class Dataset:
         self.tr_use_ir_aug = train_dict['TD_AUG']['IR_AUG']
         self.tr_max_ir_dur = train_dict['TD_AUG']['IR_AUG_MAX_DUR']
 
-        # # We use the same augmentations for train and validation sets.
+        # We use the same augmentations for train and validation sets.
         self.val_bg_root_dir = self.tr_bg_root_dir
         self.val_use_bg_aug = self.tr_use_bg_aug
         self.val_bg_snr = self.tr_bg_snr

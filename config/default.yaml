@@ -3,7 +3,7 @@ MODEL:
     AUDIO :
         FS : 8000 # Sampling rate
         NORMALIZE_SEGMENTS: True # Scale the segments to [-1,1].
-        SEGMENT_DUR : 1. # 
+        SEGMENT_DUR : 1. 
     INPUT:
         STFT_WIN : 1024
         STFT_HOP : 256
