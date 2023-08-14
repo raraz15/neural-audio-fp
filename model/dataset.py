@@ -30,60 +30,55 @@ class Dataset:
     def __init__(self, cfg=dict()):
 
         # Model parameters
-        model_dict = cfg['MODEL']
-        self.segment_duration = model_dict['AUDIO']['SEGMENT_DUR']
-        self.normalize_segment = model_dict['AUDIO']['NORMALIZE_SEGMENT']
-        self.fs = model_dict['AUDIO']['FS']
-        self.stft_hop = model_dict['INPUT']['STFT_HOP']
-        self.n_fft = model_dict['INPUT']['STFT_WIN']
-        self.n_mels = model_dict['INPUT']['N_MELS']
-        self.fmin = model_dict['INPUT']['F_MIN']
-        self.fmax = model_dict['INPUT']['F_MAX']
-        self.scale_inputs = model_dict['INPUT']['SCALE_INPUTS']
+        self.segment_duration = cfg['MODEL']['AUDIO']['SEGMENT_DUR']
+        self.normalize_segment = cfg['MODEL']['AUDIO']['NORMALIZE_SEGMENT']
+        self.fs = cfg['MODEL']['AUDIO']['FS']
+        self.stft_hop = cfg['MODEL']['INPUT']['STFT_HOP']
+        self.n_fft = cfg['MODEL']['INPUT']['STFT_WIN']
+        self.n_mels = cfg['MODEL']['INPUT']['N_MELS']
+        self.fmin = cfg['MODEL']['INPUT']['F_MIN']
+        self.fmax = cfg['MODEL']['INPUT']['F_MAX']
+        self.scale_inputs = cfg['MODEL']['INPUT']['SCALE_INPUTS']
 
-        # Train, Val Parameters
-        train_dict = cfg['TRAIN']
-        self.tr_dataset_dir = train_dict['DIR']['TRAIN_ROOT']
-        self.val_dataset_dir = train_dict['DIR']['VAL_ROOT']
-        self.dataset_audio_segment_duration = train_dict['INPUT_AUDIO_DUR']
+        # Train Parameters
+        self.tr_tracks_dir = cfg['TRAIN']['TRACKS']['TRAIN_ROOT']
 
-        self.tr_batch_sz = train_dict['BSZ']['TR_BATCH_SZ']
-        self.tr_n_anchor = train_dict['BSZ']['TR_N_ANCHOR']
-        self.val_batch_sz = train_dict['BSZ']['VAL_BATCH_SZ']
-        self.val_n_anchor = train_dict['BSZ']['VAL_N_ANCHOR']
-        self.tr_segments_per_track = train_dict['SEGMENTS_PER_TRACK']
+        self.dataset_audio_segment_duration = cfg['TRAIN']['INPUT_AUDIO_DUR']
+        self.tr_batch_sz = cfg['TRAIN']['BSZ']['BATCH_SZ']
+        self.tr_n_anchor = cfg['TRAIN']['BSZ']['N_ANCHOR']
+        self.tr_segments_per_track = cfg['TRAIN']['SEGMENTS_PER_TRACK']
 
-        self.tr_bg_root_dir = train_dict['DIR']['BG_ROOT']
-        self.tr_use_bg_aug = train_dict['TD_AUG']['BG_AUG']
-        self.tr_bg_snr = train_dict['TD_AUG']['BG_AUG_SNR']
-        self.tr_ir_root_dir = train_dict['DIR']['IR_ROOT']
-        self.tr_use_ir_aug = train_dict['TD_AUG']['IR_AUG']
-        self.tr_max_ir_dur = train_dict['TD_AUG']['IR_AUG_MAX_DUR']
+        self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
+        self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
+        self.tr_bg_snr = cfg['TRAIN']['AUG']['TD']['BG_SNR']
 
-        # We use the same augmentations for train and validation sets.
-        self.val_bg_root_dir = self.tr_bg_root_dir
-        self.val_use_bg_aug = self.tr_use_bg_aug
-        self.val_bg_snr = self.tr_bg_snr
-        self.val_ir_root_dir = self.tr_ir_root_dir
-        self.val_use_ir_aug = self.tr_use_ir_aug
-        self.val_max_ir_dur = self.tr_max_ir_dur
+        self.tr_ir_root_dir = cfg['TRAIN']['AUG']['TD']['IR_ROOT']
+        self.tr_use_ir_aug = cfg['TRAIN']['AUG']['TD']['IR']
+        self.tr_max_ir_dur = cfg['TRAIN']['AUG']['TD']['IR_MAX_DUR']
+        self.tr_bg_fps = None
+        self.tr_ir_fps = None
+
+        # Validation Parameters
+        self.val_tracks_dir = cfg['TRAIN']['TRACKS']['VAL_ROOT']
+        # We use the same augmentations for train and validation sets
 
         # Test Parameters
-        test_dict = cfg['TEST']
-        self.ts_noise_dataset_dir = test_dict['DIR']['NOISE_ROOT']
-        self.ts_clean_query_dataset_dir = test_dict['DIR']['CLEAN_QUERY_ROOT']
-        self.ts_augmented_query_dataset_dir = test_dict['DIR']['AUGMENTED_QUERY_ROOT']
+        self.ts_noise_tracks_dir = cfg['TEST']['TRACKS']['NOISE_ROOT']
+        self.ts_clean_query_tracks_dir = cfg['TEST']['TRACKS']['CLEAN_QUERY_ROOT']
+        self.ts_augmented_query_tracks_dir = cfg['TEST']['TRACKS']['AUGMENTED_QUERY_ROOT']
+        self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
+        self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
 
-        self.ts_use_bg_aug = test_dict['TD_AUG']['BG_AUG']
-        self.ts_bg_root_dir = test_dict['DIR']['BG_ROOT']
-        self.ts_bg_snr = test_dict['TD_AUG']['BG_AUG_SNR']
-        self.ts_use_ir_aug = test_dict['TD_AUG']['IR_AUG']
-        self.ts_ir_root_dir = test_dict['DIR']['IR_ROOT']
-        self.ts_max_ir_dur = test_dict['TD_AUG']['IR_AUG_MAX_DUR']
+        self.ts_segment_dur = cfg['TEST']['SEGMENT_DUR']
+        self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP']
+        self.ts_segments_per_track = cfg['TEST']['SEGMENTS_PER_TRACK']
 
-        self.ts_segment_dur = test_dict['SEGMENT_DUR']
-        self.ts_segment_hop = test_dict['SEGMENT_HOP']
-        self.ts_segments_per_track = test_dict['SEGMENTS_PER_TRACK']
+        self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
+        self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
+        self.ts_use_ir_aug = cfg['TEST']['AUG']['TD']['IR']
+        self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
+        self.ts_bg_fps = None
+        self.ts_ir_fps = None
 
         # Pre-load file paths for augmentation
         self.__set_augmentation_fps()
@@ -95,8 +90,6 @@ class Dataset:
         if self.tr_use_bg_aug:
             self.tr_bg_fps = sorted(glob.glob(self.tr_bg_root_dir + "**/*.wav", 
                                     recursive=True))
-        if self.val_use_bg_aug:
-            self.val_bg_fps = self.tr_bg_fps
         if self.ts_use_bg_aug:
             self.ts_bg_fps = sorted(glob.glob(self.ts_bg_root_dir + "**/*.wav", 
                                     recursive=True))
@@ -104,8 +97,6 @@ class Dataset:
         if self.tr_use_ir_aug:
             self.tr_ir_fps = sorted(glob.glob(self.tr_ir_root_dir + "**/*.wav", 
                                     recursive=True))
-        if self.val_use_ir_aug:
-            self.val_ir_fps = self.tr_ir_fps
         if self.ts_use_ir_aug:
             self.ts_ir_fps = sorted(glob.glob(self.ts_ir_root_dir + "**/*.wav", 
                                     recursive=True))
@@ -113,7 +104,7 @@ class Dataset:
     def get_train_ds(self, reduce_items_p=100):
         """ Source (music) file paths for training set. The folder structure
         should be as follows:
-            self.tr_dataset_dir/
+            self.tr_tracks_dir/
                 dir0/
                     track1/
                         clip1.npy
@@ -135,7 +126,7 @@ class Dataset:
                     Reduce the number of items in each track to this percentage.
         """
 
-        print(f"Creating the training dataset from {self.tr_dataset_dir}...")
+        print("Creating the training dataset...")
         assert reduce_items_p>0 and reduce_items_p<=100, \
             "reduce_items_p should be in (0, 100]"
 
@@ -146,11 +137,11 @@ class Dataset:
 
         # Find the tracks and their segments
         self.tr_source_fps = {}
-        main_dirs = os.listdir(self.tr_dataset_dir)
+        main_dirs = os.listdir(self.tr_tracks_dir)
         for main_dir in main_dirs:
-            track_names = os.listdir(os.path.join(self.tr_dataset_dir, main_dir))
+            track_names = os.listdir(os.path.join(self.tr_tracks_dir, main_dir))
             for track_name in track_names:
-                track_dir = os.path.join(self.tr_dataset_dir, main_dir, track_name)
+                track_dir = os.path.join(self.tr_tracks_dir, main_dir, track_name)
                 segment_paths = sorted(glob.glob(track_dir + '/*.npy', recursive=True))
                 self.tr_source_fps[track_name] = segment_paths
         total_segments = sum([len(v) for v in self.tr_source_fps.values()])
@@ -189,7 +180,7 @@ class Dataset:
     def get_val_ds(self):
         """ Source (music) file paths for validation set. The folder structure
         should be as follows:
-            self.val_dataset_dir/
+            self.val_tracks_dir/
                 track1/
                     clip1.npy
                     clip2.npy
@@ -202,18 +193,18 @@ class Dataset:
                     clipN.npy
         """
 
-        print(f"Creating the validation dataset from {self.val_dataset_dir}...")
-        if self.val_use_bg_aug:
-            print(f"val_bg_fps: {len(self.val_bg_fps):>6,}")
-        if self.val_use_ir_aug:
-            print(f"val_ir_fps: {len(self.val_ir_fps):>6,}")
+        print(f"Creating the validation dataset...")
+        if self.tr_use_bg_aug:
+            print(f"val_bg_fps: {len(self.tr_bg_fps):>6,} (Same as the train set)")
+        if self.tr_use_ir_aug:
+            print(f"val_ir_fps: {len(self.tr_ir_fps):>6,} (Same as the train set)")
 
         self.val_source_fps = {}
-        main_dirs = os.listdir(self.val_dataset_dir)
+        main_dirs = os.listdir(self.val_tracks_dir)
         for main_dir in main_dirs:
-            track_names = os.listdir(os.path.join(self.val_dataset_dir, main_dir))
+            track_names = os.listdir(os.path.join(self.val_tracks_dir, main_dir))
             for track_name in track_names:
-                track_dir = os.path.join(self.val_dataset_dir, main_dir, track_name)
+                track_dir = os.path.join(self.val_tracks_dir, main_dir, track_name)
                 segment_paths = sorted(glob.glob(track_dir + '/*.npy', recursive=True))
                 self.val_source_fps[track_name] = segment_paths
         total_segments = sum([len(v) for v in self.val_source_fps.values()])
@@ -222,8 +213,8 @@ class Dataset:
 
         return genUnbalSequence(
             segment_dict=self.val_source_fps,
-            bsz=self.val_batch_sz,
-            n_anchor=self.val_n_anchor,
+            bsz=self.tr_batch_sz,
+            n_anchor=self.tr_n_anchor,
             fs=self.fs,
             normalize_segment=self.normalize_segment,
             segments_per_track=self.tr_segments_per_track,
@@ -235,8 +226,8 @@ class Dataset:
             f_max=self.fmax,
             shuffle=False,
             random_offset_anchor=False,
-            bg_mix_parameter=[self.val_use_bg_aug, self.val_bg_fps, self.val_bg_snr],
-            ir_mix_parameter=[self.val_use_ir_aug, self.val_ir_fps, self.val_max_ir_dur],
+            bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
+            ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur],
             )
 
     def get_test_noise_ds(self):
@@ -250,7 +241,7 @@ class Dataset:
 
         print(f"Creating the test-dummy-DB dataset (noise tracks)...")
         self.ts_noise_paths = sorted(
-            glob.glob(self.ts_noise_dataset_dir+ '/**/*.npy', 
+            glob.glob(self.ts_noise_tracks_dir+ '/**/*.npy', 
                     recursive=True))
         print(f"{len(self.ts_noise_paths):,} noise tracks found.")
         return genUnbalSequenceGeneration(
@@ -281,7 +272,7 @@ class Dataset:
 
         print(f"Creating the clean query dataset for testing...")
         self.ts_query_clean = sorted(
-                glob.glob(self.ts_clean_query_dataset_dir + '/**/*.npy', 
+                glob.glob(self.ts_clean_query_tracks_dir + '/**/*.npy', 
                         recursive=True))
         print(f"{len(self.ts_query_clean):,} clean query tracks found.")
         ds_db = genUnbalSequenceGeneration(
@@ -301,7 +292,7 @@ class Dataset:
         # For now we do not support single augmentation here
         if not (self.ts_use_bg_aug and self.ts_use_ir_aug):
             self.ts_query_augmented = sorted(
-                glob.glob(self.ts_augmented_query_dataset_dir + '/**/*.npy', 
+                glob.glob(self.ts_augmented_query_tracks_dir + '/**/*.npy', 
                         recursive=True))
             print(f"{len(self.ts_query_augmented):,} augmented query tracks found")
             ds_query = genUnbalSequenceGeneration(

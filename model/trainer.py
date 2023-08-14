@@ -200,25 +200,16 @@ def trainer(cfg, checkpoint_name):
 
     # Loss objects
     if cfg['TRAIN']['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
+        n_org = cfg['TRAIN']['BSZ']['N_ANCHOR']
+        n_rep = cfg['TRAIN']['BSZ']['BATCH_SZ'] - cfg['TRAIN']['BSZ']['N_ANCHOR']
         loss_obj_train = NTxentLoss(
-            n_org=cfg['TRAIN']['BSZ']['TR_N_ANCHOR'],
-            n_rep=cfg['TRAIN']['BSZ']['TR_BATCH_SZ'] - cfg['TRAIN']['BSZ']['TR_N_ANCHOR'],
+            n_org=n_org,
+            n_rep=n_rep,
             tau=cfg['TRAIN']['LOSS']['TAU'])
         loss_obj_val = NTxentLoss(
-            n_org=cfg['TRAIN']['BSZ']['VAL_N_ANCHOR'],
-            n_rep=cfg['TRAIN']['BSZ']['VAL_BATCH_SZ'] - cfg['TRAIN']['BSZ']['VAL_N_ANCHOR'],
+            n_org=n_org,
+            n_rep=n_rep,
             tau=cfg['TRAIN']['LOSS']['TAU'])
-    elif cfg['TRAIN']['LOSS']['LOSS_MODE'].upper() == 'ONLINE-TRIPLET': # Now-playing
-        loss_obj_train = OnlineTripletLoss(
-            bsz=cfg['TRAIN']['BSZ']['TR_BATCH_SZ'],
-            n_anchor=cfg['TRAIN']['BSZ']['TR_N_ANCHOR'],
-            mode = 'semi-hard',
-            margin=cfg['TRAIN']['LOSS']['MARGIN'])
-        loss_obj_val = OnlineTripletLoss(
-            bsz=cfg['TRAIN']['BSZ']['VAL_BATCH_SZ'],
-            n_anchor=cfg['TRAIN']['BSZ']['VAL_N_ANCHOR'],
-            mode = 'all', # use 'all' mode for validation
-            margin=0.)
     else:
         raise NotImplementedError(cfg['TRAIN']['LOSS']['LOSS_MODE'])
 

@@ -57,7 +57,7 @@ def get_data_source(cfg, skip_dummy):
     else:
         ds['dummy_db'] = dataset.get_test_noise_ds()
     tf.print(f'\x1b[1;32mData source: {list(ds.keys())}\x1b[0m',
-             f'{dataset.ts_clean_query_dataset_dir}')
+             f'{dataset.ts_clean_query_tracks_dir}')
     return ds
 
 def generate_fingerprint(cfg,
