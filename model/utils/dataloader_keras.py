@@ -34,36 +34,49 @@ class genUnbalSequence(Sequence):
         ----------
         segment_dict : dict
             Segment paths as a dict {track_name: [segment_paths]}. 
-        duration : (float), optional
-            Duration in seconds. The default is 1.
+        segment_duration : (float), optional
+            Duration of an audio segment in seconds. Default is 1.
         hop : (float), optional
-            Hop-size in seconds. The default is .5.
+            Hop-size of the segments in seconds. Default is .5.
         normalize_segment : (str), optional
-            The default is True.
+            Normalize each audio segment. Default is True.
         fs : (int), optional
-            Sampling rate. The default is 8000.
-        scale : (bool), optional
-            Scale the power mel-spectrogram. The default is True.
+            Sampling rate. Default is 8000.
+        n_fft: (int), optional
+            FFT size. Default is 1024.
+        stft_hop : (int), optional
+            STFT hop-size. Default is 256.
+        n_mels : (int), optional
+            Number of mel-bands. Default is 256.
+        f_min : (int), optional
+            Minimum frequency of the mel-bands. Default is 300.
+        f_max : (int), optional
+            Maximum frequency of the mel-bands. Default is 4000.
+        scale_output : (bool), optional
+            Scale the power mel-spectrogram to [-1, 1]. Default is True.
         bsz : (int), optional
-            In TPUs code, global batch size. The default is 120.
-        n_anchor : TYPE, optional
-            ex) bsz=40, n_anchor=8 --> 4 positive samples for each anchor
-            (In TPUs code, global n_anchor). The default is 60.
+            Batch size. Default is 120.
+        n_anchor : (int), optional
+            ex) bsz=40, n_anchor=8 --> 4 positive samples for each anchor. 
+            Default is 60.
         shuffle : (bool), optional
-            Randomize samples from the original songs. BG/IRs will not be 
-            affected by this parameter (BG/IRs are always shuffled). 
-            The default is False.
+            We read the tracks and Augmentation files with alphabetical order.
+            If shuffle is True, we shuffle the order of the tracks and the
+            augmentation files at the end of each epoch. Also the order of the
+            segments of each track is shuffled at the end of each epoch.
+            Default is False.
         random_offset_anchor : (bool), optional
-            DESCRIPTION. The default is False.
-        offset_margin : (float), optional
-            # TODO: update
+            DESCRIPTION. Default is False.
+        offset_duration : (float), optional
+            How much a segment can be offsetted from its center in seconds. 
+            Default is 0.2.
         bg_mix_parameter : list([(bool), list(str), (int, int)]), optional
-            [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. The default is [False].
-        ir_mix_parameter : list([(bool), list(str)], optional
-            [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. The default is [False].
+            [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. Default is [False].
+        ir_mix_parameter : list([(bool), list(str), float], optional
+            [True, IR_FILEPATHS, MAX_IR_DURATION]. Default is [False].
         reduce_items_p : (int), optional
             Reduce dataset size to percent (%). Useful when debugging code 
-            with small data. The default is 0.
+            with small data. Default is 100.
         drop_the_last_non_full_batch : (bool), optional
             Set as False in test. Default is True.
         """
@@ -484,8 +497,8 @@ class genUnbalSequence(Sequence):
 
         Parameters:
         ----------
-            ir_mix_parameter list([(bool), list(str)]):
-                [True, IR_FILEPATHS].
+            ir_mix_parameter list([(bool), list(str), float]):
+                [True, IR_FILEPATHS, MAX_IR_DURATION].
 
         """
 
