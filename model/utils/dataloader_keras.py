@@ -36,8 +36,6 @@ class genUnbalSequence(Sequence):
             Segment paths as a dict {track_name: [segment_paths]}. 
         segment_duration : (float), optional
             Duration of an audio segment in seconds. Default is 1.
-        hop : (float), optional
-            Hop-size of the segments in seconds. Default is .5.
         normalize_segment : (str), optional
             Normalize each audio segment. Default is True.
         fs : (int), optional
