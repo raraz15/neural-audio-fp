@@ -41,7 +41,6 @@ def cut_to_segments_and_sample(audio, T_min, L0, n_segments):
 
     return segments
 
-# TODO: normalize audio?
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='Extracts chunks from audio files.')
