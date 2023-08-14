@@ -32,7 +32,7 @@ class Dataset:
         # Model parameters
         model_dict = cfg['MODEL']
         self.segment_duration = model_dict['AUDIO']['SEGMENT_DUR']
-        self.normalize_segment = model_dict['AUDIO']['NORMALIZE_SEGMENTS']
+        self.normalize_segment = model_dict['AUDIO']['NORMALIZE_SEGMENT']
         self.fs = model_dict['AUDIO']['FS']
         self.stft_hop = model_dict['INPUT']['STFT_HOP']
         self.n_fft = model_dict['INPUT']['STFT_WIN']
@@ -75,8 +75,10 @@ class Dataset:
         self.ts_augmented_query_dataset_dir = test_dict['DIR']['AUGMENTED_QUERY_ROOT']
 
         self.ts_use_bg_aug = test_dict['TD_AUG']['BG_AUG']
+        self.ts_bg_root_dir = test_dict['DIR']['BG_ROOT']
         self.ts_bg_snr = test_dict['TD_AUG']['BG_AUG_SNR']
         self.ts_use_ir_aug = test_dict['TD_AUG']['IR_AUG']
+        self.ts_ir_root_dir = test_dict['DIR']['IR_ROOT']
         self.ts_max_ir_dur = test_dict['TD_AUG']['IR_AUG_MAX_DUR']
 
         self.ts_segment_dur = test_dict['SEGMENT_DUR']
@@ -96,7 +98,7 @@ class Dataset:
         if self.val_use_bg_aug:
             self.val_bg_fps = self.tr_bg_fps
         if self.ts_use_bg_aug:
-            self.ts_bg_fps = sorted(glob.glob(self.tr_bg_root_dir + "**/*.wav", 
+            self.ts_bg_fps = sorted(glob.glob(self.ts_bg_root_dir + "**/*.wav", 
                                     recursive=True))
 
         if self.tr_use_ir_aug:
@@ -105,7 +107,7 @@ class Dataset:
         if self.val_use_ir_aug:
             self.val_ir_fps = self.tr_ir_fps
         if self.ts_use_ir_aug:
-            self.ts_ir_fps = sorted(glob.glob(self.tr_ir_root_dir + "**/*.wav", 
+            self.ts_ir_fps = sorted(glob.glob(self.ts_ir_root_dir + "**/*.wav", 
                                     recursive=True))
 
     def get_train_ds(self, reduce_items_p=100):
@@ -253,16 +255,16 @@ class Dataset:
         print(f"{len(self.ts_noise_paths):,} noise tracks found.")
         return genUnbalSequenceGeneration(
             track_paths=self.ts_noise_paths,
-            duration=self.ts_segment_dur,
+            segment_duration=self.ts_segment_dur,
             hop=self.ts_segment_hop,
-            fs=self.fs,
             normalize_segment=self.normalize_segment,
-            scale=self.scale_inputs,
+            fs=self.fs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
             f_max=self.fmax,
+            scale_output=self.scale_inputs,
             segments_per_track=self.ts_segments_per_track)
 
     def get_test_query_ds(self):
@@ -284,18 +286,19 @@ class Dataset:
         print(f"{len(self.ts_query_clean):,} clean query tracks found.")
         ds_db = genUnbalSequenceGeneration(
             track_paths=self.ts_query_clean,
-            duration=self.ts_segment_dur,
+            segment_duration=self.ts_segment_dur,
             hop=self.ts_segment_hop,
-            fs=self.fs,
             normalize_segment=self.normalize_segment,
-            scale=self.scale_inputs,
+            fs=self.fs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
             f_max=self.fmax,
+            scale_output=self.scale_inputs,
             segments_per_track=self.ts_segments_per_track)
         print(f"Creating the augmented query dataset...")
+        # For now we do not support single augmentation here
         if not (self.ts_use_bg_aug and self.ts_use_ir_aug):
             self.ts_query_augmented = sorted(
                 glob.glob(self.ts_augmented_query_dataset_dir + '/**/*.npy', 
@@ -303,16 +306,16 @@ class Dataset:
             print(f"{len(self.ts_query_augmented):,} augmented query tracks found")
             ds_query = genUnbalSequenceGeneration(
                 track_paths=self.ts_query_augmented,
-                duration=self.ts_segment_dur,
+                segment_duration=self.ts_segment_dur,
                 hop=self.ts_segment_hop,
-                fs=self.fs,
                 normalize_segment=self.normalize_segment,
-                scale=self.scale_inputs,
+                fs=self.fs,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
                 n_mels=self.n_mels,
                 f_min=self.fmin,
                 f_max=self.fmax,
+                scale_output=self.scale_inputs,
                 segments_per_track=self.ts_segments_per_track)
         else:
             print("Will augment the clean query tracks in real time. ")
@@ -322,18 +325,17 @@ class Dataset:
                 print(f"ts_ir_fps: {len(self.ts_ir_fps):>6,}")
             ds_query = genUnbalSequenceGeneration(
                 self.ts_query_clean,
-                segments_per_track=self.ts_segments_per_track,
-                # bsz=self.ts_segments_per_track * 2, # Anchors + positives=augmentations
-                duration=self.ts_segment_dur,
+                segment_duration=self.ts_segment_dur,
                 hop=self.ts_segment_hop,
                 normalize_segment=self.normalize_segment,
                 fs=self.fs,
-                scale=self.scale_inputs,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
                 n_mels=self.n_mels,
                 f_min=self.fmin,
                 f_max=self.fmax,
+                scale_output=self.scale_inputs,
+                segments_per_track=self.ts_segments_per_track,
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
                 )
