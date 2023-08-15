@@ -104,6 +104,8 @@ def get_fns_seg_dict(fns_list=[],
 
 #### Audio Processing ####
 
+# TODO: RMS normalize?
+
 def max_normalize(x):
     """ Max-normalize an audio signal or a batch of audio signals.
     
@@ -130,19 +132,21 @@ def max_normalize(x):
     else:
         raise NotImplementedError
 
-def OLA(segments, overlap):
+def OLA(segments:np.array, overlap_ratio:float):
     """ Overlap and add segments."""
 
-    assert overlap>=0 and overlap<=1, 'overlap should be between 0 and 1'
-    if overlap!=0.5:
-        raise NotImplementedError('We only support overlap=0.5 for now.')
+    # Check inputs
+    assert len(segments.shape) == 2, 'segments should be 2D array'
+    assert overlap_ratio>=0 and overlap_ratio<=1, 'overlap_ratio should be between 0 and 1'
+    if overlap_ratio!=0.5:
+        raise NotImplementedError('We only support overlap_ratio=0.5 for now.')
     assert len(segments.shape) == 2, 'segments should be 2D array'
 
     # Get the number of segments and samples
     n_segments, n_samples = segments.shape
 
     # Calculate the hop size and the number of samples in the output
-    hop = int(n_samples * (1-overlap))
+    hop = int(n_samples * (1-overlap_ratio))
     n_samples_out = (n_segments - 1) * hop + n_samples
 
     out = np.zeros(n_samples_out)
@@ -154,16 +158,33 @@ def OLA(segments, overlap):
 
     return out
 
+def number_of_segments(signal_length:int, L:int, H:int):
+    """ Calculates how many segments can be taken from 
+    an audio signal with length L and hop size H. Discards the remainder."""
+
+    assert L > 0, 'L should be positive'
+    assert H > 0, 'H should be positive'
+    assert H <= L, 'H should be smaller than or equal to L'
+    assert signal_length >= L, 'signal_length should be longer than or equal to L'
+
+    # Calculate the number of segments that can be cut from the audio
+    N_cut = int(np.floor((signal_length - L + H) / H))
+    assert N_cut > 0, "signal is too short for L and H"
+
+    return N_cut
+
 # TODO: cut to segment function with and without remainder
-def cut_to_segments(audio, L, H):
+def cut_to_segments(audio:np.array, L:int, H:int):
     """ Cut the audio into consecutive segments of length L with hop size H.
     Discards the remainder segment."""
 
+    assert len(audio.shape) == 1, 'audio should be 1D array'
+
     # Calculate the number of segments that can be cut from the audio
-    N_cut = int(np.floor((len(audio) - L + H) / H))
-    assert N_cut > 0, "audio is too short"
+    N_cut = number_of_segments(len(audio), L, H)
     remainder = len(audio) - L - (N_cut-1)*H
     assert remainder < L, "remainder should be smaller than L"
+    assert remainder >= 0, "remainder should not be negative"
 
     # Cut the signal into segments and discard the remainder
     start_indices = np.arange(N_cut)*H
