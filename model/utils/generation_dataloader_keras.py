@@ -13,6 +13,7 @@ class genUnbalSequenceGeneration(Sequence):
         track_paths,
         segment_duration=1,
         hop_duration=0.5,
+        chunk_duration=30,
         normalize_segment=True,
         fs=8000,
         n_fft=1024,
@@ -21,7 +22,6 @@ class genUnbalSequenceGeneration(Sequence):
         f_min=300,
         f_max=4000,
         scale_output=True,
-        segments_per_track=120,
         bg_mix_parameter=[False],
         ir_mix_parameter=[False],
         ):
@@ -34,6 +34,9 @@ class genUnbalSequenceGeneration(Sequence):
             Segment duration in seconds. The default is 1.
         hop_duration : (float), optional
             Hop-size of segments in seconds. The default is .5.
+        chunk_duration : (float), optional
+            Chunk duration in seconds. The default is 30. We take 
+            segments_per_track segments from every chunk.
         normalize_segment : (str), optional
             Normalize each audio segment. Default is True.
         fs : (int), optional
@@ -50,8 +53,6 @@ class genUnbalSequenceGeneration(Sequence):
             Maximum frequency of the mel-bands. Default is 4000.
         scale_output : (bool), optional
             Scale the power mel-spectrogram. The default is True.
-        segments_per_track : (int), optional
-            Number of segments per track. The default is 120.
         bg_mix_parameter : list([(bool), list(str), (int, int)]), optional
             [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. Default is [False].
         ir_mix_parameter : list([(bool), list(str), float], optional
@@ -59,7 +60,8 @@ class genUnbalSequenceGeneration(Sequence):
         """
 
         # Check parameters
-        assert segments_per_track > 0, "segments_per_track should be > 0"
+        # assert segments_per_track > 0, "segments_per_track should be > 0"
+        assert hop_duration <= segment_duration, "hop_duration should be <= segment_duration"
 
         # Save the Input parameters
         self.segment_duration = segment_duration
@@ -67,10 +69,13 @@ class genUnbalSequenceGeneration(Sequence):
 
         self.hop_duration = hop_duration
         self.hop_length = int(self.fs*self.hop_duration)
+        self.overlap_ratio = (self.segment_length - self.hop_length) / self.segment_length
 
-        self.segments_per_track = segments_per_track
-        self.overlap = (self.segment_length - self.hop_length) / self.segment_length
-        self.chunk_length = int((segments_per_track-1)*self.hop_length + self.segment_length)
+        self.chunk_duration = chunk_duration
+        self.chunk_length = int(self.fs*self.chunk_duration)
+        self.segments_per_track = audio_utils.number_of_segments(self.chunk_length,
+                                                                 self.segment_length,
+                                                                 self.hop_length)
 
         self.fs = fs
         self.normalize_segment = normalize_segment
@@ -78,7 +83,6 @@ class genUnbalSequenceGeneration(Sequence):
 
         self.track_paths = track_paths
         self.n_tracks = len(self.track_paths)
-
         # We assume that all tracks have the same number of
         # segments. This is true for the current dataset.
         self.n_samples = self.n_tracks * self.segments_per_track
@@ -104,11 +108,10 @@ class genUnbalSequenceGeneration(Sequence):
         return self.n_tracks
 
     def __getitem__(self, idx):
-        """ Loads all the segments of track with idx and returns a batch of
-        segments_per_track segments. Each batch contains self.segments_per_track
-        segments from a single track. If bg_mix is True, we mix the segments
+        """ Loads the chunk associated with a track and creates a batch of
+        segments_per_track segments. If bg_mix is True, we mix the segments
         with background noise. If ir_mix is True, we convolve the segments
-        with an Impulse Response.
+        with a room Impulse Response (IR).
 
         Parameters:
         ----------
@@ -124,40 +127,50 @@ class genUnbalSequenceGeneration(Sequence):
 
         """
 
-        # Load the segments from .npy file
-        segments_path = self.track_paths[idx]
-        X = np.load(segments_path, allow_pickle=True)['segment']
-        assert X.shape[1] == self.segment_length, \
-                        "Loaded a segment with wrong duration."
+        # Load the chunk from the .npz file
+        chunk_path = self.track_paths[idx]
+        X = np.load(chunk_path, allow_pickle=True)['segment']
+        assert len(X.shape)==1, "Loaded a chunk with wrong shape."
+        assert X.shape[0] == self.chunk_length, \
+                        "Loaded a chunk with wrong duration."
 
-        # Keep only the first segments_per_track segments
-        X = X[:self.segments_per_track]
+        # Cut the chunk into segments
+        X, _ = audio_utils.cut_to_segments(X, 
+                                           self.segment_length, 
+                                           self.hop_length)
 
-        # Apply BG augmentations if specified
-        if self.bg_mix:
+        if X.shape[0] < self.segments_per_track:
+            print(f"Warning: track {chunk_path} has less segments than required. Skipping.")
+            return None, None
+        elif X.shape[0] > self.segments_per_track:
+            # Keep only the first segments_per_track segments
+            print(f"Warning: track {chunk_path} has more segments than required. "
+                  f"Keeping only the first {self.segments_per_track} segments.")
+            X = X[:self.segments_per_track]
 
-            # Reconstruct the audio chunk from the segments
-            X = audio_utils.OLA(X, self.overlap)
+        # Apply augmentations if specified
+        if self.bg_mix and self.ir_mix:
+
+            # Reconstruct the audio chunk from the segments for realistic
+            # background noise mixing
+            X = audio_utils.OLA(X, self.overlap_ratio)
 
             # Get a random background noise sample
             bg_fname = self.bg_fnames[idx%self.n_bg_files]
             bg_noise = self.read_bg(bg_fname)
 
             # Randomly sample an SNR for mixing the background noise
-            snr = audio_utils.sample_SNR(1, self.bg_snr_range)
+            snr = audio_utils.sample_SNR(1, self.bg_snr_range)[0]
 
             # Mix the OLA'd track with the background noise
-            X = audio_utils.background_mix(X.reshape(-1),
-                                           bg_noise.reshape(-1),
+            X = audio_utils.background_mix(X.reshape(-1), 
+                                           bg_noise.reshape(-1), 
                                            snr_db=snr)
 
-            # Cut the track to segments (n_segments, segment_length)
+            # Cut the track back to segments (n_segments, segment_length)
             X, _ = audio_utils.cut_to_segments(X, 
                                                self.segment_length, 
                                                self.hop_length)
-
-        # Apply IR augmentations if specified
-        if self.ir_mix:
 
             # Get a random IR sample
             ir_fname = self.ir_fnames[idx%self.n_ir_files]
@@ -166,7 +179,8 @@ class genUnbalSequenceGeneration(Sequence):
             # Apply the same IR to all segments
             # This is not realistic, and its a little bit cheating but we
             # do it because the original authors get good results with this 
-            # approach.
+            # approach. In the future, we will train a separate model for 
+            # dealing with reverberation from past music.
             ir = np.repeat(ir, X.shape[0], axis=0)
 
             # Convolve with IR

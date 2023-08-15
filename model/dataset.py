@@ -71,7 +71,8 @@ class Dataset:
 
         self.ts_segment_dur = cfg['TEST']['SEGMENT_DUR']
         self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP']
-        self.ts_segments_per_track = cfg['TEST']['SEGMENTS_PER_TRACK']
+        self.noise_chunk_dur = cfg['TEST']['NOISE_CHUNK_DURATION']
+        self.query_chunk_dur = cfg['TEST']['QUERY_CHUNK_DURATION']
 
         self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
         self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
@@ -245,6 +246,7 @@ class Dataset:
             track_paths=self.ts_noise_paths,
             segment_duration=self.ts_segment_dur,
             hop_duration=self.ts_segment_hop,
+            chunk_duration=self.noise_chunk_dur,
             normalize_segment=self.normalize_segment,
             fs=self.fs,
             n_fft=self.n_fft,
@@ -253,7 +255,7 @@ class Dataset:
             f_min=self.fmin,
             f_max=self.fmax,
             scale_output=self.scale_inputs,
-            segments_per_track=self.ts_segments_per_track)
+            )
 
     def get_test_query_ds(self):
         """ Create 2 databases for query segments. One of them is the augmented 
@@ -281,6 +283,7 @@ class Dataset:
             track_paths=self.ts_query_clean,
             segment_duration=self.ts_segment_dur,
             hop_duration=self.ts_segment_hop,
+            chunk_duration=self.query_chunk_dur,
             normalize_segment=self.normalize_segment,
             fs=self.fs,
             n_fft=self.n_fft,
@@ -289,7 +292,7 @@ class Dataset:
             f_min=self.fmin,
             f_max=self.fmax,
             scale_output=self.scale_inputs,
-            segments_per_track=self.ts_segments_per_track)
+            )
 
         print("Creating the augmented query dataset...")
         if self.ts_use_bg_aug and self.ts_use_ir_aug:
@@ -311,6 +314,7 @@ class Dataset:
                 track_paths=self.ts_query_clean, # Augment the clean query tracks
                 segment_duration=self.ts_segment_dur,
                 hop_duration=self.ts_segment_hop,
+                chunk_duration=self.query_chunk_dur,
                 normalize_segment=self.normalize_segment,
                 fs=self.fs,
                 n_fft=self.n_fft,
@@ -319,7 +323,7 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
-                segments_per_track=self.ts_segments_per_track,
+                # segments_per_track=self.ts_segments_per_track,
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
                 )
@@ -340,6 +344,7 @@ class Dataset:
                 track_paths=self.ts_query_augmented,
                 segment_duration=self.ts_segment_dur,
                 hop_duration=self.ts_segment_hop,
+                chunk_duration=self.query_chunk_dur,
                 normalize_segment=self.normalize_segment,
                 fs=self.fs,
                 n_fft=self.n_fft,
@@ -348,7 +353,8 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
-                segments_per_track=self.ts_segments_per_track)
+                # segments_per_track=self.ts_segments_per_track,
+                )
 
         else:
 
