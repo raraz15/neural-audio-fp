@@ -15,7 +15,6 @@ from model.dataset import Dataset
 from model.fp.specaug_chain.specaug_chain import get_specaug_chain_layer
 from model.fp.nnfp import FingerPrinter
 from model.fp.NTxent_loss_single_gpu import NTxentLoss
-from model.fp.online_triplet_loss import OnlineTripletLoss
 from model.fp.lamb_optimizer import LAMB
 from model.utils.experiment_helper import ExperimentHelper
 from model.utils.mini_search_subroutines import mini_search_eval

@@ -4,7 +4,7 @@ from tensorflow.keras.utils import Sequence
 from model.utils import audio_utils
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 
-SEED = 27 # Only used for random augmentation
+SEED = 27 # Used during augmentation
 np.random.seed(SEED)
 
 class genUnbalSequenceGeneration(Sequence):
@@ -29,7 +29,7 @@ class genUnbalSequenceGeneration(Sequence):
         Parameters
         ----------
         track_paths : list(str), 
-            Track .npz paths as a list. 
+            Track .npy paths as a list. 
         segment_duration : (float), optional
             Segment duration in seconds. The default is 1.
         hop : (float), optional

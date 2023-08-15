@@ -130,7 +130,7 @@ def generate_fingerprint(cfg,
 
         • Second, Faiss-GPU does not support reconstruction of DB from
           compressed DB (index). In eval/eval_faiss.py, we need uncompressed
-          vectors to calaulate sequence-level matching score. The created
+          vectors to calculate sequence-level matching score. The created
           "memmap" will be reused at that point.
 
         Reference:
@@ -150,7 +150,7 @@ def generate_fingerprint(cfg,
             f"bsz={bsz}, {n_items} items, d={dim}"+ " ===")
         progbar = Progbar(len(ds[key]))
 
-        """ Parallelism to speed up preprocessing------------------------- """
+        """ Parallelism to speed up processing------------------------- """
         enq = tf.keras.utils.OrderedEnqueuer(ds[key],
                                               use_multiprocessing=True,
                                               shuffle=False)
@@ -161,13 +161,14 @@ def generate_fingerprint(cfg,
             progbar.update(i)
             _, Xa = next(enq.get())
             emb = m_fp(Xa)
-            arr[i*bsz : (i+1)*bsz, :] = emb.numpy() # Writing on disk.
+            # Write to disk. We must know the shape of the emb in advance
+            arr[i*bsz : (i+1)*bsz, :] = emb.numpy()
             i += 1
         progbar.update(i, finalize=True)
         enq.stop()
-        """ End of Parallelism-------------------------------------------- """
+        """ End of Parallelism----------------------------------------- """
 
-        tf.print(f'=== Succesfully stored {arr_shape[0]} fingerprints to {output_dir} ===')
+        tf.print(f'=== Succesfully stored {len(arr)} fingerprints to {output_dir} ===')
         sz_check[key] = len(arr)
         # Close memmap
         arr.flush()
@@ -181,4 +182,3 @@ def generate_fingerprint(cfg,
     elif sz_check['db'] != sz_check['query']:
         print("\033[93mWarning: 'db' and 'qeury' size does not match. "\
               "This can cause a problem in evaluation stage.\033[0m")
-    return

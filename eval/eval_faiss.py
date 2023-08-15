@@ -184,6 +184,7 @@ def eval_faiss(emb_dir,
     print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
     if test_ids.lower() == 'all': # will test all segments in query/db set
         test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
+    # TODO: sample an equal number of segments from each track
     elif test_ids.isnumeric():
         test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
     else:
