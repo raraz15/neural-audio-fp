@@ -158,7 +158,7 @@ def eval_faiss(emb_dir,
 
     • Calcuation of sequence-level matching score requires reconstruction of
       vectors from FAISS index.
-    • Unforunately, current faiss.index.reconstruct_n(id_start, id_stop)
+    • Unfortunately, current faiss.index.reconstruct_n(id_start, id_stop)
       supports only CPU index.
     • We prepare a fake_recon_index thourgh the on-disk method.
 
@@ -182,10 +182,15 @@ def eval_faiss(emb_dir,
 
     # Get test_ids
     print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
-    if test_ids.lower() == 'all': # will test all segments in query/db set
+    if test_ids.lower() == 'all':
+        # Will use all segments in query/db set as starting point and 
+        # evaluate the performance for each test_seq_len.
         test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
     # TODO: sample an equal number of segments from each track
     elif test_ids.isnumeric():
+        # Will use random segments in query/db set as starting point and
+        # evaluate the performance for each test_seq_len. This does not guarantee
+        # getting a sample from each track.
         test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
     else:
         test_ids = np.load(test_ids)
