@@ -78,7 +78,7 @@ if __name__=="__main__":
     # Calculate the number of samples for each segment and hop
     L = int(args.segment_duration * args.sample_rate)
     H = int(args.hop_duration * args.sample_rate)
-    assert L > H, "segment duration should be larger than hop duration"
+    assert L >= H, "segment duration should be greater than or equal to hop duration"
 
     # Calculate the minimum number of samples required for each audio file
     assert args.num_segments >= 1, "num_segments should be greater than or equal to 1"
@@ -112,11 +112,11 @@ if __name__=="__main__":
                                     sampleRate=args.sample_rate, 
                                     resampleQuality=4)()
             except:
-                print(f"Skipping {audio_path}, could not load audio.")
+                print(f"Could not load the audio file. Skipping {audio_path}.")
                 continue
 
             if len(audio) < min_samples:
-                print(f"Skipping {audio_path}, duration is too short.")
+                print(f"Audio duration is too short. Skipping {audio_path}.")
                 continue
 
             # Get a random min_samples segment from the audio
@@ -127,7 +127,7 @@ if __name__=="__main__":
             try:
                 segments = np.array([s[2] for s in cut_segments(audio, L, H)])
             except AssertionError as e:
-                print(f"Skipping {audio_path}")
+                print(f"Segmentation failed. Skipping {audio_path}")
                 print(e)
                 continue
 
@@ -139,10 +139,9 @@ if __name__=="__main__":
             counter += 1
 
             # Print progress
-            if (i+1) % 10000 == 0 or i == len(paths)-1:
+            if (i+1) % 10000 == 0 or i == len(paths)-1 or i == 0:
                 print(f"{split}: [{i+1}/{len(paths)}]")
-        
-        if len(paths) > 0:
-            print(f"Total number of successfully segmented tracks: {counter}")
+
+        print(f"Total number of successfully segmented tracks: {counter}")
 
     print("Done!")
