@@ -1,7 +1,6 @@
 import numpy as np
 from tensorflow.keras.utils import Sequence
 
-#from model.utils.audio_utils import bg_mix_batch, ir_aug_batch, load_audio, get_fns_seg_dict, max_normalize
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 from model.utils import audio_utils
 
@@ -93,6 +92,9 @@ class genUnbalSequence(Sequence):
         # Convert duration to samples
         self.sub_segment_length = int(self.segment_duration * fs)
         self.full_segment_length = int(self.full_segment_duration * fs)
+
+        # Align the centers of the full segment and the sub-segment
+        self.relative_segment_position = int((self.full_segment_length - self.sub_segment_length) / 2)
 
         # Based on the segment duration, determine the maximum allowed offset
         # for the anchor and positive samples. We align the centers of the 
@@ -281,13 +283,14 @@ class genUnbalSequence(Sequence):
                     f"full_segment.shape[0]={full_segment.shape[0]} but " \
                     f"self.full_segment_length={self.full_segment_length}"
 
-            # Align the centers of the full segment and the sub-segment
-            relative_position = int((self.full_segment_length - self.sub_segment_length) / 2)
-            # Determine the anchor start sample inside the full segment
-            anchor_start = relative_position
+            # Normalize the complete segment if specified
+            if self.normalize_segment:
+                full_segment = audio_utils.max_normalize(full_segment)
 
-            # This is the maximum allowed offset when we align the centers of the sub-segment 
-            max_possible_offset = relative_position
+            # The anchor start position inside the full segment when the centers are aligned
+            anchor_start = self.relative_segment_position
+            # This is the maximum allowed offset
+            max_possible_offset = self.relative_segment_position
 
             # If random offset is specified, determine a random offset based 
             # on the offset margin. This means that at each iteration we will 
@@ -304,12 +307,10 @@ class genUnbalSequence(Sequence):
             anchor_end = anchor_start + self.sub_segment_length
             assert anchor_end<=self.full_segment_length, "End point is out of bounds"
 
-            # Get the anchor sample and normalize if specified
-            anchor = full_segment[anchor_start:anchor_end].reshape((1, -1))
-            if self.normalize_segment:
-                anchor = audio_utils.max_normalize(anchor)
+            # Get the anchor sample, create a copy
+            anchor = full_segment[anchor_start:anchor_end].copy()
             # Append it to the batch
-            Xa_batch.append(anchor)
+            Xa_batch.append(anchor.reshape((1, -1)))
 
             # Randomly offset each positive sample with respect to the anchor
             if self.n_pos_per_anchor > 0:
@@ -325,18 +326,15 @@ class genUnbalSequence(Sequence):
                     "End point range can be out of bounds for the positive samples"
 
                 # Apply random offset to replicas
-                pos_start_list = relative_position + np.random.randint(low=pos_offset_min,
-                                                                        high=pos_offset_max,
-                                                                        size=self.n_pos_per_anchor)
+                pos_start_list = self.relative_segment_position + np.random.randint(low=pos_offset_min,
+                                                                                    high=pos_offset_max,
+                                                                                    size=self.n_pos_per_anchor)
 
                 # Load the positive samples and append them to the batch
                 for s_idx in pos_start_list:
                     e_idx = s_idx + self.sub_segment_length
-                    positive = full_segment[s_idx:e_idx].reshape((1, -1))
-                    # Normalize if specified
-                    if self.normalize_segment:
-                        positive = audio_utils.max_normalize(positive)
-                    Xp_batch.append(positive)
+                    positive = full_segment[s_idx:e_idx].copy()
+                    Xp_batch.append(positive.reshape((1, -1)))
 
         # Create the batch
         Xa_batch = np.concatenate(Xa_batch, axis=0)
