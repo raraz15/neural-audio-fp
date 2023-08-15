@@ -12,7 +12,7 @@ class genUnbalSequenceGeneration(Sequence):
         self,
         track_paths,
         segment_duration=1,
-        hop=.5,
+        hop_duration=0.5,
         normalize_segment=True,
         fs=8000,
         n_fft=1024,
@@ -32,8 +32,8 @@ class genUnbalSequenceGeneration(Sequence):
             Track .npy paths as a list. 
         segment_duration : (float), optional
             Segment duration in seconds. The default is 1.
-        hop : (float), optional
-            Hop-size in seconds. The default is .5.
+        hop_duration : (float), optional
+            Hop-size of segments in seconds. The default is .5.
         normalize_segment : (str), optional
             Normalize each audio segment. Default is True.
         fs : (int), optional
@@ -63,18 +63,22 @@ class genUnbalSequenceGeneration(Sequence):
 
         # Save the Input parameters
         self.segment_duration = segment_duration
-        self.hop = hop
-        self.bg_hop = segment_duration
+        self.segment_length = int(self.fs*self.segment_duration)
+
+        self.hop_duration = hop_duration
+        self.hop_length = int(self.fs*self.hop_duration)
+
+        self.segments_per_track = segments_per_track
+        self.overlap = (self.segment_length - self.hop_length) / self.segment_length
+        self.chunk_length = int((segments_per_track-1)*self.hop_length + self.segment_length)
+
         self.fs = fs
         self.normalize_segment = normalize_segment
-        self.segments_per_track = segments_per_track
-        self.segment_length = int(self.fs*self.segment_duration)
-        self.hop_length = int(self.fs*self.hop)
-        self.overlap = (self.segment_length - self.hop_length) / self.segment_length
-        self.chunk_length = int(((segments_per_track-1)*self.hop + self.segment_duration)*fs)
+        self.bg_hop = segment_duration
 
         self.track_paths = track_paths
         self.n_tracks = len(self.track_paths)
+
         # We assume that all tracks have the same number of
         # segments. This is true for the current dataset.
         self.n_samples = self.n_tracks * self.segments_per_track

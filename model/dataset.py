@@ -244,7 +244,7 @@ class Dataset:
         return genUnbalSequenceGeneration(
             track_paths=self.ts_noise_paths,
             segment_duration=self.ts_segment_dur,
-            hop=self.ts_segment_hop,
+            hop_duration=self.ts_segment_hop,
             normalize_segment=self.normalize_segment,
             fs=self.fs,
             n_fft=self.n_fft,
@@ -280,7 +280,7 @@ class Dataset:
         ds_db = genUnbalSequenceGeneration(
             track_paths=self.ts_query_clean,
             segment_duration=self.ts_segment_dur,
-            hop=self.ts_segment_hop,
+            hop_duration=self.ts_segment_hop,
             normalize_segment=self.normalize_segment,
             fs=self.fs,
             n_fft=self.n_fft,
@@ -310,7 +310,7 @@ class Dataset:
             ds_query = genUnbalSequenceGeneration(
                 track_paths=self.ts_query_clean, # Augment the clean query tracks
                 segment_duration=self.ts_segment_dur,
-                hop=self.ts_segment_hop,
+                hop_duration=self.ts_segment_hop,
                 normalize_segment=self.normalize_segment,
                 fs=self.fs,
                 n_fft=self.n_fft,
@@ -339,7 +339,7 @@ class Dataset:
             ds_query = genUnbalSequenceGeneration(
                 track_paths=self.ts_query_augmented,
                 segment_duration=self.ts_segment_dur,
-                hop=self.ts_segment_hop,
+                hop_duration=self.ts_segment_hop,
                 normalize_segment=self.normalize_segment,
                 fs=self.fs,
                 n_fft=self.n_fft,
