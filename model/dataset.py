@@ -205,6 +205,7 @@ class Dataset:
         print(f"{len(self.val_source_fps):,} tracks found.")
         print(f"{total_segments:,} segments found.")
 
+        # TODO: drop last?
         return genUnbalSequence(
             segment_dict=self.val_source_fps,
             bsz=self.tr_batch_sz,
@@ -323,7 +324,6 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
-                # segments_per_track=self.ts_segments_per_track,
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
                 )
@@ -353,7 +353,6 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
-                # segments_per_track=self.ts_segments_per_track,
                 )
 
         else:
