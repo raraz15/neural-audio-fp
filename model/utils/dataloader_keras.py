@@ -276,7 +276,7 @@ class genUnbalSequence(Sequence):
             seg_path = self.track_seg_dict[fname][random_idx]
 
             # Load the full segment
-            full_segment = np.load(seg_path)
+            full_segment = np.load(seg_path, allow_pickle=True)["segment"]
             assert full_segment.shape[0] == self.full_segment_length, \
                     f"full_segment.shape[0]={full_segment.shape[0]} but " \
                     f"self.full_segment_length={self.full_segment_length}"

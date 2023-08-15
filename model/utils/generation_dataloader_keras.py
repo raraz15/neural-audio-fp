@@ -122,7 +122,7 @@ class genUnbalSequenceGeneration(Sequence):
 
         # Load the segments from .npy file
         segments_path = self.track_paths[idx]
-        X = np.load(segments_path)
+        X = np.load(segments_path, allow_pickle=True)['segment']
         assert X.shape[1] == self.segment_length, \
                         "Loaded a segment with wrong duration."
 
