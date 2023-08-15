@@ -5,6 +5,9 @@ import numpy as np
 
 SAMPLE_RATE = 8000
 
+SEED = 27
+np.random.seed(SEED)
+
 def cut_to_segments_and_sample(audio, T_min, L0, n_segments):
 
     # Check the audio duration
@@ -62,18 +65,11 @@ if __name__=="__main__":
                         type=float, 
                         default=2.0,
                         help='Duration of each segment in seconds.')
-    parser.add_argument('--seed', 
-                        type=int, 
-                        default=27,
-                        help='Random seed.')
     args = parser.parse_args()
 
     # Minimum audio duration for no overlap
     T_min = args.segment_duration * args.n_segments
     L0 = np.floor(args.segment_duration * SAMPLE_RATE).astype(int)
-
-    # Set the random seed
-    np.random.seed(args.seed)
 
     # Read the text files
     with open(args.train_text, "r") as f:
@@ -84,7 +80,7 @@ if __name__=="__main__":
     # Sample segments from each audio file for train and val sets
     for split, paths in zip(["train", "val"], [train_paths, val_paths]):
 
-        # Count the number of total segments
+        # Count the number of total segments for this split
         counter = 0
 
         # Create the split directory
@@ -95,19 +91,19 @@ if __name__=="__main__":
         # Sample segments from each audio file
         for i,audio_path in enumerate(paths):
 
-            # Print progress
-            if (i+1) % 10000 == 0:
-                print(f"{split}: [{i+1}/{len(paths)}]")
-
             # Create a directory for the audio segments
             audio_name = os.path.splitext(os.path.basename(audio_path))[0]
             segments_dir = os.path.join(split_dir, audio_name[:2], audio_name)
             os.makedirs(segments_dir, exist_ok=True)
 
-            # Load the audio and downsample to SAMPLE_RATE, use the lowest quality
-            audio = es.MonoLoader(filename=audio_path, 
-                                sampleRate=SAMPLE_RATE, 
-                                resampleQuality=4)()
+            try:
+                # Load the audio and downsample to SAMPLE_RATE, use the lowest quality
+                audio = es.MonoLoader(filename=audio_path, 
+                                    sampleRate=SAMPLE_RATE, 
+                                    resampleQuality=4)()
+            except:
+                print(f"Could not load the audio file. Skipping {audio_path}.")
+                continue
 
             try:
                 segments = cut_to_segments_and_sample(audio, T_min, L0, args.n_segments)
@@ -116,7 +112,7 @@ if __name__=="__main__":
                 print(e)
                 continue
 
-            # Write the segments to disk
+            # Write the segments to disk as separate files (needed for our training scheme)
             for start,end, segment in segments:
                 segment_path = os.path.join(segments_dir, 
                                             f"{start}_{end}.npy")
@@ -124,6 +120,10 @@ if __name__=="__main__":
                     # Write as float16 to save disk space
                     np.save(f, segment.astype(np.float16))
                 counter += 1
+
+            # Print progress
+            if (i+1) % 10000 == 0 or (i+1) == len(paths) or i == 0:
+                print(f"{split}: [{i+1}/{len(paths)}]")
 
         print(f"{split}: [{i+1}/{len(paths)}]")
         print(f"Total number of successfully saved segments: {counter}")
