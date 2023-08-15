@@ -3,6 +3,9 @@ import argparse
 import essentia.standard as es
 import numpy as np
 
+SEED = 27
+np.random.seed(SEED)
+
 def cut_segments(audio, L, H):
     """ Cut the audio into consecutive segments of length L with hop size H.
     Discards the last segment."""
