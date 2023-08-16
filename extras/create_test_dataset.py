@@ -68,10 +68,6 @@ if __name__=="__main__":
         split_dir = os.path.join(args.output_dir, "test", split)
         print(f"Writing {split} segments to {split_dir}...")
 
-        if len(paths) == 0:
-            print(f"No files found for {split}, skipping...")
-            continue
-
         # Sample segments from each audio file
         for i, audio_path in enumerate(paths):
 
@@ -80,6 +76,13 @@ if __name__=="__main__":
             audio_name = os.path.splitext(os.path.basename(audio_path))[0]
             audio_dir = os.path.join(split_dir, audio_name[:2])
             os.makedirs(audio_dir, exist_ok=True)
+
+            # Create the path to save the segment
+            save_path = os.path.join(audio_dir, audio_name+".npz")
+            # Skip if the segment already exists
+            if os.path.isfile(save_path):
+                print(f"Segment already exists. Skipping {audio_path}.")
+                continue
 
             try:
                 # Load the audio and downsample to args.sample_rate, 
@@ -102,12 +105,10 @@ if __name__=="__main__":
             boundary = np.array([start, end]).astype(np.int32)
 
             # Write the chunk to disk as a npy file
-            save_path = os.path.join(audio_dir, audio_name+".npz")
             np.savez(save_path, 
                      segment=chunk,
                      boundary=boundary # Store the start and end indices of the chunk
                      )
-            # Increment the counter for successfully segmented tracks
             counter += 1
 
             # Print progress
