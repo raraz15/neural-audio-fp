@@ -65,14 +65,14 @@ class genUnbalSequenceGeneration(Sequence):
 
         # Save the Input parameters
         self.segment_duration = segment_duration
-        self.segment_length = int(self.fs*self.segment_duration)
+        self.segment_length = int(fs*self.segment_duration)
 
         self.hop_duration = hop_duration
-        self.hop_length = int(self.fs*self.hop_duration)
+        self.hop_length = int(fs*hop_duration)
         self.overlap_ratio = (self.segment_length - self.hop_length) / self.segment_length
 
         self.chunk_duration = chunk_duration
-        self.chunk_length = int(self.fs*self.chunk_duration)
+        self.chunk_length = int(fs*chunk_duration)
         self.segments_per_track = audio_utils.number_of_segments(self.chunk_length,
                                                                  self.segment_length,
                                                                  self.hop_length)
