@@ -11,11 +11,13 @@ np.random.seed(SEED)
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='Extracts segments from audio files.')
-    parser.add_argument('query_text', 
+    parser.add_argument('--query_text', 
                         type=str,
+                        default=None,
                         help='Path to the text file containing test_query audio paths.')
-    parser.add_argument('noise_text', 
+    parser.add_argument('--noise_text', 
                         type=str,
+                        default=None,
                         help='Path to the text file containing test_noise audio paths.')
     parser.add_argument('output_dir', 
                         type=str,
@@ -35,6 +37,9 @@ if __name__=="__main__":
                         default=8000,
                         help="Sample rate to use for audio files.")
     args = parser.parse_args()
+
+    assert args.query_text is not None or args.noise_text is not None, \
+        "At least one of --query_text or --noise_text should be provided."
 
     # Read the text files containing the audio paths
     noise_paths, query_paths = [], []
