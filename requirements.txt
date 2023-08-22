@@ -8,3 +8,4 @@ numpy
 matplotlib
 wavio
 protobuf==3.20.*
+essentia
