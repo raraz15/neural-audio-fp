@@ -5,6 +5,7 @@
 """ generate.py """
 
 import os
+import csv
 import sys
 import numpy as np
 import tensorflow as tf
@@ -105,7 +106,7 @@ def generate_fingerprint(cfg,
     if not output_root_dir:
         output_root_dir = cfg['DIR']['OUTPUT_ROOT_DIR']
     # Here the checkpoint_type does not matter because checkpoint_index is specified.
-    output_root_dir += f'{checkpoint_name}/{checkpoint_index}/'
+    output_root_dir = os.path.join(output_root_dir, checkpoint_name, checkpoint_index)
     os.makedirs(output_root_dir, exist_ok=True)
     if not skip_dummy:
         prevent_overwrite('dummy_db', output_root_dir+'dummy_db.mm')
@@ -175,7 +176,7 @@ def generate_fingerprint(cfg,
             fieldnames = ['segment_id', 'filename', 'intra_segment_id', 'offset_min', 'offset_max'] # from model/utils/dataloader_keras.py line 117
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-            for ii, seg in enumerate(ds[key].fns_event_seg_list):
+            for ii, seg in enumerate(ds[key].track_paths):
                 writer.writerow({'segment_id': ii,
                                  'filename': seg[0],
                                  'intra_segment_id': seg[1],

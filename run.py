@@ -179,7 +179,7 @@ def match(query_bname, query_fp_path, refs_fp_path, index_path, config,
     from model.matcher import Matcher
     from eval.eval_faiss import load_memmap_data
 
-    cfg = load_config(config, display=False)
+    cfg = load_config(config)
     allow_gpu_memory_growth()
 
     refs_segments_path = os.path.join(
