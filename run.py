@@ -7,16 +7,21 @@ import os
 import sys
 import click
 import yaml
+
+import numpy as np
+import pandas as pd
+import faiss
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
-def load_config(config_fname):
-    config_filepath = './config/' + config_fname + '.yaml'
-    if os.path.exists(config_filepath):
-        print(f'cli: Configuration from {config_filepath}')
-    else:
-        sys.exit(f'cli: ERROR! Configuration file {config_filepath} is missing!!')
-    with open(config_filepath, 'r') as f:
-        cfg = yaml.safe_load(f)
+def load_config(config_filepath, display=True):
+    if display:
+        if os.path.exists(config_filepath):
+            print(f'cli: Configuration from {config_filepath}')
+        else:
+            sys.exit(f'cli: ERROR! Configuration file {config_filepath} is missing!!')
+        with open(config_filepath, 'r', encoding='utf-8') as f:
+            cfg = yaml.safe_load(f)
     return cfg
 
 def update_config(cfg, key1: str, key2: str, val):
@@ -38,9 +43,9 @@ def cli():
         python run.py COMMAND --help
 
     """
-    pass
+    return
 
-""" Train """
+# Train
 @cli.command()
 @click.argument('checkpoint_name', required=True)
 @click.option('--config', '-c', default='default', type=click.STRING,
@@ -60,6 +65,7 @@ def train(checkpoint_name, config, max_epoch, deterministic):
     the training will resume from the latest checkpoint in the directory.
     """
 
+    from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
     from model.trainer import set_seed, set_global_determinism, trainer
 
     set_seed()
@@ -69,15 +75,16 @@ def train(checkpoint_name, config, max_epoch, deterministic):
     if max_epoch:
         update_config(cfg, 'TRAIN', 'MAX_EPOCH', max_epoch)
     print_config(cfg)
+    allow_gpu_memory_growth()
     trainer(cfg, checkpoint_name)
 
-""" Generate fingerprint (after training) """
+# Generate fingerprint (after training)
 @cli.command()
 @click.argument('checkpoint_name', required=True)
 @click.argument('checkpoint_index', required=False)
 @click.option('--config', '-c', default='default', required=False,
               type=click.STRING,
-              help="Name of the model configuration file located in 'config/'." +
+              help="Path of the model configuration file located in 'config/'." +
               " Default is 'default'")
 @click.option('--checkpoint_type', default='best', type=click.STRING, required=False,
               help="Checkpoint type must be one of {'best', 'custom'}. " +
@@ -109,9 +116,97 @@ def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, source,
 
     cfg = load_config(config)
     allow_gpu_memory_growth()
-    generate_fingerprint(cfg, checkpoint_type, checkpoint_name, checkpoint_index, source, output, skip_dummy)
+    if os.path.isdir(source):
+        isdir=True
+    elif os.path.isfile(source):
+        isdir=False
+    else:
+        print('ERROR: Unknown source')
+        sys.exit()
+    generate_fingerprint(cfg, checkpoint_type, checkpoint_name, checkpoint_index, source, output, skip_dummy, isdir)
 
-""" Search and evalutation """
+# Create index
+@cli.command()
+@click.argument('path_data', required=True)
+@click.argument('path_shape', required=True)
+@click.argument('index_path', required=True)
+@click.option('--config', '-c', default='default', required=False,
+              type=click.STRING,
+              help="Path of the model configuration file located in 'config/'." +
+              " Default is 'default'")
+def index(path_data, path_shape, index_path, config):
+    """ Create FAISS index from fingerprint memap file.
+    ex) python run.py index PATH_DATA PATH_SHAPE INDEX_PATH -c CONFIG
+    args:
+        PATH_DATA: Path of the fp embeddings memap file.
+        PATH_SHAPE: Path of the fp embeddings shape npy file.
+        INDEX_PATH: Path where the index will be stored.
+        CONFIG: Config file path
+    """
+    from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
+    from model.create_index import create_index
+
+    cfg = load_config(config)
+    allow_gpu_memory_growth()
+    create_index(path_data, path_shape, index_path, cfg)
+
+# match
+@cli.command()
+@click.argument('query_bname', required=True)
+@click.argument('query_fp_path', required=True)
+@click.argument('refs_fp_path', required=True)
+@click.argument('index_path', required=True)
+@click.option('--config', '-c', default='default', required=False,
+              type=click.STRING,
+              help="Path of the model configuration file located in 'config/' ." +
+              " Default is 'default'")
+@click.option('--extension', '-e', default='.mp3', required=False,
+              type=click.STRING,
+              help="Extension of the original audios.")
+def match(query_bname, query_fp_path, refs_fp_path, index_path, config,
+          extension):
+    """ Create FAISS index from fingerprint memap file.
+    ex) python run.py match QUERY_BNAME QUERY_FP_PATH REFS_FP_PATH INDEX_PATH -c CONFIG -e EXTENSION
+    args:
+        QUERY_BNAME: Audio file basename (without dir)
+        QUERY_FP_PATH: Path of the query fp embedding npy file.
+        REFS_FP_PATH: Path of the references fp embeddings memap file.
+        INDEX_PATH: Path where the index will be stored.
+        CONFIG: Config file path
+        EXTENSION: Refs extension
+    """
+    from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
+    from model.matcher import Matcher
+    from eval.eval_faiss import load_memmap_data
+
+    cfg = load_config(config, display=False)
+    allow_gpu_memory_growth()
+
+    refs_segments_path = os.path.join(
+        os.path.dirname(refs_fp_path), 'refs_segments.csv')
+    references_segments = pd.read_csv(refs_segments_path)
+    index = faiss.read_index(index_path, 2) #2 == readonly
+    query = np.load(query_fp_path)
+    references_fp, _ = load_memmap_data(
+        os.path.dirname(refs_fp_path),
+        'custom_source',
+        append_extra_length=None,
+        shape_only=False,
+        display=False)
+    matcher = Matcher(cfg, index, references_segments)
+    formatted_matches = matcher.match(query, references_fp)
+    print('"Query","Query begin time","Query end time","Reference",'
+        '"Reference begin time","Reference end time","Confidence"')
+    print('"","","","","","",""')
+    for qmatch in formatted_matches:
+        qmatch.update({'query': query_bname[:-4]}) # trim added .wav extension
+        print('"{}","{}","{}","{}","{}","{}","{}"'.format(
+                qmatch['query'], qmatch['query_start'], qmatch['query_end'],
+                qmatch['ref']+extension, qmatch['ref_start'],
+                qmatch['ref_end'], qmatch['score']))
+
+
+# Search and evalutation
 @cli.command()
 @click.argument('checkpoint_name', required=True)
 @click.argument('checkpoint_index', required=True)

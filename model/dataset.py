@@ -30,7 +30,7 @@ class Dataset:
     get_val_ds()
     get_test_dummy_db_ds()
     get_test_query_db_ds()
-    get_custom_db_ds(source_root_dir)
+    get_custom_db_ds(source, dir)
 
     """
 
@@ -301,11 +301,18 @@ class Dataset:
         else:
             raise NotImplementedError(self.datasel_test_query_db)
 
-    def get_custom_db_ds(self, source_root_dir):
+    def get_custom_db_ds(self, source: str, isdir):
         """ Construct DB (or query) from custom source files. """
-        fps = sorted(
-            glob.glob(source_root_dir + '/**/*.wav', recursive=True))
-        return genUnbalSequenceGeneration(
+        if isdir is True:
+            fps = sorted(glob.glob(source + '/**/*.wav', recursive=True))
+        else:
+            fps = []
+            with open(source, "r") as fin:
+                for l in fin:
+                    fps.append(l.split('\n')[0])
+            fps = sorted(fps)
+
+        ds =  genUnbalSequenceGeneration(
             track_paths=fps,
             bsz=self.ts_batch_sz, # Only anchors
             duration=self.dur,
@@ -318,3 +325,4 @@ class Dataset:
             n_mels=self.n_mels,
             f_min=self.fmin,
             f_max=self.fmax) # No augmentations, No drop-samples.
+        return ds

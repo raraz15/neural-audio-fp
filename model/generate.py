@@ -17,7 +17,7 @@ def get_checkpoint_index_and_restore_model(m_fp, checkpoint_root_dir, checkpoint
 
     # Create checkpoint
     checkpoint = tf.train.Checkpoint(model=m_fp)
-    checkpoint_dir = checkpoint_root_dir + f'{checkpoint_name}/'
+    checkpoint_dir = os.path.join(checkpoint_root_dir, checkpoint_name)
     c_manager = tf.train.CheckpointManager(checkpoint,
                                            checkpoint_dir,
                                            max_to_keep=None)
@@ -46,15 +46,14 @@ def prevent_overwrite(key, target_path):
         answer = input(f'{target_path} exists. Will you overwrite (y/N)?')
         if answer.lower() not in ['y', 'yes']: sys.exit()
 
-def get_data_source(cfg, source_root_dir, skip_dummy):
+def get_data_source(cfg, source, skip_dummy, isdir):
     dataset = Dataset(cfg)
     ds = dict()
-    if source_root_dir:
-        ds['custom_source'] = dataset.get_custom_db_ds(source_root_dir)
+    if source:
+        ds['custom_source'] = dataset.get_custom_db_ds(source, isdir)
     else:
         if skip_dummy:
             tf.print("Excluding \033[33m'dummy_db'\033[0m from source.")
-            pass
         else:
             ds['dummy_db'] = dataset.get_test_dummy_db_ds()
 
@@ -71,9 +70,10 @@ def generate_fingerprint(cfg,
                          checkpoint_type,
                          checkpoint_name,
                          checkpoint_index,
-                         source_root_dir,
+                         source,
                          output_root_dir,
-                         skip_dummy):
+                         skip_dummy,
+                         isdir):
     """
     After run, the output (generated fingerprints) directory will be:
       .
@@ -81,12 +81,8 @@ def generate_fingerprint(cfg,
          └── emb
              └── CHECKPOINT_NAME
                  └── CHECKPOINT_INDEX
-                     ├── db.mm
-                     ├── db_shape.npy
-                     ├── dummy_db.mm
-                     ├── dummy_db_shape.npy
-                     ├── query.mm
-                     └── query_shape.npy
+                     ├── custom.mm
+                     ├── custom_shape.npy
     """
 
     # Build the model checkpoint
@@ -116,7 +112,7 @@ def generate_fingerprint(cfg,
 
     # Get data source
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
-    ds = get_data_source(cfg, source_root_dir, skip_dummy)
+    ds = get_data_source(cfg, source, skip_dummy, isdir)
 
     bsz = int(cfg['BSZ']['TS_BATCH_SZ'])  # Do not use ds.bsz here.
     dim = cfg['MODEL']['EMB_SZ']
@@ -166,6 +162,26 @@ def generate_fingerprint(cfg,
         enq.start(workers=cfg['DEVICE']['CPU_N_WORKERS'],
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
         i = 0
+
+        if source.split('/')[-1].lower() == 'queries':
+            segments_csv = os.path.join(output_root_dir, 'queries_segments.csv')
+        elif source.split('/')[-1].lower() == 'references':
+            segments_csv = os.path.join(output_root_dir, 'refs_segments.csv')
+        else:
+            raise NameError("Unknown type of audio. "
+                            "It's not query nor reference")
+
+        with open(segments_csv, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = ['segment_id', 'filename', 'intra_segment_id', 'offset_min', 'offset_max'] # from model/utils/dataloader_keras.py line 117
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for ii, seg in enumerate(ds[key].fns_event_seg_list):
+                writer.writerow({'segment_id': ii,
+                                 'filename': seg[0],
+                                 'intra_segment_id': seg[1],
+                                 'offset_min': seg[2],
+                                 'offset_max': seg[3]})
+
         while i < len(enq.sequence):
             progbar.update(i)
             _, Xa = next(enq.get())
@@ -174,7 +190,7 @@ def generate_fingerprint(cfg,
             i += 1
         progbar.update(i, finalize=True)
         enq.stop()
-        """ End of Parallelism-------------------------------------------- """
+        # End of Parallelism--------------------------------------------
 
         tf.print(f'=== Succesfully stored {arr_shape[0]} fingerprints to {output_root_dir} ===')
         sz_check[key] = len(arr)
