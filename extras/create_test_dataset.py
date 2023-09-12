@@ -1,4 +1,5 @@
 import os
+import sys
 import argparse
 import multiprocessing
 
@@ -6,8 +7,12 @@ import numpy as np
 
 import essentia.standard as es
 
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from model.utils import max_normalize
+
 SEED = 27
 np.random.seed(SEED)
+
 
 def main(paths, split_dir, sample_rate, min_samples, partition_idx):
 
@@ -33,9 +38,14 @@ def main(paths, split_dir, sample_rate, min_samples, partition_idx):
             audio = es.MonoLoader(filename=audio_path, 
                                 sampleRate=sample_rate, 
                                 resampleQuality=4)()
+        except KeyboardInterrupt:
+            raise KeyboardInterrupt
         except:
             print(f"Could not load the audio file. Skipping {audio_path}.")
             continue
+
+        # Normalize the audio
+        audio = max_normalize(audio)
 
         if len(audio) < min_samples:
             print(f"Audio duration is too short. Skipping {audio_path}.")

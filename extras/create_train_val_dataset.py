@@ -1,7 +1,11 @@
 import os
+import sys
 import argparse
 import essentia.standard as es
 import numpy as np
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from model.utils import max_normalize
 
 SAMPLE_RATE = 8000
 
@@ -13,7 +17,7 @@ def cut_to_segments_and_sample(audio, T_min, L0, n_segments):
     consecutive segments of equal length. Then samples a random sub-segment 
     from each segment of length L0. The sub-segments are returned as a list, 
     together with their start and end indices in the original audio signal.
-    
+
         Parameters
         ----------
         audio : np.array
@@ -24,7 +28,7 @@ def cut_to_segments_and_sample(audio, T_min, L0, n_segments):
             The length of the sub-segments to be sampled in samples.
         n_segments : int
             The number of segments to cut the audio signal into.
-        
+
         Returns
         -------
         segments : [ [start, end, segment], ... ]
@@ -140,6 +144,9 @@ if __name__=="__main__":
             except:
                 print(f"Could not load the audio file. Skipping {audio_path}.")
                 continue
+
+            # Normalize the audio
+            audio = max_normalize(audio)
 
             try:
                 segments, boundaries = cut_to_segments_and_sample(audio, 
