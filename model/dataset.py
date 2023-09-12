@@ -31,7 +31,6 @@ class Dataset:
 
         # Model parameters
         self.segment_duration = cfg['MODEL']['AUDIO']['SEGMENT_DUR']
-        self.normalize_segment = cfg['MODEL']['AUDIO']['NORMALIZE_SEGMENT']
         self.fs = cfg['MODEL']['AUDIO']['FS']
         self.stft_hop = cfg['MODEL']['INPUT']['STFT_HOP']
         self.n_fft = cfg['MODEL']['INPUT']['STFT_WIN']
@@ -153,7 +152,6 @@ class Dataset:
             bsz=self.tr_batch_sz,
             n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
             fs=self.fs,
-            normalize_segment=self.normalize_segment,
             segments_per_track=self.tr_segments_per_track,
             scale_output=self.scale_inputs,
             n_fft=self.n_fft,
@@ -211,7 +209,6 @@ class Dataset:
             bsz=self.tr_batch_sz,
             n_anchor=self.tr_n_anchor,
             fs=self.fs,
-            normalize_segment=self.normalize_segment,
             segments_per_track=self.tr_segments_per_track,
             scale_output=self.scale_inputs,
             n_fft=self.n_fft,
@@ -248,7 +245,6 @@ class Dataset:
             segment_duration=self.ts_segment_dur,
             hop_duration=self.ts_segment_hop,
             chunk_duration=self.noise_chunk_dur,
-            normalize_segment=self.normalize_segment,
             fs=self.fs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -285,7 +281,6 @@ class Dataset:
             segment_duration=self.ts_segment_dur,
             hop_duration=self.ts_segment_hop,
             chunk_duration=self.query_chunk_dur,
-            normalize_segment=self.normalize_segment,
             fs=self.fs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -316,7 +311,6 @@ class Dataset:
                 segment_duration=self.ts_segment_dur,
                 hop_duration=self.ts_segment_hop,
                 chunk_duration=self.query_chunk_dur,
-                normalize_segment=self.normalize_segment,
                 fs=self.fs,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
@@ -345,7 +339,6 @@ class Dataset:
                 segment_duration=self.ts_segment_dur,
                 hop_duration=self.ts_segment_hop,
                 chunk_duration=self.query_chunk_dur,
-                normalize_segment=self.normalize_segment,
                 fs=self.fs,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,

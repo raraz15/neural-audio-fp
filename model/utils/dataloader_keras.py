@@ -10,7 +10,6 @@ class genUnbalSequence(Sequence):
         segment_dict,
         segment_duration=1,
         full_segment_duration=2,
-        normalize_segment=True,
         fs=8000,
         n_fft=1024,
         stft_hop=256,
@@ -35,8 +34,6 @@ class genUnbalSequence(Sequence):
             Segment paths as a dict {track_name: [segment_paths]}. 
         segment_duration : (float), optional
             Duration of an audio segment in seconds. Default is 1.
-        normalize_segment : (str), optional
-            Normalize each audio segment. Default is True.
         fs : (int), optional
             Sampling rate. Default is 8000.
         n_fft: (int), optional
@@ -106,9 +103,7 @@ class genUnbalSequence(Sequence):
         # Convert offset duration to samples
         self.max_offset_sample = int(self.offset_duration * fs)
 
-        # Save the remaining Input parameters
         self.fs = fs
-        self.normalize_segment = normalize_segment
 
         # Melspec layer
         self.mel_spec = Melspec_layer_essentia(scale=scale_output,
@@ -282,10 +277,6 @@ class genUnbalSequence(Sequence):
             assert full_segment.shape[0] == self.full_segment_length, \
                     f"full_segment.shape[0]={full_segment.shape[0]} but " \
                     f"self.full_segment_length={self.full_segment_length}"
-
-            # Normalize the complete segment if specified
-            if self.normalize_segment:
-                full_segment = audio_utils.max_normalize(full_segment)
 
             # The anchor start position inside the full segment when the centers are aligned
             anchor_start = self.relative_segment_position
@@ -472,7 +463,7 @@ class genUnbalSequence(Sequence):
             # Load all bg clips in full duration
             # TODO: do not normalize bg clips?
             self.bg_clips = {fn: audio_utils.load_audio(fn, fs=self.fs, 
-                                                        normalize=self.normalize_segment) 
+                                                        normalize=True) # normalize the bg clips
                              for fn in self.bg_fnames}
             self.n_bg_files = len(self.bg_clips)
 
@@ -517,7 +508,7 @@ class genUnbalSequence(Sequence):
                 X = audio_utils.load_audio(fn, 
                                             seg_length_sec=self.segment_duration,
                                             fs=self.fs,
-                                            normalize=self.normalize_segment)
+                                            normalize=True)
                 # Truncate IR to max_ir_length
                 if len(X) > self.max_ir_length:
                     X = X[:self.max_ir_length]

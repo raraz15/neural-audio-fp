@@ -14,7 +14,6 @@ class genUnbalSequenceGeneration(Sequence):
         segment_duration=1,
         hop_duration=0.5,
         chunk_duration=30,
-        normalize_segment=True,
         fs=8000,
         n_fft=1024,
         stft_hop=256,
@@ -37,8 +36,6 @@ class genUnbalSequenceGeneration(Sequence):
         chunk_duration : (float), optional
             Chunk duration in seconds. The default is 30. We take 
             segments_per_track segments from every chunk.
-        normalize_segment : (str), optional
-            Normalize each audio segment. Default is True.
         fs : (int), optional
             Sampling rate. The default is 8000.
         n_fft: (int), optional
@@ -78,7 +75,6 @@ class genUnbalSequenceGeneration(Sequence):
                                                                  self.hop_length)
 
         self.fs = fs
-        self.normalize_segment = normalize_segment
         self.bg_hop = segment_duration
 
         self.track_paths = track_paths
@@ -186,10 +182,6 @@ class genUnbalSequenceGeneration(Sequence):
             # Convolve with IR
             X = audio_utils.ir_aug_batch(X, ir)
 
-        # Normalize the segments independently if required
-        if self.normalize_segment:
-            X = audio_utils.max_normalize(X)
-
         # Compute mel spectrograms
         X_mel = self.mel_spec.compute_batch(X)
         # Fix the dimensions and types
@@ -284,7 +276,7 @@ class genUnbalSequenceGeneration(Sequence):
     
             # Load all bg clips in full duration
             self.bg_clips = {fn: audio_utils.load_audio(fn, fs=self.fs, 
-                                                        normalize=self.normalize_segment) 
+                                                        normalize=True) 
                              for fn in self.bg_fnames}
             self.n_bg_files = len(self.bg_clips)
 
@@ -325,7 +317,7 @@ class genUnbalSequenceGeneration(Sequence):
             # Load all IR segments
             self.ir_clips = {fn: audio_utils.load_audio(fn, 
                                             seg_length_sec=self.segment_duration, 
-                                            fs=self.fs, normalize=self.normalize_segment) 
+                                            fs=self.fs, normalize=True) 
                                             for fn in self.ir_fnames}
 
             # Truncate IRs to MAX_IR_DURATION

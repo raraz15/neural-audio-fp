@@ -6,7 +6,6 @@ MODEL:
     AUDIO :
         SEGMENT_DUR : 1. # Duration of an audio segment the model uses in seconds.
         FS : 8000 # Sampling rate (Hz).
-        NORMALIZE_SEGMENT: True # Scale the audio segments independently to [-1,1].
     # Parameters for computing the mel-spectrogram input to the model.
     INPUT:
         STFT_WIN : 1024
