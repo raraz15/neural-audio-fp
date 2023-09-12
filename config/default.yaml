@@ -16,8 +16,8 @@ MODEL:
         SCALE_INPUTS: True # Scale the power mel-spectrogram to [-1,1].
     # Model architecture parameters.
     ARCHITECTURE:
-        EMB_SZ : 128  # Dimension of fingerprint, d in this paper.
-        BN : 'layer_norm2d' # or 'batch_norm'
+        EMB_SZ : 256  # Dimension of fingerprint, d in this paper.
+        BN : 'layer_norm2d' # or 'layer_norm2d' or 'batch_norm'
     # NOTE:
     # - In the current version, modifying {FS, DUR, HOB, STFT WIN, STFT HOP}
     #   may cause the model to malfunction or cause input shape mismatch errors.
@@ -86,7 +86,7 @@ TRAIN:
                     # - MINI_TEST_IN_TRAIN=True performs mini-search-test using part of
                     #   validation dataset at the end of every epoch in training.
     REDUCE_ITEMS_P : 100
-                # Reduce training tracks size to this percentage (%).
+                # Reduce training tracks size to this percentage (%). 100 uses all the data.
 
 TEST:
     # TEST tracks directories
