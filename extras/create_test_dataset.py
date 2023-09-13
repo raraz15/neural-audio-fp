@@ -13,7 +13,6 @@ from model.utils import max_normalize
 SEED = 27
 np.random.seed(SEED)
 
-
 def main(paths, split_dir, sample_rate, min_samples, partition_idx):
 
     # Sample segments from each audio file
@@ -84,10 +83,10 @@ if __name__=="__main__":
                         help='Path to the output directory. Segments will be written '
                          'here as in single .npz file. The directory structure will be '
                          'output_dir/test/<split>/audio_name[:2]/audio_name.npz')
-    parser.add_argument('--noise_chunk_duration',
+    parser.add_argument('--min_noise_chunk_duration',
                         type=float,
                         default=150.,
-                        help='Duration of a noise track chunk in seconds.')
+                        help='Minimum duration of a noise track chunk in seconds.')
     parser.add_argument('--query_chunk_duration',
                         type=float,
                         default=30.,
@@ -98,7 +97,7 @@ if __name__=="__main__":
                         help="Sample rate to use for audio files.")
     parser.add_argument("--num_workers",
                         type=int,
-                        default=multiprocessing.cpu_count(),
+                        default=8,
                         help="Number of workers to use for parallel processing.")
     args = parser.parse_args()
 
@@ -110,17 +109,19 @@ if __name__=="__main__":
     if args.noise_text is not None:
         with open(args.noise_text, "r") as f:
             noise_paths = [line.strip() for line in f.readlines()]
-    print(f"Number of noise files: {len(noise_paths)}")
+        print(f"Number of noise files: {len(noise_paths)}")
     if args.query_text is not None:
         with open(args.query_text, "r") as f:
             query_paths = [line.strip() for line in f.readlines()]
-    print(f"Number of query files: {len(query_paths)}")
+        print(f"Number of query files: {len(query_paths)}")
 
     # Calculate the minimum number of samples required for each audio file
-    assert args.noise_chunk_duration > 0, "noise_chunk_duration should be positive."
-    min_noise = int(args.noise_chunk_duration * args.sample_rate)
-    assert args.query_chunk_duration > 0, "noise_chunk_duration should be positive."
-    min_query = int(args.query_chunk_duration * args.sample_rate)
+    if len(noise_paths) > 0:
+        assert args.min_noise_chunk_duration > 0, "min_noise_chunk_duration should be positive."
+        min_noise = int(args.min_noise_chunk_duration * args.sample_rate)
+    if len(query_paths) > 0:
+        assert args.query_chunk_duration > 0, "noise_chunk_duration should be positive."
+        min_query = int(args.query_chunk_duration * args.sample_rate)
 
     # Cut segments from each audio file for each set and write them to disk
     for split, paths, min_samples in [("query_clean", query_paths, min_query), ("noise", noise_paths, min_noise)]:
@@ -146,5 +147,9 @@ if __name__=="__main__":
                                                 i))
             process.start()
             processes.append(process)
+
+        # Wait for all processes to finish
+        for process in processes:
+            process.join()
 
     print("Done!")
