@@ -338,7 +338,7 @@ class genUnbalSequence(Sequence):
     def batch_read_bg(self, fnames, index):
         """ Read len(fnames) background samples from the memory. Each sample is
         randomly offsetted between its offset_min and self.bg_hop/2. We randomly
-        coose a different segment at every iteration.
+        coose a different segment at every iteration conditioned on index.
 
         Parameters:
         -----------

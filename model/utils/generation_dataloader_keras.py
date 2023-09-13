@@ -320,7 +320,7 @@ class genUnbalSequenceGeneration(Sequence):
                                             fs=self.fs, normalize=True) 
                                             for fn in self.ir_fnames}
 
-            # Truncate IRs to MAX_IR_DURATION
+            # Truncate IRs to self.max_ir_length
             self.ir_clips = {fn: X[:self.max_ir_length] for fn, X in self.ir_clips.items()}
 
             # Save the number of IR files

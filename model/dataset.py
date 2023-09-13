@@ -86,18 +86,21 @@ class Dataset:
             self.tr_tracks_dir/
                 dir0/
                     track1/
-                        clip1.npy
+                        segment1.npz
                         ...
                     track2/
-                        clip1.npy
+                        segment1.npz
                         ...
+                    ...
                 dir1/
                     track1/
-                        clip1.npy
+                        segment1.npz
                         ...
                     track2/
-                        clip1.npy
+                        segment1.npz
                         ...
+                    ...
+                ...
 
             Parameters
             ----------
@@ -168,25 +171,32 @@ class Dataset:
         """ Source (music) file paths for validation set. The folder structure
         should be as follows:
             self.val_tracks_dir/
-                track1/
-                    clip1.npy
-                    clip2.npy
+                dir0/
+                    track1/
+                        segment1.npz
+                        ...
+                    track2/
+                        segment1.npz
+                        ...
                     ...
-                    clipN.npy
-                track2/
-                    clip1.npy
-                    clip2.npy
+                dir1/
+                    track1/
+                        segment1.npz
+                        ...
+                    track2/
+                        segment1.npz
+                        ...
                     ...
-                    clipN.npy
+                ...
         """
 
         print(f"Creating the validation dataset...")
 
         # Find the augmentation files
         if self.tr_use_bg_aug:
-            print(f"val_bg_fps: {len(self.tr_bg_fps):>6,} (Same as the train set)")
+            print(f"val_bg_fps: {len(self.tr_bg_fps):>6,} (Same as the training set)")
         if self.tr_use_ir_aug:
-            print(f"val_ir_fps: {len(self.tr_ir_fps):>6,} (Same as the train set)")
+            print(f"val_ir_fps: {len(self.tr_ir_fps):>6,} (Same as the training set)")
 
         # Find the tracks and their segments
         self.val_source_fps = {}
