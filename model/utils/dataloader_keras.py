@@ -261,16 +261,16 @@ class genUnbalSequence(Sequence):
         # seen twice and the other half zero. We want to see all segments once, 
         # so we make sure that the second half of the segments are seen too.
         if self.segments_per_track%2==0 and idx>=self.__len__()/2:
-            random_idx = (idx+1) % self.segments_per_track
+            idx = (idx+1) % self.segments_per_track
         else:
             # If segments_per_track is odd, all segments will be seen once each epoch
-            random_idx = idx % self.segments_per_track
+            idx = idx % self.segments_per_track
 
         Xa_batch, Xp_batch = [], []
         for fname in fnames:
 
-            # Get the segment information of the random_idx segment of the track
-            seg_path = self.track_seg_dict[fname][random_idx]
+            # Get the segment information of the idx segment of the track
+            seg_path = self.track_seg_dict[fname][idx]
 
             # Load the full segment
             full_segment = np.load(seg_path, allow_pickle=True)["segment"]
