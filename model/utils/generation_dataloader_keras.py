@@ -10,7 +10,7 @@ np.random.seed(SEED)
 class genUnbalSequenceGeneration(Sequence):
     def __init__(
         self,
-        track_paths,
+        segment_paths,
         segment_duration=1,
         hop_duration=0.5,
         chunk_duration=30,
@@ -27,15 +27,14 @@ class genUnbalSequenceGeneration(Sequence):
         """
         Parameters
         ----------
-        track_paths : list(str), 
-            Track .npy paths as a list. 
+        segment_paths : list(str), 
+            Segment .npz paths as a list.
         segment_duration : (float), optional
             Segment duration in seconds. The default is 1.
         hop_duration : (float), optional
             Hop-size of segments in seconds. The default is .5.
         chunk_duration : (float), optional
-            Chunk duration in seconds. The default is 30. We take 
-            segments_per_track segments from every chunk.
+            Chunk duration in seconds. The default is 30.
         fs : (int), optional
             Sampling rate. The default is 8000.
         n_fft: (int), optional
@@ -56,9 +55,8 @@ class genUnbalSequenceGeneration(Sequence):
             [True, IR_FILEPATHS, MAX_IR_DURATION]. Default is [False].
         """
 
-        # Check parameters
-        # assert segments_per_track > 0, "segments_per_track should be > 0"
-        assert hop_duration <= segment_duration, "hop_duration should be <= segment_duration"
+        assert hop_duration <= segment_duration, \
+            "hop_duration should be <= segment_duration"
 
         # Save the Input parameters
         self.segment_duration = segment_duration
@@ -77,8 +75,9 @@ class genUnbalSequenceGeneration(Sequence):
         self.fs = fs
         self.bg_hop = segment_duration
 
-        self.track_paths = track_paths
-        self.n_tracks = len(self.track_paths)
+        self.segment_paths = segment_paths
+        self.n_tracks = len(self.segment_paths)
+
         # We assume that all tracks have the same number of
         # segments. This is true for the current dataset.
         self.n_samples = self.n_tracks * self.segments_per_track
@@ -124,7 +123,7 @@ class genUnbalSequenceGeneration(Sequence):
         """
 
         # Load the chunk from the .npz file
-        chunk_path = self.track_paths[idx]
+        chunk_path = self.segment_paths[idx]
         X = np.load(chunk_path, allow_pickle=True)['segment']
         assert len(X.shape)==1, "Loaded a chunk with wrong shape."
         assert X.shape[0] == self.chunk_length, \
