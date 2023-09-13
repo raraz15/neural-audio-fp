@@ -82,14 +82,22 @@ class ExperimentHelper():
         self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
         self._best_checkpoint_save_dir = _root_dir + f'best_checkpoint/{checkpoint_name}/'
 
-        # Tensorboard writers
+        # Tensorboard writers for train and validation losses
         self._tr_summary_writer = create_file_writer(self._log_dir + '/train')
         self._val_summary_writer = create_file_writer(self._log_dir + '/val')
+
+        # Track the learning rate
         self._lr_summary_writer = create_file_writer(self._log_dir + '/lr')
-        self._minitest_summary_writer_dict = dict()
-        for key in ['f', 'L2(f)', 'g(f)']:
-            self._minitest_summary_writer_dict[key] = create_file_writer(
-                self._log_dir + '/mini_test/' + key)
+
+        # Tensorboard writers for mini test accuracies if mini test is enabled
+        if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:
+            self._minitest_summary_writer_dict = dict()
+            for key in ['f', 'L2(f)', 'g(f)']:
+                self._minitest_summary_writer_dict[key] = create_file_writer(
+                    self._log_dir + '/mini_test/' + key)
+            self._minitest_acc = None
+
+        # Tensorboard writer for images
         self._image_writer = create_file_writer(self._log_dir + '/images')
 
         # Logging loss and acc metrics
@@ -97,7 +105,6 @@ class ExperimentHelper():
         self._tr_loss.reset_states()
         self._val_loss = K.metrics.Mean(name='val_loss')
         self._val_loss.reset_states()
-        self._minitest_acc = None
 
         # Assign optimizer and model to checkpoint
         self.optimizer = optimizer # assign, not to create.
