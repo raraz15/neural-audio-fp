@@ -140,7 +140,8 @@ def generate_fingerprint(cfg,
         arr = np.memmap(f'{output_dir}/{key}.mm',
                         dtype='float32',
                         mode='w+',
-                        shape=arr_shape)
+                        shape=arr_shape) # TODO: is shape necessary?
+        # Save the shape of the memmap
         np.save(f'{output_dir}/{key}_shape.npy', arr_shape)
 
         # Fingerprinting loop
@@ -183,8 +184,9 @@ def generate_fingerprint(cfg,
     # Summary of the model for reference
     m_fp.summary()
 
-    if 'custom_source' in ds.keys():
-        pass
-    elif sz_check['db'] != sz_check['query']:
+    if sz_check['db'] != sz_check['query']:
         print("\033[93mWarning: 'db' and 'qeury' size does not match. "\
               "This can cause a problem in evaluation stage.\033[0m")
+
+    print()
+    print("\x1b[1;32m=== Fingerprinting completed ===\x1b[0m")
