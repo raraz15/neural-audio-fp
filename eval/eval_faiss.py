@@ -160,7 +160,7 @@ def eval_faiss(emb_dir,
       vectors from FAISS index.
     • Unfortunately, current faiss.index.reconstruct_n(id_start, id_stop)
       supports only CPU index.
-    • We prepare a fake_recon_index thourgh the on-disk method.
+    • We prepare a fake_recon_index through the on-disk method.
 
     ---------------------------------------------------------------------- """
 
@@ -186,14 +186,26 @@ def eval_faiss(emb_dir,
         # Will use all segments in query/db set as starting point and 
         # evaluate the performance for each test_seq_len.
         test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
-    # TODO: sample an equal number of segments from each track
     elif test_ids.isnumeric():
         # Will use random segments in query/db set as starting point and
         # evaluate the performance for each test_seq_len. This does not guarantee
         # getting a sample from each track.
         test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
-    else:
+    elif test_ids.lower() == "equally_spaced":
+        # Get an equal number of samples from each track
+        # Read the boundary of each query in the memmap
+        query_boundaries = np.load(f'{emb_dir}/query_boundaries.npy')
+        test_ids = []
+        for s,e in zip(query_boundaries[:-1], query_boundaries[1:]):
+            # Cut the query into segments of test_seq_len
+            # If the last segment is shorter than test_seq_len, ignore it
+            test_ids.append(np.arange(s,e,test_seq_len[-1])[:-1])
+        test_ids = np.concatenate(test_ids)
+    elif os.path.isfile(test_ids):
+        # If test_ids is a file path load it
         test_ids = np.load(test_ids)
+    else:
+       raise ValueError(f'Invalid test_ids: {test_ids}')
 
     n_test = len(test_ids)
     gt_ids  = test_ids + dummy_db_shape[0]
