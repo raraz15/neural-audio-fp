@@ -87,11 +87,11 @@ class genUnbalSequence(Sequence):
         self.segment_duration = segment_duration
         self.full_segment_duration = full_segment_duration
         # Convert duration to samples
-        self.sub_segment_length = int(self.segment_duration * fs)
+        self.segment_length = int(self.segment_duration * fs)
         self.full_segment_length = int(self.full_segment_duration * fs)
 
         # Align the centers of the full segment and the sub-segment
-        self.relative_segment_position = int((self.full_segment_length - self.sub_segment_length) / 2)
+        self.relative_segment_position = int((self.full_segment_length - self.segment_length) / 2)
 
         # Based on the segment duration, determine the maximum allowed offset
         # for the anchor and positive samples. We align the centers of the 
@@ -295,7 +295,7 @@ class genUnbalSequence(Sequence):
             # Apply the offset to the anchor start sample
             anchor_start += anchor_offset
             assert anchor_start>=0, "Start point is out of bounds"
-            anchor_end = anchor_start + self.sub_segment_length
+            anchor_end = anchor_start + self.segment_length
             assert anchor_end<=self.full_segment_length, "End point is out of bounds"
 
             # Get the anchor sample, create a copy
@@ -313,7 +313,7 @@ class genUnbalSequence(Sequence):
                 pos_offset_max = np.min([self.max_offset_sample, dist_r])
                 assert anchor_start+pos_offset_min>=0, \
                     "Start point range is out of bounds for the positive samples"
-                assert anchor_start+pos_offset_max+self.sub_segment_length<=self.full_segment_length, \
+                assert anchor_start+pos_offset_max+self.segment_length<=self.full_segment_length, \
                     "End point range can be out of bounds for the positive samples"
 
                 # Apply random offset to replicas
@@ -323,7 +323,7 @@ class genUnbalSequence(Sequence):
 
                 # Load the positive samples and append them to the batch
                 for s_idx in pos_start_list:
-                    e_idx = s_idx + self.sub_segment_length
+                    e_idx = s_idx + self.segment_length
                     positive = full_segment[s_idx:e_idx].copy()
                     Xp_batch.append(positive.reshape((1, -1)))
 
