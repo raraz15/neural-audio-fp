@@ -8,6 +8,7 @@ import numpy as np
 import os
 
 import tensorflow as tf
+from tensorflow.keras.experimental import CosineDecay, CosineDecayRestarts
 from tensorflow.keras.utils import Progbar
 
 from model.dataset import Dataset
@@ -140,20 +141,22 @@ def trainer(cfg, checkpoint_name):
     m_specaug, m_fp = build_fp(cfg)
 
     # Learning schedule
+    # TODO: warmup
+    # TODO: shouldnt we update lr at every epoch?
     total_nsteps = cfg['TRAIN']['MAX_EPOCH'] * len(train_ds)
-    if cfg['TRAIN']['LR_SCHEDULE'].upper() == 'COS':
-        lr_schedule = tf.keras.experimental.CosineDecay(
-            initial_learning_rate=float(cfg['TRAIN']['LR']),
-            decay_steps=total_nsteps,
-            alpha=1e-06)
-    elif cfg['TRAIN']['LR_SCHEDULE'].upper() == 'COS-RESTART':
-        lr_schedule = tf.keras.experimental.CosineDecayRestarts(
-            initial_learning_rate=float(cfg['TRAIN']['LR']),
-            first_decay_steps=int(total_nsteps * 0.1),
+    if cfg['TRAIN']['LR']['SCHEDULE'].upper() == 'COS':
+        lr_schedule = CosineDecay(
+                    initial_learning_rate=float(cfg['TRAIN']['LR']['INITIAL_RATE']),
+                    decay_steps=total_nsteps,
+                    alpha=float(cfg['TRAIN']['LR']['ALPHA']))
+    elif cfg['TRAIN']['LR']['SCHEDULE'].upper() == 'COS-RESTART':
+        lr_schedule = CosineDecayRestarts(
+            initial_learning_rate=float(cfg['TRAIN']['LR']['INITIAL_RATE']),
+            first_decay_steps=int(total_nsteps * 0.1), # TODO: configurable
             num_periods=0.5,
-            alpha=2e-06)
+            alpha=float(cfg['TRAIN']['LR']['ALPHA'])) # Default 2e-6
     else:
-        lr_schedule = float(cfg['TRAIN']['LR'])
+        lr_schedule = float(cfg['TRAIN']['LR']['INITIAL_RATE'])
 
     # Optimizer
     if cfg['TRAIN']['OPTIMIZER'].upper() == 'LAMB':
