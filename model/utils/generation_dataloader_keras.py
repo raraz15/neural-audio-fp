@@ -127,6 +127,7 @@ class genUnbalSequenceGeneration(Sequence):
         X = []
         for i in self.indexes[idx*self.bsz:(idx+1)*self.bsz]:
 
+            # Get the track information
             fname, seg_idx, _, _ = self.track_seg_list[i]
 
             # Determine the anchor start time
@@ -143,6 +144,7 @@ class genUnbalSequenceGeneration(Sequence):
         X = np.concatenate(X, axis=0)
 
         # TODO: return back to NAFP?
+        # TODO: method for augmenting the data
         # Apply augmentations if specified
         if self.bg_mix and self.ir_mix:
 
@@ -152,7 +154,26 @@ class genUnbalSequenceGeneration(Sequence):
 
             # Get a random background noise sample
             bg_fname = self.bg_fnames[idx%self.n_bg_files]
-            bg_noise = self.read_bg(bg_fname)
+            bg_noise = self.bg_clips[bg_fname]
+
+            """
+            To simulate real life conditions during testing, we apply the
+            same background noise to a segmented track. We cut the file into overlapping 
+            segments of duration self.segment_duration. self.frames_per_file segments 
+            are read from this file.
+            """
+
+            # If the background noise sample is shorter than the chunk length,
+            # we repeat it until we have a sample of length chunk_length
+            chunk_length  = len(X)
+            if len(bg_noise) < chunk_length:
+                n_repeats = int(np.ceil(chunk_length / len(bg_noise)))
+                bg_noise = np.tile(bg_noise, n_repeats)
+                bg_noise = bg_noise[:chunk_length]
+            elif len(bg_noise) > chunk_length:
+                # Otherwise we cut a random part
+                start = np.random.randint(0, len(bg_noise) - chunk_length)
+                bg_noise = bg_noise[start:start+chunk_length]
 
             # Randomly sample an SNR for mixing the background noise
             snr = audio_utils.sample_SNR(1, self.bg_snr_range)[0]
@@ -169,7 +190,7 @@ class genUnbalSequenceGeneration(Sequence):
 
             # Get a random IR sample
             ir_fname = self.ir_fnames[idx%self.n_ir_files]
-            ir = self.read_ir(ir_fname).reshape(1,-1)
+            ir = self.ir_clips[ir_fname].reshape(1,-1)
     
             # Apply the same IR to all segments
             # This is not realistic, and its a little bit cheating but we
@@ -187,61 +208,6 @@ class genUnbalSequenceGeneration(Sequence):
         X_mel = np.expand_dims(X_mel, 3).astype(np.float32)
 
         return X, X_mel
-
-    def read_bg(self, fname):
-        """ Read background noise samples for given fnames from the memory and 
-        return a batch. To simulate real life conditions during testing, we apply the
-        same background noise to a segmented track. We cut the file into overlapping 
-        segments of duration self.segment_duration. self.frames_per_file segments are read from
-        this file.
-
-        Parameters:
-        -----------
-            fname (str):
-                Background file name.
-
-        Returns:
-        --------
-            bg_segments (1D ndarray):
-                (self.segments_per_track, self.segment_length)
-
-        """
-
-        # Read the complete background noise sample from memory
-        bg = self.bg_clips[fname]
-
-        # If the background noise sample is shorter than the chunk length,
-        # we repeat it until we have a sample of length chunk_length
-        if len(bg) < self.chunk_length:
-            n_repeats = int(np.ceil(self.chunk_length / len(bg)))
-            bg = np.tile(bg, n_repeats)
-            bg = bg[:self.chunk_length]
-        elif len(bg) > self.chunk_length:
-            # Otherwise we cut a random part
-            start = np.random.randint(0, len(bg) - self.chunk_length)
-            bg = bg[start:start+self.chunk_length]
-
-        return bg
-
-    def read_ir(self, fname):
-        """ Read the Impulse Response with fname from the memory.
-        For realistic testing, we apply the same IR to a segmented track.
-
-        Parameters:
-        ----------
-            fnames (str):
-                IR fname.
-
-        Returns:
-        --------
-            ir_segment (1D ndarray):
-                (self.max_ir_length)
-
-        """
-
-        ir_segment = self.ir_clips[fname]
-
-        return ir_segment
 
     def load_and_store_bg_samples(self, bg_mix_parameter):
         """ Load background noise samples in memory and their segmentation
