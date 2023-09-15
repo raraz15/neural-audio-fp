@@ -103,7 +103,7 @@ TEST:
         # provided, NOISE_ROOT is ignored.
     # Audio segment parameters
     SEGMENT_HOP : .5 # Hop-size of the segment window in seconds.
-    QUERY_CHUNK_DURATION : 30.  # Duration of the audio chunk in seconds.
+    BATCH_SZ : 125 # Batch size for testing.
     # Augmentation parameters
     AUG:
         TD: # We only apply time-domain augmentation during testing.

@@ -10,10 +10,9 @@ np.random.seed(SEED)
 class genUnbalSequenceGeneration(Sequence):
     def __init__(
         self,
-        segment_paths,
+        track_paths,
         segment_duration=1,
         hop_duration=0.5,
-        chunk_duration=30,
         fs=8000,
         n_fft=1024,
         stft_hop=256,
@@ -23,18 +22,17 @@ class genUnbalSequenceGeneration(Sequence):
         scale_output=True,
         bg_mix_parameter=[False],
         ir_mix_parameter=[False],
+        bsz=120,
         ):
         """
         Parameters
         ----------
-        segment_paths : list(str), 
-            Segment .npz paths as a list.
+        track_paths : list(str), 
+            Track .wav paths as a list.
         segment_duration : (float), optional
             Segment duration in seconds. The default is 1.
         hop_duration : (float), optional
             Hop-size of segments in seconds. The default is .5.
-        chunk_duration : (float), optional
-            Chunk duration in seconds. The default is 30.
         fs : (int), optional
             Sampling rate. The default is 8000.
         n_fft: (int), optional
@@ -53,6 +51,8 @@ class genUnbalSequenceGeneration(Sequence):
             [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. Default is [False].
         ir_mix_parameter : list([(bool), list(str), float], optional
             [True, IR_FILEPATHS, MAX_IR_DURATION]. Default is [False].
+        bsz : (int), optional
+            In TPUs code, global batch size. The default is 120.
         """
 
         assert hop_duration <= segment_duration, \
@@ -66,21 +66,23 @@ class genUnbalSequenceGeneration(Sequence):
         self.hop_length = int(fs*hop_duration)
         self.overlap_ratio = (self.segment_length - self.hop_length) / self.segment_length
 
-        self.chunk_duration = chunk_duration
-        self.chunk_length = int(fs*chunk_duration)
-        self.segments_per_track = audio_utils.number_of_segments(self.chunk_length,
-                                                                 self.segment_length,
-                                                                 self.hop_length)
-
         self.fs = fs
-        self.bg_hop = segment_duration
+        self.bsz = bsz
+        self.bg_hop = segment_duration # Background noise hop-size is equal to segment duration
 
-        self.segment_paths = segment_paths
-        self.n_tracks = len(self.segment_paths)
-
-        # We assume that all tracks have the same number of
-        # segments. This is true for the current dataset.
-        self.n_samples = self.n_tracks * self.segments_per_track
+        # Create segment information for each track
+        track_seg_dict = audio_utils.get_fns_seg_dict(track_paths,
+                                                    segment_mode='all',
+                                                    fs=self.fs,
+                                                    duration=self.segment_duration,
+                                                    hop=self.hop_duration)
+        # Create a list of track-segment pairs. We connvert it to a list so that
+        # each segment can be used during fp-generation.
+        self.track_seg_list = [[fname, *seg] 
+                               for fname, segments in track_seg_dict.items() 
+                               for seg in segments]
+        self.n_samples = len(self.track_seg_list)
+        self.indexes = np.arange(self.n_samples)
 
         # Melspec layer
         self.mel_spec = Melspec_layer_essentia(scale=scale_output,
@@ -97,16 +99,15 @@ class genUnbalSequenceGeneration(Sequence):
         self.load_and_store_ir_samples(ir_mix_parameter)
 
     def __len__(self):
-        """ Returns the number of batches. We fit segments_per_track segments
-        to every batch. """
+        """ Returns the number of batches."""
 
-        return self.n_tracks
+        return int(np.ceil(self.n_samples/self.bsz))
 
     def __getitem__(self, idx):
         """ Loads the chunk associated with a track and creates a batch of
-        segments_per_track segments. If bg_mix is True, we mix the segments
-        with background noise. If ir_mix is True, we convolve the segments
-        with a room Impulse Response (IR).
+        segments. If bg_mix is True, we mix the segments with background noise. 
+        If ir_mix is True, we convolve the segments with a room Impulse 
+        Response (IR).
 
         Parameters:
         ----------
@@ -116,33 +117,32 @@ class genUnbalSequenceGeneration(Sequence):
         Returns:
         --------
             X_batch (ndarray):
-                audio samples (n_anchor, T)
+                audio samples (bsz, T)
             X_batch_mel (ndarray):
-                power mel-spectrogram of samples (n_anchor, n_mels, T, 1)
+                power mel-spectrogram of samples (bsz, n_mels, T, 1)
 
         """
 
-        # Load the chunk from the .npz file
-        chunk_path = self.segment_paths[idx]
-        X = np.load(chunk_path, allow_pickle=True)['segment']
-        assert len(X.shape)==1, "Loaded a chunk with wrong shape."
-        assert X.shape[0] == self.chunk_length, \
-                        "Loaded a chunk with wrong duration."
+        # Get the segments for this batch
+        Xa_batch = []
+        for i in self.indexes[idx*self.bsz:(idx+1)*self.bsz]:
 
-        # Cut the chunk into segments
-        X, _ = audio_utils.cut_to_segments(X, 
-                                           self.segment_length, 
-                                           self.hop_length)
+            fname, seg_idx, _, _ = self.track_seg_list[i]
 
-        if X.shape[0] < self.segments_per_track:
-            print(f"Warning: track {chunk_path} has less segments than required. Skipping.")
-            return None, None
-        elif X.shape[0] > self.segments_per_track:
-            # Keep only the first segments_per_track segments
-            print(f"Warning: track {chunk_path} has more segments than required. "
-                  f"Keeping only the first {self.segments_per_track} segments.")
-            X = X[:self.segments_per_track]
+            # Determine the anchor start time
+            anchor_start_sec = seg_idx * self.hop_duration
 
+            # Load the anchor 
+            xs = audio_utils.load_audio(fname,
+                                        seg_start_sec=anchor_start_sec, 
+                                        seg_length_sec=self.segment_duration, 
+                                        fs=self.fs,
+                                        normalize=False)
+            Xa_batch.append(xs.reshape((1, -1)))
+        # Create the batch
+        Xa_batch = np.concatenate(Xa_batch, axis=0)
+
+        # TODO: return back to NAFP?
         # Apply augmentations if specified
         if self.bg_mix and self.ir_mix:
 

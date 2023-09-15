@@ -45,9 +45,9 @@ class Dataset:
         self.tr_tracks_dir = cfg['TRAIN']['TRACKS']['TRAIN_ROOT']
 
         self.dataset_audio_segment_duration = cfg['TRAIN']['INPUT_AUDIO_DUR']
+        self.tr_segments_per_track = cfg['TRAIN']['SEGMENTS_PER_TRACK']
         self.tr_batch_sz = cfg['TRAIN']['BSZ']['BATCH_SZ']
         self.tr_n_anchor = cfg['TRAIN']['BSZ']['N_ANCHOR']
-        self.tr_segments_per_track = cfg['TRAIN']['SEGMENTS_PER_TRACK']
 
         self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
         self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
@@ -67,15 +67,16 @@ class Dataset:
         self.ts_noise_tracks_dir = cfg['TEST']['TRACKS']['NOISE_ROOT']
         self.ts_clean_query_tracks_dir = cfg['TEST']['TRACKS']['CLEAN_QUERY_ROOT']
         self.ts_augmented_query_tracks_dir = cfg['TEST']['TRACKS']['AUGMENTED_QUERY_ROOT']
-        self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
-        self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
 
         self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP'] # TODO: use this?
-        self.query_chunk_dur = cfg['TEST']['QUERY_CHUNK_DURATION']
+        self.ts_batch_sz = cfg['TEST']['BATCH_SZ']
 
+        self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
         self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
         self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
         self.ts_bg_fps = []
+
+        self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
         self.ts_use_ir_aug = cfg['TEST']['AUG']['TD']['IR']
         self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
         self.ts_ir_fps = []
@@ -246,7 +247,7 @@ class Dataset:
 
         # Find the noise tracks and their segments
         self.ts_noise_paths = sorted(
-            glob.glob(self.ts_noise_tracks_dir+ '/**/*.npz', 
+            glob.glob(self.ts_noise_tracks_dir+ '/**/*.wav', 
                     recursive=True))
         assert len(self.ts_noise_paths)>0, "No noise tracks found."
         print(f"{len(self.ts_noise_paths):,} noise tracks found.")
@@ -255,7 +256,6 @@ class Dataset:
             track_paths=self.ts_noise_paths,
             segment_duration=self.segment_duration,
             hop_duration=self.ts_segment_hop,
-            chunk_duration=self.noise_chunk_dur,
             fs=self.fs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -263,6 +263,7 @@ class Dataset:
             f_min=self.fmin,
             f_max=self.fmax,
             scale_output=self.scale_inputs,
+            bsz=self.ts_batch_sz
             )
 
     def get_test_query_ds(self):
@@ -281,7 +282,7 @@ class Dataset:
 
         # Find the clean query tracks and their segments
         self.ts_query_clean = sorted(
-                glob.glob(self.ts_clean_query_tracks_dir + '/**/*.npz', 
+                glob.glob(self.ts_clean_query_tracks_dir + '/**/*.wav', 
                         recursive=True))
         assert len(self.ts_query_clean)>0, "No clean query tracks found."
         print(f"{len(self.ts_query_clean):,} clean query tracks found.")
@@ -291,7 +292,6 @@ class Dataset:
             track_paths=self.ts_query_clean,
             segment_duration=self.segment_duration,
             hop_duration=self.ts_segment_hop,
-            chunk_duration=self.query_chunk_dur,
             fs=self.fs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
@@ -299,6 +299,7 @@ class Dataset:
             f_min=self.fmin,
             f_max=self.fmax,
             scale_output=self.scale_inputs,
+            bsz=self.ts_batch_sz
             )
 
         print("Creating the augmented query dataset...")
@@ -321,7 +322,6 @@ class Dataset:
                 track_paths=self.ts_query_clean, # Augment the clean query tracks
                 segment_duration=self.segment_duration,
                 hop_duration=self.ts_segment_hop,
-                chunk_duration=self.query_chunk_dur,
                 fs=self.fs,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
@@ -331,6 +331,7 @@ class Dataset:
                 scale_output=self.scale_inputs,
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
+                bsz=self.ts_batch_sz
                 )
 
         elif (not self.ts_use_bg_aug) and (not self.ts_use_ir_aug):
@@ -339,7 +340,7 @@ class Dataset:
 
             # Find the augmented query tracks and their segments
             self.ts_query_augmented = sorted(
-                glob.glob(self.ts_augmented_query_tracks_dir + '/**/*.npz', 
+                glob.glob(self.ts_augmented_query_tracks_dir + '/**/*.wav', 
                         recursive=True))
             assert len(self.ts_query_augmented)>0, "No augmented query tracks found."
             print(f"{len(self.ts_query_augmented):,} augmented query tracks found")
@@ -349,7 +350,6 @@ class Dataset:
                 track_paths=self.ts_query_augmented,
                 segment_duration=self.segment_duration,
                 hop_duration=self.ts_segment_hop,
-                chunk_duration=self.query_chunk_dur,
                 fs=self.fs,
                 n_fft=self.n_fft,
                 stft_hop=self.stft_hop,
@@ -357,6 +357,7 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
+                bsz=self.ts_batch_sz
                 )
 
         else:
