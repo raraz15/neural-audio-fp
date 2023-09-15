@@ -45,8 +45,8 @@ TRAIN:
     # Hyperparameters
     MAX_EPOCH : 100
     BSZ:
-        BATCH_SZ : 120 # Training batch size N must be EVEN number.
-        N_ANCHOR : 60 # Usually N/2; N/5 for Triplet-loss. 
+        BATCH_SZ : 128 # Training batch size N must be EVEN number.
+        N_ANCHOR : 64 # Usually N/2; N/5 for Triplet-loss. 
     LOSS:
         LOSS_MODE : 'NTxent' # 'NTxent'(default) or 'Online-Triplet'(now-playing). 
         TAU : 0.05 # **NTXENT ONLY** temperature parameter 0. < TAU < 1. 
