@@ -45,15 +45,16 @@ def cli():
 @click.argument('checkpoint_name', required=True)
 @click.option('--config', '-c', default='default', type=click.STRING,
               help="Name of model configuration located in './config/.'")
+@click.option('--max_epoch', default=None, type=click.INT, help='Max epoch.')
 @click.option('--deterministic', default=False, is_flag=True,
               help='Set the CUDA operaitions to be deterministic.')
-def train(checkpoint_name, config, deterministic):
+def train(checkpoint_name, config, max_epoch, deterministic):
     """ Train a neural audio fingerprinter.
 
-    ex) python run.py train CHECKPOINT_NAME
+    ex) python run.py train CHECKPOINT_NAME --max_epoch=100
 
         # with custom config file
-        python run.py train CHECKPOINT_NAME -c CONFIG_NAME
+        python run.py train CHECKPOINT_NAME --max_epoch=100 -c CONFIG_NAME
 
     NOTE: If './LOG_ROOT_DIR/checkpoint/CHECKPOINT_NAME already exists, 
     the training will resume from the latest checkpoint in the directory.
@@ -65,6 +66,8 @@ def train(checkpoint_name, config, deterministic):
     if deterministic:
         set_global_determinism()
     cfg = load_config(config)
+    if max_epoch:
+        update_config(cfg, 'TRAIN', 'MAX_EPOCH', max_epoch)
     print_config(cfg)
     trainer(cfg, checkpoint_name)
 
