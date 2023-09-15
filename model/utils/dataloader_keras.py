@@ -25,7 +25,6 @@ class genUnbalSequence(Sequence):
         offset_duration=0.2,
         bg_mix_parameter=[False],
         ir_mix_parameter=[False],
-        drop_the_last_non_full_batch=True,
         ):
         """
         Parameters
@@ -71,8 +70,6 @@ class genUnbalSequence(Sequence):
         reduce_items_p : (int), optional
             Reduce dataset size to percent (%). Useful when debugging code 
             with small data. Default is 100.
-        drop_the_last_non_full_batch : (bool), optional
-            Set as False in test. Default is True.
         """
 
         # Check parameters
@@ -128,7 +125,6 @@ class genUnbalSequence(Sequence):
             self.n_pos_per_anchor = 0
             self.n_pos_bsz = 0
         self.shuffle = shuffle
-        self.drop_the_last_non_full_batch = drop_the_last_non_full_batch
 
         # Filter out the tracks with less than segments_per_track
         self.track_seg_dict = {k: v 
@@ -141,17 +137,13 @@ class genUnbalSequence(Sequence):
                                 for k, v in self.track_seg_dict.items()}
 
         # Determine the tracks to use at each epoch
-        if self.drop_the_last_non_full_batch: # Training
-            # Remove the tracks that do not fill the last batch. Each batch contains
-            # a single segment from n_anchor tracks.
-            self.n_tracks = int((len(self.track_seg_dict) // n_anchor) * n_anchor)
-            self.track_seg_dict = {k: v 
-                                    for i, (k, v) in enumerate(self.track_seg_dict.items()) 
-                                    if i < self.n_tracks}
-            self.n_samples = self.n_tracks * self.segments_per_track
-        else:
-            self.n_tracks = len(self.track_seg_dict)
-            self.n_samples = sum([len(l) for l in self.track_seg_dict.values()])
+        # Remove the tracks that do not fill the last batch. Each batch contains
+        # a single segment from n_anchor tracks.
+        self.n_tracks = int((len(self.track_seg_dict) // n_anchor) * n_anchor)
+        self.track_seg_dict = {k: v 
+                                for i, (k, v) in enumerate(self.track_seg_dict.items()) 
+                                if i < self.n_tracks}
+        self.n_samples = self.n_tracks * self.segments_per_track
         self.track_fnames = list(self.track_seg_dict.keys())
 
         # Save augmentation parameters, read the files, and store them in memory
