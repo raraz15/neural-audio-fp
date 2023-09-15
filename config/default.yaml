@@ -32,8 +32,8 @@ MODEL:
 TRAIN:
     # Train and Validation, and Augmentation directories
     TRACKS:
-        TRAIN_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/train/'
-        VAL_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/val/'
+        TRAIN_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/dev/train/'
+        VAL_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/dev/val/'
     # Audio segment parameters
     SEGMENTS_PER_TRACK: 59
                     # Use this many segments per track for training.
