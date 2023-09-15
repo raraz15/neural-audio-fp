@@ -126,12 +126,13 @@ def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, source,
               "Numbers are separated by spaces. Default is '1 3 5 9 11 19', "
               "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec "
               "segment duration and 0.5 sec hop duration.")
-@click.option('--test_ids', '-t', default='all', type=click.STRING,
-              help="One of {'all', 'path/file.npy', (int)}. " 
+@click.option('--test_ids', '-t', default='equally_spaced', type=click.STRING,
+              help="One of {'all', 'equally_spaced', 'path/file.npy', (int)}. "
               "If 'all', test all IDs from the test. You can also specify a 1-D array "
               "file's location that contains the start indices to the the evaluation. "
               "Any numeric input N (int) > 0 will perform search test at random position "
-              "(ID) N times. Default is 'all'.")
+              "(ID) N times. 'equally_spaced' will use boundary information to get an "
+              "equal number of samples from each track. Default is 'equally_spaced'.")
 @click.option('--nogpu', default=False, is_flag=True,
               help='Use this flag to use CPU only.')
 def evaluate(checkpoint_name, checkpoint_index, config, index_type, test_seq_len, test_ids, nogpu):
