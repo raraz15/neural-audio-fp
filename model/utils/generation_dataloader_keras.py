@@ -124,7 +124,7 @@ class genUnbalSequenceGeneration(Sequence):
         """
 
         # Get the segments for this batch
-        Xa_batch = []
+        X = []
         for i in self.indexes[idx*self.bsz:(idx+1)*self.bsz]:
 
             fname, seg_idx, _, _ = self.track_seg_list[i]
@@ -138,9 +138,9 @@ class genUnbalSequenceGeneration(Sequence):
                                         seg_length_sec=self.segment_duration, 
                                         fs=self.fs,
                                         normalize=False)
-            Xa_batch.append(xs.reshape((1, -1)))
+            X.append(xs.reshape((1, -1)))
         # Create the batch
-        Xa_batch = np.concatenate(Xa_batch, axis=0)
+        X = np.concatenate(X, axis=0)
 
         # TODO: return back to NAFP?
         # Apply augmentations if specified
