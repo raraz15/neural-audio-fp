@@ -15,7 +15,6 @@ from model.dataset import Dataset
 from model.fp.specaug_chain.specaug_chain import get_specaug_chain_layer
 from model.fp.nnfp import get_fingerprinter
 from model.fp.NTxent_loss_single_gpu import NTxentLoss
-from model.fp.online_triplet_loss import OnlineTripletLoss
 from model.fp.lamb_optimizer import LAMB
 from model.utils.experiment_helper import ExperimentHelper
 from model.utils.mini_search_subroutines import mini_search_eval
@@ -33,7 +32,8 @@ def set_seed(seed: int = SEED):
     print(f"Random seed set as {seed}")
 
 def set_global_determinism():
-    # When running on the CuDNN backend, two further options must be set
+    """ When running on the CuDNN backend, two further options must be set"""
+
     os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
     os.environ['TF_DETERMINISTIC_OPS'] = '1'
     print("Global determinism set")
@@ -68,7 +68,7 @@ def train_step(X, m_specaug, m_fp, loss_obj, helper):
     g = t.gradient(loss, m_fp.trainable_variables)
     helper.optimizer.apply_gradients(zip(g, m_fp.trainable_variables))
     avg_loss = helper.update_tr_loss(loss) # To tensorboard
-    return avg_loss, sim_mtx # avg_loss: average within the current epoch
+    return avg_loss, sim_mtx
 
 @tf.function
 def val_step(X, m_fp, loss_obj, helper):
@@ -84,7 +84,6 @@ def val_step(X, m_fp, loss_obj, helper):
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
-# TODO: return only l2(gf)
 @tf.function
 def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
@@ -129,12 +128,11 @@ def mini_search_validation(ds, m_fp, mode='argmin',
 
 def trainer(cfg, checkpoint_name):
 
-    # Dataloader
-    dataset = Dataset(cfg)
-
     # Initialize the datasets
     tf.print('-----------Initializing the datasets-----------')
-    train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
+    dataset = Dataset(cfg)
+
+    train_ds = dataset.get_train_ds(cfg['TRAIN']['REDUCE_ITEMS_P'])
     val_ds = dataset.get_val_ds()
 
     # Build models.
@@ -174,28 +172,19 @@ def trainer(cfg, checkpoint_name):
         cfg=cfg)
 
     # Loss objects
-    if cfg['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
+    if cfg['TRAIN']['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
+        n_org = cfg['TRAIN']['BSZ']['N_ANCHOR']
+        n_rep = cfg['TRAIN']['BSZ']['BATCH_SZ'] - cfg['TRAIN']['BSZ']['N_ANCHOR']
         loss_obj_train = NTxentLoss(
-            n_org=cfg['BSZ']['TR_N_ANCHOR'],
-            n_rep=cfg['BSZ']['TR_BATCH_SZ'] - cfg['BSZ']['TR_N_ANCHOR'],
-            tau=cfg['LOSS']['TAU'])
+            n_org=n_org,
+            n_rep=n_rep,
+            tau=cfg['TRAIN']['LOSS']['TAU'])
         loss_obj_val = NTxentLoss(
-            n_org=cfg['BSZ']['VAL_N_ANCHOR'],
-            n_rep=cfg['BSZ']['VAL_BATCH_SZ'] - cfg['BSZ']['VAL_N_ANCHOR'],
-            tau=cfg['LOSS']['TAU'])
-    elif cfg['LOSS']['LOSS_MODE'].upper() == 'ONLINE-TRIPLET': # Now-playing
-        loss_obj_train = OnlineTripletLoss(
-            bsz=cfg['BSZ']['TR_BATCH_SZ'],
-            n_anchor=cfg['BSZ']['TR_N_ANCHOR'],
-            mode = 'semi-hard',
-            margin=cfg['LOSS']['MARGIN'])
-        loss_obj_val = OnlineTripletLoss(
-            bsz=cfg['BSZ']['VAL_BATCH_SZ'],
-            n_anchor=cfg['BSZ']['VAL_N_ANCHOR'],
-            mode = 'all', # use 'all' mode for validation
-            margin=0.)
+            n_org=n_org,
+            n_rep=n_rep,
+            tau=cfg['TRAIN']['LOSS']['TAU'])
     else:
-        raise NotImplementedError(cfg['LOSS']['LOSS_MODE'])
+        raise NotImplementedError(cfg['TRAIN']['LOSS']['LOSS_MODE'])
 
     # Training loop
     ep_start = helper.epoch
@@ -212,7 +201,7 @@ def trainer(cfg, checkpoint_name):
         enq = tf.keras.utils.OrderedEnqueuer(train_ds, 
                                             use_multiprocessing=True, 
                                             # We shuffle inside the dataset
-                                            # OrderedEnqueuer calls on_epoch_end
+                                            # OrderedEnqueuer calls train_ds.on_epoch_end()
                                             shuffle=False)
         enq.start(workers=cfg['DEVICE']['CPU_N_WORKERS'],
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
@@ -229,6 +218,7 @@ def trainer(cfg, checkpoint_name):
             helper.write_image_tensorboard('tr_sim_mtx', sim_mtx.numpy())
 
         # Validate
+        progbar = Progbar(len(val_ds))
         """ Parallelism to speed up preprocessing.............. """
         enq = tf.keras.utils.OrderedEnqueuer(val_ds, 
                                             use_multiprocessing=True, 
@@ -238,7 +228,8 @@ def trainer(cfg, checkpoint_name):
         i = 0
         while i < len(enq.sequence):
             _, _, Xa, Xp = next(enq.get())
-            _, sim_mtx = val_step((Xa, Xp), m_fp, loss_obj_val, helper)
+            avg_loss, sim_mtx = val_step((Xa, Xp), m_fp, loss_obj_val, helper)
+            progbar.add(1, values=[("val loss", avg_loss)])
             i += 1
         enq.stop()
         """ End of Parallelism................................. """

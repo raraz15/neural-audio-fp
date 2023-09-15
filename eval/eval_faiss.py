@@ -6,7 +6,6 @@
 import os
 import sys
 import time
-import glob
 import click
 import curses
 import numpy as np
@@ -14,6 +13,9 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from eval.utils.get_index_faiss import get_index
 from eval.utils.print_table import PrintTable
 
+# Fix random seed for reproducibility if using test_ids=int
+SEED = 27
+np.random.seed(SEED)
 
 def load_memmap_data(source_dir,
                      fname,
@@ -61,60 +63,58 @@ def load_memmap_data(source_dir,
         print(f'Load {data_shape[0]:,} items from \033[32m{path_data}\033[0m.')
     return data, data_shape
 
-
 @click.command()
 @click.argument('emb_dir', required=True,type=click.STRING)
 @click.option('--emb_dummy_dir', default=None, type=click.STRING,
-              help="Specify a directory containing 'dummy_db.mm' and " +
+              help="Specify a directory containing 'dummy_db.mm' and "
               "'dummy_db_shape.npy' to use. Default is EMB_DIR.")
 @click.option('--index_type', '-i', default='ivfpq', type=click.STRING,
-              help="Index type must be one of {'L2', 'IVF', 'IVFPQ', " +
+              help="Index type must be one of {'L2', 'IVF', 'IVFPQ', "
               "'IVFPQ-RR', 'IVFPQ-ONDISK', HNSW'}")
 @click.option('--nogpu', default=False, is_flag=True,
               help='Use this flag to use CPU only.')
 @click.option('--max_train', default=1e7, type=click.INT,
               help='Max number of items for index training. Default is 1e7.')
 @click.option('--test_seq_len', default='1 3 5 9 11 19', type=click.STRING,
-              help="A set of different number of segments to test. " +
-              "Numbers are separated by spaces. Default is '1 3 5 9 11 19'," +
-              " which corresponds to '1s, 2s, 3s, 5s, 6s, 10s'.")
-@click.option('--test_ids', '-t', default='icassp', type=click.STRING,
-              help="One of {'all', 'icassp', 'path/file.npy', (int)}. If 'all', " +
-              "test all IDs from the test. If 'icassp', use the 2,000 " +
-              "sequence starting point IDs of 'eval/test_ids_icassp.npy' " +
-              "located in ./eval directory. You can also specify the 1-D array "
-              "file's location. Any numeric input N (int) > 0 will randomly "
-              "select N IDs. Default is 'icassp'.")
+              help="A set of different number of segments to test. "
+              "Numbers are separated by spaces. Default is '1 3 5 9 11 19', "
+              "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec segment "
+              "duration and 0.5 sec hop duration.")
+@click.option('--test_ids', '-t', default='equally_spaced', type=click.STRING,
+              help="One of {'all', 'equally_spaced', 'path/file.npy', (int)}. "
+              "If 'all', test all IDs from the test. You can also specify a 1-D array "
+              "file's location that contains the start indices to the the evaluation. "
+              "Any numeric input N (int) > 0 will perform search test at random position "
+              "(ID) N times. 'equally_spaced' will use boundary information to get an "
+              "equal number of samples from each track. Default is 'equally_spaced'.")
 @click.option('--k_probe', '-k', default=20, type=click.INT,
               help="Top k search for each segment. Default is 20")
-@click.option('--display_interval', '-dp', default=10, type=click.INT,
-              help="Display interval. Default is 10, which updates the table" +
-              " every 10 queries.")
+@click.option('--display_interval', '-dp', default=100, type=click.INT,
+              help="Display interval. Default is 100, which updates the table"
+              " every 100 queries.")
 def eval_faiss(emb_dir,
                emb_dummy_dir=None,
                index_type='ivfpq',
                nogpu=False,
                max_train=1e7,
-               test_ids='icassp',
+               test_ids='all',
                test_seq_len='1 3 5 9 11 19',
                k_probe=20,
-               display_interval=5):
+               display_interval=100):
     """
     Segment/sequence-wise audio search experiment and evaluation: implementation 
     based on FAISS.
 
-    ex) python eval.py EMB_DIR --index_type ivfpq
+        ex) python eval.py EMB_DIR --index_type ivfpq
 
     EMB_DIR: Directory where {query, db, dummy_db}.mm files are located. The 
     'raw_score.npy' and 'test_ids.npy' will be also created in the same directory.
     """
 
-    # '1 3 5' --> [1, 3, 5]
-    test_seq_len = np.asarray(list(map(int, test_seq_len.split())))
-
     # Load items from {query, db, dummy_db}
     query, query_shape = load_memmap_data(emb_dir, 'query')
     db, db_shape = load_memmap_data(emb_dir, 'db')
+    assert np.all(query_shape == db_shape), 'query and db must have the same shape.'
     if emb_dummy_dir is None:
         emb_dummy_dir = emb_dir
     dummy_db, dummy_db_shape = load_memmap_data(emb_dummy_dir, 'dummy_db')
@@ -144,8 +144,10 @@ def eval_faiss(emb_dir,
     # Add items to index
     start_time = time.time()
 
-    index.add(dummy_db); print(f'{len(dummy_db)} items from dummy DB')
-    index.add(db); print(f'{len(db)} items from reference DB')
+    index.add(dummy_db)
+    print(f'{len(dummy_db)} items from dummy DB')
+    index.add(db)
+    print(f'{len(db)} items from reference DB')
 
     t = time.time() - start_time
     print(f'Added total {index.ntotal} items to DB. {t:>4.2f} sec.')
@@ -157,9 +159,9 @@ def eval_faiss(emb_dir,
 
     • Calcuation of sequence-level matching score requires reconstruction of
       vectors from FAISS index.
-    • Unforunately, current faiss.index.reconstruct_n(id_start, id_stop)
+    • Unfortunately, current faiss.index.reconstruct_n(id_start, id_stop)
       supports only CPU index.
-    • We prepare a fake_recon_index thourgh the on-disk method.
+    • We prepare a fake_recon_index through the on-disk method.
 
     ---------------------------------------------------------------------- """
 
@@ -176,22 +178,41 @@ def eval_faiss(emb_dir,
     t = time.time() - start_time
     print(f'Created fake_recon_index, total {index_shape[0]} items. {t:>4.2f} sec.')
 
+    # '1 3 5' --> [1, 3, 5]
+    test_seq_len = np.asarray(list(map(int, test_seq_len.split())))
+
     # Get test_ids
     print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
-    if test_ids.lower() == 'all': # will test all segments in query/db set
+    if test_ids.lower() == 'all':
+        # Will use all segments in query/db set as starting point and 
+        # evaluate the performance for each test_seq_len.
         test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
-    elif test_ids.lower() == 'icassp':
-        test_ids = np.load(glob.glob('./**/test_ids_icassp2021.npy', recursive=True)[0])
     elif test_ids.isnumeric():
+        # Will use random segments in query/db set as starting point and
+        # evaluate the performance for each test_seq_len. This does not guarantee
+        # getting a sample from each track.
         test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
-    else:
+    elif test_ids.lower() == "equally_spaced":
+        # Get an equal number of samples from each track
+        # Read the boundary of each query in the memmap
+        query_boundaries = np.load(f'{emb_dir}/query_boundaries.npy')
+        test_ids = []
+        for s,e in zip(query_boundaries[:-1], query_boundaries[1:]):
+            # Cut the query into segments of test_seq_len
+            # If the last segment is shorter than test_seq_len, ignore it
+            test_ids.append(np.arange(s,e,test_seq_len[-1])[:-1])
+        test_ids = np.concatenate(test_ids)
+    elif os.path.isfile(test_ids):
+        # If test_ids is a file path load it
         test_ids = np.load(test_ids)
+    else:
+       raise ValueError(f'Invalid test_ids: {test_ids}')
 
     n_test = len(test_ids)
     gt_ids  = test_ids + dummy_db_shape[0]
     print(f'n_test: \033[93m{n_test:n}\033[0m')
 
-    """ Segement/sequence-level search & evaluation """
+    """ Segment/sequence-level search & evaluation """
     # Define metric
     top1_exact = np.zeros((n_test, len(test_seq_len))).astype(int) # (n_test, test_seg_len)
     top1_near = np.zeros((n_test, len(test_seq_len))).astype(int)
@@ -199,9 +220,10 @@ def eval_faiss(emb_dir,
     top10_exact = np.zeros((n_test, len(test_seq_len))).astype(int)
     # top1_song = np.zeros((n_test, len(test_seq_len))).astype(np.int)
 
-    # TODO: understand sequence level search
+    # TODO: understand sequence level search, are the elements independent?
     scr = curses.initscr()
-    pt = PrintTable(scr=scr, test_seq_len=test_seq_len,
+    pt = PrintTable(scr=scr, 
+                    test_seq_len=test_seq_len,
                     row_names=['Top1 exact', 'Top1 near', 'Top3 exact','Top10 exact'])
     start_time = time.time()
     for ti, test_id in enumerate(test_ids):
@@ -269,8 +291,7 @@ def eval_faiss(emb_dir,
     pt.close_table() # close table and print summary
     del fake_recon_index, query, db
     np.save(f'{emb_dir}/raw_score.npy',
-            np.concatenate(
-                (top1_exact, top1_near, top3_exact, top10_exact), axis=1))
+            np.concatenate((top1_exact, top1_near, top3_exact, top10_exact), axis=1))
     np.save(f'{emb_dir}/test_ids.npy', test_ids)
     print(f'Saved test_ids and raw score to {emb_dir}.')
 
