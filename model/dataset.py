@@ -70,8 +70,7 @@ class Dataset:
         self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
         self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
 
-        self.ts_segment_dur = cfg['TEST']['SEGMENT_DUR']
-        self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP']
+        self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP'] # TODO: use this?
         self.noise_chunk_dur = cfg['TEST']['NOISE_CHUNK_DURATION']
         self.query_chunk_dur = cfg['TEST']['QUERY_CHUNK_DURATION']
 
@@ -254,7 +253,7 @@ class Dataset:
 
         return genUnbalSequenceGeneration(
             track_paths=self.ts_noise_paths,
-            segment_duration=self.ts_segment_dur,
+            segment_duration=self.segment_duration,
             hop_duration=self.ts_segment_hop,
             chunk_duration=self.noise_chunk_dur,
             fs=self.fs,
@@ -290,7 +289,7 @@ class Dataset:
         # Create the clean query dataset
         ds_db = genUnbalSequenceGeneration(
             track_paths=self.ts_query_clean,
-            segment_duration=self.ts_segment_dur,
+            segment_duration=self.segment_duration,
             hop_duration=self.ts_segment_hop,
             chunk_duration=self.query_chunk_dur,
             fs=self.fs,
@@ -320,7 +319,7 @@ class Dataset:
             # Create the augmented query dataset
             ds_query = genUnbalSequenceGeneration(
                 track_paths=self.ts_query_clean, # Augment the clean query tracks
-                segment_duration=self.ts_segment_dur,
+                segment_duration=self.segment_duration,
                 hop_duration=self.ts_segment_hop,
                 chunk_duration=self.query_chunk_dur,
                 fs=self.fs,
@@ -348,7 +347,7 @@ class Dataset:
             # Create the augmented query dataset
             ds_query = genUnbalSequenceGeneration(
                 track_paths=self.ts_query_augmented,
-                segment_duration=self.ts_segment_dur,
+                segment_duration=self.segment_duration,
                 hop_duration=self.ts_segment_hop,
                 chunk_duration=self.query_chunk_dur,
                 fs=self.fs,

@@ -102,7 +102,6 @@ TEST:
         # Or a text file that contains the paths to the noise files. When NOISE_PATHS_FILE is
         # provided, NOISE_ROOT is ignored.
     # Audio segment parameters
-    SEGMENT_DUR : 1. # Unit segment length in seconds.
     SEGMENT_HOP : .5 # Hop-size of the segment window in seconds.
     NOISE_CHUNK_DURATION : 150. # Duration of the audio chunk in seconds.
     QUERY_CHUNK_DURATION : 30.  # Duration of the audio chunk in seconds.
