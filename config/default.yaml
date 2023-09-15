@@ -16,7 +16,7 @@ MODEL:
         SCALE_INPUTS: True # Scale the power mel-spectrogram to [-1,1].
     # Model architecture parameters.
     ARCHITECTURE:
-        EMB_SZ : 256  # Dimension of fingerprint, d in this paper.
+        EMB_SZ : 128  # Dimension of fingerprint, d in this paper.
         BN : 'layer_norm2d' # or 'layer_norm2d' or 'batch_norm'
     # NOTE:
     # - In the current version, modifying {FS, DUR, HOB, STFT WIN, STFT HOP}
