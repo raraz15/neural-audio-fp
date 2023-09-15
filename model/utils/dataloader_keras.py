@@ -67,9 +67,6 @@ class genUnbalSequence(Sequence):
             [True, BG_FILEPATHS, (MIN_SNR, MAX_SNR)]. Default is [False].
         ir_mix_parameter : list([(bool), list(str), float], optional
             [True, IR_FILEPATHS, MAX_IR_DURATION]. Default is [False].
-        reduce_items_p : (int), optional
-            Reduce dataset size to percent (%). Useful when debugging code 
-            with small data. Default is 100.
         """
 
         # Check parameters
