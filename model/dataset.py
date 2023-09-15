@@ -1,30 +1,32 @@
 import os
 import glob
+
 from model.utils.dataloader_keras import genUnbalSequence
 from model.utils.generation_dataloader_keras import genUnbalSequenceGeneration
 
 class Dataset:
     """
-    Build datasets for training, validation and test sets.
+    Build datasets for train, validation and test sets.
 
-    USAGE:
+    USAGE
+    -----
         dataset = Dataset(cfg)
         ds_train = dataset.get_train_ds()
         print(ds_train.__getitem__(0))
-
-    ...
+        ...
 
     Attributes
     ----------
-    cfg : dict
-        a dictionary containing configurations
+        cfg : dict
+            a dictionary containing configurations
 
     Public Methods
     --------------
-    get_train_ds()
-    get_val_ds()
-    get_test_dummy_db_ds()
-    get_test_query_db_ds()
+        get_train_ds()
+        get_val_ds()
+        get_test_dummy_db_ds()
+        get_test_query_db_ds()
+
     """
 
     def __init__(self, cfg=dict()):
