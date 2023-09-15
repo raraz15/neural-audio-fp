@@ -52,11 +52,11 @@ class Dataset:
         self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
         self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
         self.tr_bg_snr = cfg['TRAIN']['AUG']['TD']['BG_SNR']
+        self.tr_bg_fps = []
 
         self.tr_ir_root_dir = cfg['TRAIN']['AUG']['TD']['IR_ROOT']
         self.tr_use_ir_aug = cfg['TRAIN']['AUG']['TD']['IR']
         self.tr_max_ir_dur = cfg['TRAIN']['AUG']['TD']['IR_MAX_DUR']
-        self.tr_bg_fps = []
         self.tr_ir_fps = []
 
         # Validation Parameters
@@ -71,42 +71,42 @@ class Dataset:
         self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
 
         self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP'] # TODO: use this?
-        self.noise_chunk_dur = cfg['TEST']['NOISE_CHUNK_DURATION']
         self.query_chunk_dur = cfg['TEST']['QUERY_CHUNK_DURATION']
 
         self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
         self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
+        self.ts_bg_fps = []
         self.ts_use_ir_aug = cfg['TEST']['AUG']['TD']['IR']
         self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
-        self.ts_bg_fps = []
         self.ts_ir_fps = []
 
+    # TODO: make it work for both nafp and discotube
     def get_train_ds(self, reduce_items_p=100):
         """ Source (music) file paths for training set. The folder structure
         should be as follows:
             self.tr_tracks_dir/
                 dir0/
                     track1/
-                        segment1.npz
+                        segment1.wav
                         ...
                     track2/
-                        segment1.npz
+                        segment1.wav
                         ...
                     ...
                 dir1/
                     track1/
-                        segment1.npz
+                        segment1.wav
                         ...
                     track2/
-                        segment1.npz
+                        segment1.wav
                         ...
                     ...
                 ...
 
-            Parameters
-            ----------
-                reduce_items_p : int (default 100)
-                    Reduce the number of items in each track to this percentage.
+        Parameters
+        ----------
+            reduce_items_p : int (default 100)
+                Reduce the number of items in each track to this percentage.
         """
 
         print("Creating the training dataset...")
@@ -133,7 +133,7 @@ class Dataset:
             track_names = os.listdir(os.path.join(self.tr_tracks_dir, main_dir))
             for track_name in track_names:
                 track_dir = os.path.join(self.tr_tracks_dir, main_dir, track_name)
-                segment_paths = sorted(glob.glob(track_dir + '/*.npz', recursive=True))
+                segment_paths = sorted(glob.glob(track_dir + '/*.wav', recursive=True))
                 self.tr_source_fps[track_name] = segment_paths
         assert len(self.tr_source_fps)>0, "No training tracks found."
         total_segments = sum([len(v) for v in self.tr_source_fps.values()])
@@ -174,18 +174,18 @@ class Dataset:
             self.val_tracks_dir/
                 dir0/
                     track1/
-                        segment1.npz
+                        segment1.wav
                         ...
                     track2/
-                        segment1.npz
+                        segment1.wav
                         ...
                     ...
                 dir1/
                     track1/
-                        segment1.npz
+                        segment1.wav
                         ...
                     track2/
-                        segment1.npz
+                        segment1.wav
                         ...
                     ...
                 ...
@@ -206,7 +206,7 @@ class Dataset:
             track_names = os.listdir(os.path.join(self.val_tracks_dir, main_dir))
             for track_name in track_names:
                 track_dir = os.path.join(self.val_tracks_dir, main_dir, track_name)
-                segment_paths = sorted(glob.glob(track_dir + '/*.npz', recursive=True))
+                segment_paths = sorted(glob.glob(track_dir + '/*.wav', recursive=True))
                 self.val_source_fps[track_name] = segment_paths
         assert len(self.val_source_fps)>0, "No validation tracks found."
         total_segments = sum([len(v) for v in self.val_source_fps.values()])
@@ -214,7 +214,6 @@ class Dataset:
         print(f"{len(self.val_source_fps):,} tracks found.")
         print(f"{total_segments:,} segments found.")
 
-        # TODO: drop last?
         return genUnbalSequence(
             segment_dict=self.val_source_fps,
             bsz=self.tr_batch_sz,

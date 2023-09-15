@@ -134,6 +134,8 @@ class genUnbalSequence(Sequence):
         self.track_seg_dict = {k: v 
                                 for k, v in segment_dict.items() 
                                 if len(v) >= segments_per_track}
+        print(f"Number of tracks with at least {segments_per_track}"
+              f" segments: {len(self.track_seg_dict):,}")
         # Keep only segments_per_track segments for each track
         self.track_seg_dict = {k: v[:segments_per_track] 
                                 for k, v in self.track_seg_dict.items()}
@@ -223,7 +225,6 @@ class genUnbalSequence(Sequence):
                 Xp_batch = audio_utils.ir_aug_batch(Xp_batch, ir_batch)
 
         # Compute mel spectrograms
-        # TODO: remove the need for float32
         Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch).astype(np.float32)
         Xp_batch_mel = self.mel_spec.compute_batch(Xp_batch).astype(np.float32)
 
@@ -269,11 +270,13 @@ class genUnbalSequence(Sequence):
         Xa_batch, Xp_batch = [], []
         for fname in fnames:
 
-            # Get the segment information of the idx segment of the track
-            seg_path = self.track_seg_dict[fname][idx]
-
             # Load the full segment
-            full_segment = np.load(seg_path, allow_pickle=True)["segment"]
+            full_segment = audio_utils.load_audio(self.track_seg_dict[fname][idx], 
+                                                  seg_start_sec=0,
+                                                  offset_sec=0,
+                                                  seg_length_sec=self.full_segment_duration,
+                                                  fs=self.fs, 
+                                                  normalize=False)
             assert full_segment.shape[0] == self.full_segment_length, \
                     f"full_segment.shape[0]={full_segment.shape[0]} but " \
                     f"self.full_segment_length={self.full_segment_length}"
