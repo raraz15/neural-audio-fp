@@ -228,6 +228,32 @@ class FingerPrinter(tf.keras.Model):
 
         return x
 
+def get_fingerprinter(cfg, trainable=False):
+    """
+    Input length : 1s or 2s
+    
+    Arguments
+    ----------
+    cfg : (dict)
+        created from the '.yaml' located in /config dicrectory
+
+    Returns
+    -------
+    <tf.keras.Model> FingerPrinter object
+
+    """
+
+    emb_sz = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
+    norm = cfg['MODEL']['ARCHITECTURE']['BN']
+    fc_unit_dim = [32, 1] # TODO: configurable
+
+    m = FingerPrinter(emb_sz=emb_sz,
+                      fc_unit_dim=fc_unit_dim,
+                      norm=norm)
+    m.trainable = trainable
+
+    return m
+
 def test():
     input_1s = tf.constant(np.random.randn(3,256,32,1), dtype=tf.float32) # BxFxTx1
     fprinter = FingerPrinter(emb_sz=128, fc_unit_dim=[32, 1], norm='layer_norm2d')

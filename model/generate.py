@@ -10,7 +10,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.utils import Progbar
 from model.dataset import Dataset
-from model.trainer import get_fingerprinter
+from model.fp.nnfp import get_fingerprinter
 
 def get_checkpoint_index_and_restore_model(m_fp, checkpoint_root_dir, checkpoint_name, checkpoint_index=None):
     """ Load a trained fingerprinter """
