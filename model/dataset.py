@@ -237,11 +237,22 @@ class Dataset:
 
     def get_test_noise_ds(self):
         """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.
+        The folder structure should be as follows:
+            self.ts_noise_tracks_dir/
+                dir0/
+                    track1.wav
+                    track2.wav
+                    ...
+                dir1/
+                    track1.wav
+                    track2.wav
+                    ...
+                ...
 
-            Returns:
-            --------
-                ds_dummy_db : genUnbalSequenceGeneration
-                    The dataset for test-dummy-DB.
+        Returns:
+        --------
+            ds_dummy_db : genUnbalSequenceGeneration
+                The dataset for test-dummy-DB.
         """
 
         print(f"Creating the test-dummy-DB dataset (noise tracks)...")
@@ -269,7 +280,20 @@ class Dataset:
 
     def get_test_query_ds(self):
         """ Create 2 databases for query segments. One of them is the augmented 
-        version of the clean queries.
+        version of the clean queries. If the config does not specify a folder for
+        augmented queries, then the clean queries are augmented in real time.
+
+        The clean query tracks folder structure should be as follows:
+            self.ts_clean_query_tracks_dir/
+                dir0/
+                    track1.wav
+                    track2.wav
+                    ...
+                dir1/
+                    track1.wav
+                    track2.wav
+                    ...
+                ...
 
         Returns
         -------
