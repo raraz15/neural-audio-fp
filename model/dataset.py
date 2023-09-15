@@ -26,6 +26,7 @@ class Dataset:
         get_val_ds()
         get_test_dummy_db_ds()
         get_test_query_db_ds()
+        get_custom_db_ds(source_root_dir)
 
     """
 
@@ -366,3 +367,21 @@ class Dataset:
             raise ValueError("Invalid augmentation parameters.")
 
         return ds_query, ds_db
+
+    def get_custom_db_ds(self, source_root_dir):
+        """ Construct DB (or query) from custom source files. """
+        fps = sorted(
+            glob.glob(source_root_dir + '/**/*.wav', recursive=True))
+        return genUnbalSequenceGeneration(
+            track_paths=fps,
+            segment_duration=self.segment_duration,
+            hop_duration=self.ts_segment_hop,
+            fs=self.fs,
+            n_fft=self.n_fft,
+            stft_hop=self.stft_hop,
+            n_mels=self.n_mels,
+            f_min=self.fmin,
+            f_max=self.fmax,
+            scale_output=self.scale_inputs,
+            bsz=self.ts_batch_sz
+            )# No augmentations, No drop-samples.

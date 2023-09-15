@@ -46,24 +46,29 @@ def prevent_overwrite(key, target_path):
         answer = input(f'{target_path} exists. Will you overwrite (y/N)?')
         if answer.lower() not in ['y', 'yes']: sys.exit()
 
-def get_data_source(cfg, skip_dummy):
+# TODO: custom source dir
+def get_data_source(cfg, source_root_dir, skip_dummy):
     dataset = Dataset(cfg)
     ds = dict()
-    # Create the clean and augmented query datasets
-    ds['query'], ds['db'] = dataset.get_test_query_ds()
-    # Create the dummy dataset
-    if skip_dummy:
-        tf.print("Excluding \033[33m'dummy_db'\033[0m from source.")
+    if source_root_dir:
+        ds['custom_source'] = dataset.get_custom_db_ds(source_root_dir)
     else:
-        ds['dummy_db'] = dataset.get_test_noise_ds()
-    # TODO: proper print
-    tf.print(f'\x1b[1;32mData source: {list(ds.keys())}\x1b[0m')
+        # Create the clean and augmented query datasets
+        ds['query'], ds['db'] = dataset.get_test_query_ds()
+        # Create the dummy dataset
+        if skip_dummy:
+            tf.print("Excluding \033[33m'dummy_db'\033[0m from source.")
+        else:
+            ds['dummy_db'] = dataset.get_test_noise_ds()
+        # TODO: proper print
+        tf.print(f'\x1b[1;32mData source: {list(ds.keys())}\x1b[0m')
     return ds
 
 def generate_fingerprint(cfg,
                          checkpoint_type,
                          checkpoint_name,
                          checkpoint_index,
+                         source_root_dir,
                          output_root_dir,
                          skip_dummy):
     """
@@ -108,7 +113,7 @@ def generate_fingerprint(cfg,
 
     # Get data source
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
-    ds = get_data_source(cfg, skip_dummy)
+    ds = get_data_source(cfg, source_root_dir, skip_dummy)
 
     dim = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
     bsz = cfg['TEST']['BATCH_SZ']

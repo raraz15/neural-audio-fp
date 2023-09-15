@@ -79,13 +79,17 @@ def train(checkpoint_name, config, deterministic):
 @click.option('--config', '-c', default='default', type=click.STRING,
               help="Name of the model configuration file located in 'config/'." +
               " Default is 'default'")
+@click.option('--source', '-s', default=None, type=click.STRING, required=False,
+              help="Custom source root directory. The source must be 16-bit "
+              "8 Khz mono WAV. This is only useful when constructing a database"
+              " without synthesizing queries.")
 @click.option('--output', '-o', default=None, type=click.STRING,
               help="Root directory where the generated embeddings (uncompressed)" +
               " will be stored. Default is OUTPUT_ROOT_DIR/CHECKPOINT_NAME " +
               "defined in config.")
 @click.option('--skip_dummy', default=False, is_flag=True,
               help='Exclude dummy-DB from the default source.')
-def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, output, skip_dummy):
+def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, source, output, skip_dummy):
     """ Generate fingerprints from a saved checkpoint.
 
     ex) python run.py generate CHECKPOINT_NAME
@@ -104,7 +108,7 @@ def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, output,
 
     cfg = load_config(config)
     allow_gpu_memory_growth()
-    generate_fingerprint(cfg, checkpoint_type, checkpoint_name, checkpoint_index, output, skip_dummy)
+    generate_fingerprint(cfg, checkpoint_type, checkpoint_name, checkpoint_index, source, output, skip_dummy)
 
 """ Search and evalutation """
 @cli.command()
