@@ -138,6 +138,7 @@ class Dataset:
         assert len(self.tr_source_fps)>0, "No training tracks found."
         total_segments = sum([len(v) for v in self.tr_source_fps.values()])
         assert total_segments>0, "No segments found."
+        print(f"{len(self.tr_source_fps):,} tracks found.")
         print(f"{total_segments:,} segments found.")
 
         if reduce_items_p<100:
