@@ -111,6 +111,7 @@ def generate_fingerprint(cfg,
     ds = get_data_source(cfg, skip_dummy)
 
     dim = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
+    bsz = cfg['TEST']['BATCH_SZ']
 
     # Generate
     sz_check = dict() # for warning message
@@ -147,8 +148,7 @@ def generate_fingerprint(cfg,
         # Fingerprinting loop
         tf.print(
             f"=== Generating fingerprint from \x1b[1;32m'{key}'\x1b[0m " +
-            # f"bsz={bsz}, {n_items} items, d={dim}"+ " ===")
-            f"{n_items} items, d={dim}"+ " ===")
+            f"bsz={bsz}, {n_items} items, d={dim}"+ " ===")
         progbar = Progbar(len(ds[key]))
 
         """ Parallelism to speed up processing------------------------- """
@@ -163,16 +163,15 @@ def generate_fingerprint(cfg,
             progbar.update(i)
             _, Xa = next(enq.get())
             emb = m_fp(Xa)
-            bsz = emb.shape[0]
             # Write to disk. We must know the shape of the emb in advance
             arr[i*bsz : (i+1)*bsz, :] = emb.numpy()
-            boundaries.append((i+1)*bsz)
+            boundaries.append((i+1)*bsz) # Save the boundaries of each track
             i += 1
         progbar.update(i, finalize=True)
         enq.stop()
         """ End of Parallelism----------------------------------------- """
 
-        # Write the boundaries of each track
+        # Write the boundaries to disk
         np.save(f"{output_dir}/{key}_boundaries.npy", boundaries)
 
         tf.print(f'=== Succesfully stored {len(arr)} fingerprints to {output_dir} ===')
