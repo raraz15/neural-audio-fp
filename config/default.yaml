@@ -31,7 +31,7 @@ MODEL:
 # Training parameters
 TRAIN:
     # Train and Validation, and Augmentation directories
-    TRACKS:
+    DIR:
         TRAIN_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/dev/train/'
         VAL_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/dev/val/'
     # Audio segment parameters
@@ -99,7 +99,7 @@ TRAIN:
 
 TEST:
     # TEST tracks directories
-    TRACKS:
+    DIR:
         NOISE_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/test/noise/'
         CLEAN_QUERY_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/test/query_clean/'
         AUGMENTED_QUERY_ROOT : Null

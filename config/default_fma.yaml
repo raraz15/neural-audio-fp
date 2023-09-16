@@ -31,7 +31,7 @@ MODEL:
 # Training parameters
 TRAIN:
     # Train and Validation, and Augmentation directories
-    TRACKS:
+    DIR:
         TRAIN_ROOT : '../neural-audio-fp-dataset/music/train-10k-30s/fma_small_8k_plus_medium_2k/'
         VAL_ROOT : '../neural-audio-fp-dataset/music/val-query-db-500-30s/'
     # Audio segment parameters
@@ -99,7 +99,7 @@ TRAIN:
 
 TEST:
     # TEST tracks directories
-    TRACKS:
+    DIR:
         NOISE_ROOT : '../neural-audio-fp-dataset/music/test-dummy-db-100k-full/from_fma_large10k-30s_for_mini/'
         CLEAN_QUERY_ROOT : '../neural-audio-fp-dataset/music/test-query-db-500-30s/db/'
         AUGMENTED_QUERY_ROOT : '../neural-audio-fp-dataset/music/test-query-db-500-30s/query/'

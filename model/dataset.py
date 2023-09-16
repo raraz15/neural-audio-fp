@@ -45,7 +45,7 @@ class Dataset:
         self.scale_inputs = cfg['MODEL']['INPUT']['SCALE_INPUTS']
 
         # Train Parameters
-        self.tr_tracks_dir = cfg['TRAIN']['TRACKS']['TRAIN_ROOT']
+        self.tr_audio_dir = cfg['TRAIN']['DIR']['TRAIN_ROOT']
 
         self.tr_segments_per_track = cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK']
         self.tr_offset_duration = cfg['TRAIN']['AUDIO']["MAX_OFFSET_DUR"]
@@ -63,15 +63,15 @@ class Dataset:
         self.tr_ir_fps = []
 
         # Validation Parameters
-        self.val_tracks_dir = cfg['TRAIN']['TRACKS']['VAL_ROOT']
+        self.val_audio_dir = cfg['TRAIN']['DIR']['VAL_ROOT']
         # We use the same augmentations for train and validation sets
 
         # Test Parameters
-        self.ts_noise_tracks_dir = cfg['TEST']['TRACKS']['NOISE_ROOT']
-        self.ts_clean_query_tracks_dir = cfg['TEST']['TRACKS']['CLEAN_QUERY_ROOT']
-        self.ts_augmented_query_tracks_dir = cfg['TEST']['TRACKS']['AUGMENTED_QUERY_ROOT']
+        self.ts_noise_tracks_dir = cfg['TEST']['DIR']['NOISE_ROOT']
+        self.ts_clean_query_tracks_dir = cfg['TEST']['DIR']['CLEAN_QUERY_ROOT']
+        self.ts_augmented_query_tracks_dir = cfg['TEST']['DIR']['AUGMENTED_QUERY_ROOT']
 
-        self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP'] # TODO: use this?
+        self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP']
         self.ts_batch_sz = cfg['TEST']['BATCH_SZ']
 
         self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
@@ -84,11 +84,12 @@ class Dataset:
         self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
         self.ts_ir_fps = []
 
-    # TODO: update docstrings
     def get_train_ds(self, reduce_items_p=100):
-        """ Source (music) file paths for training set. The folder structure
+        """ Source (music) file paths for training set. 
+
+        When segmented tracks are used for training the folder structure
         should be as follows:
-            self.tr_tracks_dir/
+            self.tr_audio_dir/
                 dir0/
                     track1/
                         segment1.wav
@@ -104,6 +105,17 @@ class Dataset:
                     track2/
                         segment1.wav
                         ...
+                    ...
+                ...
+
+        If full length tracks are used for training the folder structure
+        should be as follows:
+            self.tr_audio_dir/
+                dir0/
+                    track1.wav
+                    ...
+                dir1/
+                    track1.wav
                     ...
                 ...
 
@@ -130,15 +142,15 @@ class Dataset:
             assert len(self.tr_ir_fps)>0, "No impulse response found."
 
         # Determine the dataset
-        if "discotube" in self.tr_tracks_dir.lower():
+        if "discotube" in self.tr_audio_dir.lower():
 
             # Find the tracks and their segments
             self.tr_source_fps = {}
-            main_dirs = os.listdir(self.tr_tracks_dir)
+            main_dirs = os.listdir(self.tr_audio_dir)
             for main_dir in main_dirs:
-                track_names = os.listdir(os.path.join(self.tr_tracks_dir, main_dir))
+                track_names = os.listdir(os.path.join(self.tr_audio_dir, main_dir))
                 for track_name in track_names:
-                    track_dir = os.path.join(self.tr_tracks_dir, main_dir, track_name)
+                    track_dir = os.path.join(self.tr_audio_dir, main_dir, track_name)
                     segment_paths = sorted(glob.glob(track_dir + '/*.wav', recursive=True))
                     self.tr_source_fps[track_name] = segment_paths
             assert len(self.tr_source_fps)>0, "No training tracks found."
@@ -177,11 +189,11 @@ class Dataset:
                 ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
 
         # If the training tracks are from the NAFP FMA dataset
-        elif "music" in self.tr_tracks_dir.lower():
+        elif "music" in self.tr_audio_dir.lower():
 
             # Find the wav tracks 
             self.tr_source_fps = sorted(
-                glob.glob(self.tr_tracks_dir + "**/*.wav", recursive=True))
+                glob.glob(self.tr_audio_dir + "**/*.wav", recursive=True))
             assert len(self.tr_source_fps)>0, "No training tracks found."
             print(f"{len(self.tr_source_fps):,} tracks found.")
 
@@ -216,9 +228,11 @@ class Dataset:
             raise ValueError("Invalid training tracks directory.")
 
     def get_val_ds(self):
-        """ Source (music) file paths for validation set. The folder structure
+        """ Source (music) file paths for validation set. 
+
+        When segmented tracks are used for training the folder structure
         should be as follows:
-            self.val_tracks_dir/
+            self.val_audio_dir/
                 dir0/
                     track1/
                         segment1.wav
@@ -236,7 +250,17 @@ class Dataset:
                         ...
                     ...
                 ...
-        """
+
+        If full length tracks are used for training the folder structure
+        should be as follows:
+            self.val_audio_dir/
+                dir0/
+                    track1.wav
+                    ...
+                dir1/
+                    track1.wav
+                    ...
+                ...        """
 
         print(f"Creating the validation dataset...")
 
@@ -247,15 +271,15 @@ class Dataset:
             print(f"val_ir_fps: {len(self.tr_ir_fps):>6,} (Same as the training set)")
 
         # Determine the dataset
-        if "discotube" in self.val_tracks_dir.lower():
+        if "discotube" in self.val_audio_dir.lower():
 
             # Find the tracks and their segments
             self.val_source_fps = {}
-            main_dirs = os.listdir(self.val_tracks_dir)
+            main_dirs = os.listdir(self.val_audio_dir)
             for main_dir in main_dirs:
-                track_names = os.listdir(os.path.join(self.val_tracks_dir, main_dir))
+                track_names = os.listdir(os.path.join(self.val_audio_dir, main_dir))
                 for track_name in track_names:
-                    track_dir = os.path.join(self.val_tracks_dir, main_dir, track_name)
+                    track_dir = os.path.join(self.val_audio_dir, main_dir, track_name)
                     segment_paths = sorted(glob.glob(track_dir + '/*.wav', recursive=True))
                     self.val_source_fps[track_name] = segment_paths
             assert len(self.val_source_fps)>0, "No validation tracks found."
@@ -284,11 +308,11 @@ class Dataset:
                 ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
 
         # If the validation tracks are from the NAFP FMA dataset
-        elif "music" in self.val_tracks_dir.lower():
+        elif "music" in self.val_audio_dir.lower():
 
             # Find the wav tracks
             self.val_source_fps = sorted(
-                glob.glob(self.val_tracks_dir + '**/*.wav', recursive=True))
+                glob.glob(self.val_audio_dir + '**/*.wav', recursive=True))
             assert len(self.val_source_fps)>0, "No validation tracks found."
             print(f"{len(self.val_source_fps):,} tracks found.")
 
