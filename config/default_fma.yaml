@@ -32,12 +32,12 @@ MODEL:
 TRAIN:
     # Train and Validation, and Augmentation directories
     TRACKS:
-        TRAIN_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/dev/train/'
-        VAL_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/dev/val/'
+        TRAIN_ROOT : '../neural-audio-fp-dataset/music/train-10k-30s/fma_small_8k_plus_medium_2k/'
+        VAL_ROOT : '../neural-audio-fp-dataset/music/val-query-db-500-30s/'
     # Audio segment parameters
     AUDIO:
-        # SEGMENT_HOP : .5 # Hop-size of the segment window in seconds.
-        INPUT_AUDIO_DUR : 2.
+        SEGMENT_HOP_DUR : .5 # Hop-size of the segment window in seconds.
+        #INPUT_AUDIO_DUR : 2. # TODO: remove this from fma?
                         # Extracted audio segment duration in seconds. We use 
                         # Should MODEL['AUDIO']['SEGMENT_DUR'] seconds of audio
                         # from INPUT_AUDIO_DUR during training. It must be
@@ -100,9 +100,9 @@ TRAIN:
 TEST:
     # TEST tracks directories
     TRACKS:
-        NOISE_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/test/noise/'
-        CLEAN_QUERY_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/test/query_clean/'
-        AUGMENTED_QUERY_ROOT : Null
+        NOISE_ROOT : '../neural-audio-fp-dataset/music/test-dummy-db-100k-full/from_fma_large10k-30s_for_mini/'
+        CLEAN_QUERY_ROOT : '../neural-audio-fp-dataset/music/test-query-db-500-30s/db/'
+        AUGMENTED_QUERY_ROOT : '../neural-audio-fp-dataset/music/test-query-db-500-30s/query/'
                             # You can provide empty string to AUGMENTED_QUERY_ROOT and set
                             # TD_AUG.TS_BG_AUG=True and TD_AUG.TS_IR_AUG=True to enable
                             # real-time augmentation during testing. 
