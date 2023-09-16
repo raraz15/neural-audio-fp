@@ -7,7 +7,8 @@ from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 SEED = 27 # Used during augmentation
 np.random.seed(SEED)
 
-class genUnbalSequenceGeneration(Sequence):
+# TODO: bring augmentation back to easy
+class GenerationLoader(Sequence):
     def __init__(
         self,
         track_paths,

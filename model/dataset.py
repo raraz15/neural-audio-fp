@@ -1,8 +1,8 @@
 import os
 import glob
 
-from model.utils.dev_base_dataloader import SegmentDevLoader, TrackDevLoader
-from model.utils.generation_dataloader_keras import genUnbalSequenceGeneration
+from model.utils.dev_dataloader_keras import SegmentDevLoader, TrackDevLoader
+from model.utils.generation_dataloader_keras import GenerationLoader
 
 class Dataset:
     """
@@ -344,7 +344,7 @@ class Dataset:
         assert len(self.ts_noise_paths)>0, "No noise tracks found."
         print(f"{len(self.ts_noise_paths):,} noise tracks found.")
 
-        return genUnbalSequenceGeneration(
+        return GenerationLoader(
             track_paths=self.ts_noise_paths,
             segment_duration=self.segment_duration,
             hop_duration=self.ts_segment_hop,
@@ -393,7 +393,7 @@ class Dataset:
         print(f"{len(self.ts_query_clean):,} clean query tracks found.")
 
         # Create the clean query dataset
-        ds_db = genUnbalSequenceGeneration(
+        ds_db = GenerationLoader(
             track_paths=self.ts_query_clean,
             segment_duration=self.segment_duration,
             hop_duration=self.ts_segment_hop,
@@ -423,7 +423,7 @@ class Dataset:
             assert len(self.ts_ir_fps)>0, "No impulse response found."
 
             # Create the augmented query dataset
-            ds_query = genUnbalSequenceGeneration(
+            ds_query = GenerationLoader(
                 track_paths=self.ts_query_clean, # Augment the clean query tracks
                 segment_duration=self.segment_duration,
                 hop_duration=self.ts_segment_hop,
@@ -451,7 +451,7 @@ class Dataset:
             print(f"{len(self.ts_query_augmented):,} augmented query tracks found")
 
             # Create the augmented query dataset
-            ds_query = genUnbalSequenceGeneration(
+            ds_query = GenerationLoader(
                 track_paths=self.ts_query_augmented,
                 segment_duration=self.segment_duration,
                 hop_duration=self.ts_segment_hop,
@@ -478,7 +478,7 @@ class Dataset:
         fps = sorted(
             glob.glob(source_root_dir + '/**/*.wav', recursive=True))
 
-        return genUnbalSequenceGeneration(
+        return GenerationLoader(
             track_paths=fps,
             segment_duration=self.segment_duration,
             hop_duration=self.ts_segment_hop,
