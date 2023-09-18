@@ -126,8 +126,8 @@ class DevLoader(Sequence):
                 # Prepare IR for positive samples
                 ir_fnames = [self.ir_fnames[i%self.n_ir_files] for i in range(i0, i1)]
                 ir_batch = self.batch_read_ir(ir_fnames)
-                # Apply Room IR
-                Xp_batch = audio_utils.ir_aug_batch(Xp_batch, ir_batch)
+                # Apply Room IR, normalize the output
+                Xp_batch = audio_utils.ir_aug_batch(Xp_batch, ir_batch, normalize=True)
 
         # Compute mel spectrograms
         Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch).astype(np.float32)

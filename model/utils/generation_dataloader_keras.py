@@ -139,7 +139,9 @@ class GenerationLoader(Sequence):
                                         seg_start_sec=anchor_start_sec, 
                                         seg_length_sec=self.segment_duration, 
                                         fs=self.fs,
-                                        normalize=False)
+                                        normalize=False) # We normalize later so that
+                                                         # if augmentation is used
+                                                         # normalization is realistic
             X.append(xs.reshape((1, -1)))
         # Create the batch
         X = np.concatenate(X, axis=0)
@@ -149,20 +151,9 @@ class GenerationLoader(Sequence):
         # Apply augmentations if specified
         if self.bg_mix and self.ir_mix:
 
-            # Reconstruct the audio chunk from the segments for realistic
-            # background noise mixing
-            X = audio_utils.OLA(X, self.overlap_ratio)
-
             # Get a random background noise sample
             bg_fname = self.bg_fnames[idx%self.n_bg_files]
             bg_noise = self.bg_clips[bg_fname]
-
-            """
-            To simulate real life conditions during testing, we apply the
-            same background noise to a segmented track. We cut the file into overlapping 
-            segments of duration self.segment_duration. self.frames_per_file segments 
-            are read from this file.
-            """
 
             # If the background noise sample is shorter than the chunk length,
             # we repeat it until we have a sample of length chunk_length
@@ -200,8 +191,11 @@ class GenerationLoader(Sequence):
             # dealing with reverberation from past music.
             ir = np.repeat(ir, X.shape[0], axis=0)
 
-            # Convolve with IR
-            X = audio_utils.ir_aug_batch(X, ir)
+            # Convolve with IR.
+            X = audio_utils.ir_aug_batch(X, ir, normalize=False)
+
+        # Normalize the audio before computing the mel-spectrogram
+        X = audio_utils.normalize(X)
 
         # Compute mel spectrograms
         X_mel = self.mel_spec.compute_batch(X)
