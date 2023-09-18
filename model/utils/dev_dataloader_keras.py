@@ -7,6 +7,7 @@ from model.utils import audio_utils
 class DevLoader(Sequence):
 
     # TODO: remove shuffle and stuff that we do not use
+    # TODO: fix both augmentations
     def __init__(
         self, 
         segment_duration=1, 
@@ -19,15 +20,13 @@ class DevLoader(Sequence):
         scale_output=True, 
         segments_per_track=59, 
         bsz=120, 
-        n_anchor=60, 
         shuffle=False, 
         random_offset_anchor=False, 
         offset_duration=0.2, 
         ):
 
         # Check parameters
-        assert n_anchor > 0, "n_anchor should be > 0"
-        assert bsz >= n_anchor, "bsz should be >= n_anchor"
+        assert bsz % 2 == 0, "bsz should be even"
         assert segments_per_track > 0, "segments_per_track should be > 0"
         assert segment_duration > 0, "segment_duration should be > 0"
         assert offset_duration >= 0, "offset_duration should be >= 0"
@@ -52,17 +51,15 @@ class DevLoader(Sequence):
         self.segments_per_track = segments_per_track
         self.random_offset_anchor = random_offset_anchor
         self.bg_hop = segment_duration # For bg samples hop is equal to duration
-        self.bsz = bsz
-        self.n_anchor = n_anchor
-        if bsz != n_anchor:
-            self.n_pos_per_anchor = round((bsz - n_anchor) / n_anchor)
-            self.n_pos_bsz = bsz - n_anchor
-        else:
-            self.n_pos_per_anchor = 0
-            self.n_pos_bsz = 0
         self.shuffle = shuffle
+        self.bsz = bsz
+        self.n_pos_per_anchor = 1
+        # Half of the batch is positive samples
+        self.n_pos_bsz = bsz // (1+self.n_pos_per_anchor)
+        # The rest are anchors
+        self.n_anchor = bsz - self.n_pos_bsz
 
-        # TODO
+        # TODO ??
         self.track_seg_dict = None
         self.n_samples = None
         self.track_fnames = None
@@ -87,13 +84,13 @@ class DevLoader(Sequence):
         Returns:
         --------
             Xa_batch (ndarray):
-                anchor audio samples (n_anchor, T)
+                anchor audio samples (self.n_anchor, T)
             Xp_batch (ndarray):
                 positive audio samples (self.n_pos_bsz, T)
             Xa_batch_mel (ndarray):
-                power mel-spectrogram of anchor samples (n_anchor, n_mels, T, 1)
+                power mel-spectrogram of anchor samples (self.n_anchor, n_mels, T, 1)
             Xp_batch_mel (ndarray):
-                power-mel spectrogram of positive samples (n_pos_bsz, n_mels, T, 1)
+                power-mel spectrogram of positive samples (self.n_pos_bsz, n_mels, T, 1)
 
         """
 
@@ -113,6 +110,7 @@ class DevLoader(Sequence):
             # try to cover the whole set of augmentations.
             i0, i1 = idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz
 
+            # TODO: merge if statements of augmentations
             if self.bg_mix:
                 # Prepare BG for positive samples
                 bg_fnames = [self.bg_fnames[i%self.n_bg_files] for i in range(i0, i1)]
@@ -135,8 +133,7 @@ class DevLoader(Sequence):
 
         # Fix the dimensions
         Xa_batch_mel = np.expand_dims(Xa_batch_mel, 3)
-        if Xp_batch_mel.size>0: # if there are positive samples
-            Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3)
+        Xp_batch_mel = np.expand_dims(Xp_batch_mel, 3)
 
         return Xa_batch, Xp_batch, Xa_batch_mel, Xp_batch_mel
 
@@ -351,7 +348,6 @@ class SegmentDevLoader(DevLoader):
         scale_output=True, 
         segments_per_track=59, 
         bsz=120, 
-        n_anchor=60, 
         shuffle=False, 
         random_offset_anchor=False, 
         offset_duration=0.2, 
@@ -370,7 +366,6 @@ class SegmentDevLoader(DevLoader):
             scale_output, 
             segments_per_track, 
             bsz, 
-            n_anchor, 
             shuffle, 
             random_offset_anchor, 
             offset_duration, 
@@ -412,7 +407,7 @@ class SegmentDevLoader(DevLoader):
         # Determine the tracks to use at each epoch
         # Remove the tracks that do not fill the last batch. Each batch contains
         # a single segment from n_anchor tracks.
-        self.n_tracks = int((len(self.track_seg_dict) // n_anchor) * n_anchor)
+        self.n_tracks = int((len(self.track_seg_dict) // self.n_anchor) * self.n_anchor)
         self.track_seg_dict = {k: v 
                                 for i, (k, v) in enumerate(self.track_seg_dict.items()) 
                                 if i < self.n_tracks}
@@ -547,7 +542,6 @@ class TrackDevLoader(DevLoader):
         scale_output=True, 
         segments_per_track=59, 
         bsz=120, 
-        n_anchor=60, 
         shuffle=False, 
         random_offset_anchor=False, 
         offset_duration=0.2,
@@ -564,7 +558,6 @@ class TrackDevLoader(DevLoader):
                         scale_output, 
                         segments_per_track, 
                         bsz, 
-                        n_anchor, 
                         shuffle, 
                         random_offset_anchor, 
                         offset_duration)
@@ -596,7 +589,7 @@ class TrackDevLoader(DevLoader):
         # Determine the tracks to use at each epoch
         # Remove the tracks that do not fill the last batch. Each batch contains
         # a single segment from n_anchor tracks.
-        self.n_tracks = int((len(self.track_seg_dict) // n_anchor) * n_anchor)
+        self.n_tracks = int((len(self.track_seg_dict) // self.n_anchor) * self.n_anchor)
         self.track_seg_dict = {k: v 
                                 for i, (k, v) in enumerate(self.track_seg_dict.items()) 
                                 if i < self.n_tracks}

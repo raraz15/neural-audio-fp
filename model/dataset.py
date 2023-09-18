@@ -49,8 +49,7 @@ class Dataset:
 
         self.tr_segments_per_track = cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK']
         self.tr_offset_duration = cfg['TRAIN']['AUDIO']["MAX_OFFSET_DUR"]
-        self.tr_batch_sz = cfg['TRAIN']['BSZ']['BATCH_SZ']
-        self.tr_n_anchor = cfg['TRAIN']['BSZ']['N_ANCHOR']
+        self.tr_batch_sz = cfg['TRAIN']['BATCH_SZ']
 
         self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
         self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
@@ -181,7 +180,6 @@ class Dataset:
                 scale_output=self.scale_inputs,
                 segments_per_track=self.tr_segments_per_track,
                 bsz=self.tr_batch_sz,
-                n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
                 shuffle=True,
                 random_offset_anchor=True,
                 offset_duration=self.tr_offset_duration,
@@ -217,7 +215,6 @@ class Dataset:
                 scale_output=self.scale_inputs,
                 segments_per_track=self.tr_segments_per_track,
                 bsz=self.tr_batch_sz,
-                n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
                 shuffle=True,
                 random_offset_anchor=True,
                 offset_duration=self.tr_offset_duration,
@@ -301,7 +298,6 @@ class Dataset:
                 segments_per_track=self.tr_segments_per_track,
                 scale_output=self.scale_inputs,
                 bsz=self.tr_batch_sz,
-                n_anchor=self.tr_n_anchor,
                 shuffle=False,
                 random_offset_anchor=False,
                 bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
@@ -329,7 +325,6 @@ class Dataset:
                 scale_output=self.scale_inputs,
                 segments_per_track=self.tr_segments_per_track,
                 bsz=self.tr_batch_sz,
-                n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
                 shuffle=False,
                 random_offset_anchor=False,
                 bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
@@ -379,7 +374,8 @@ class Dataset:
             f_min=self.fmin,
             f_max=self.fmax,
             scale_output=self.scale_inputs,
-            bsz=self.ts_batch_sz
+            bsz=self.ts_batch_sz,
+            n_pos_per_segment=0, # No augmentations
             )
 
     def get_test_query_ds(self):
@@ -428,7 +424,8 @@ class Dataset:
             f_min=self.fmin,
             f_max=self.fmax,
             scale_output=self.scale_inputs,
-            bsz=self.ts_batch_sz
+            bsz=self.ts_batch_sz,
+            n_pos_per_segment=0, # No augmentations
             )
 
         print("Creating the augmented query dataset...")
@@ -460,7 +457,8 @@ class Dataset:
                 scale_output=self.scale_inputs,
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
-                bsz=self.ts_batch_sz
+                bsz=self.ts_batch_sz,
+                n_pos_per_segment=1, # Augment each segment
                 )
 
         elif (not self.ts_use_bg_aug) and (not self.ts_use_ir_aug):
@@ -486,7 +484,8 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
-                bsz=self.ts_batch_sz
+                bsz=self.ts_batch_sz,
+                n_pos_per_segment=0 # No augmentations
                 )
 
         else:
@@ -513,5 +512,6 @@ class Dataset:
             f_min=self.fmin,
             f_max=self.fmax,
             scale_output=self.scale_inputs,
-            bsz=self.ts_batch_sz
-            )# No augmentations, No drop-samples.
+            bsz=self.ts_batch_sz,
+            n_pos_per_segment=0 # No augmentations
+            )

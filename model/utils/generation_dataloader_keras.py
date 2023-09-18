@@ -7,7 +7,6 @@ from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 SEED = 27 # Used during augmentation
 np.random.seed(SEED)
 
-# TODO: bring augmentation back to easy
 class GenerationLoader(Sequence):
     def __init__(
         self,
@@ -69,6 +68,20 @@ class GenerationLoader(Sequence):
 
         self.fs = fs
         self.bsz = bsz
+        if ir_mix_parameter[0] and bg_mix_parameter[0]:
+            assert bsz % 2 == 0, "Batch size should be even when both bg_mix and ir_mix are True"
+            self.n_pos_per_anchor = 1
+            # Half of the batch is positive samples
+            self.n_pos_bsz = bsz // (1+self.n_pos_per_anchor)
+            # The rest are anchors
+            self.n_anchor = bsz - self.n_pos_bsz
+        elif (not ir_mix_parameter[0]) and (not bg_mix_parameter[0]):
+            self.n_pos_per_anchor = 0
+            self.n_pos_bsz = 0 # No positive samples
+            self.n_anchor = bsz # All samples are anchors
+        else:
+            raise NotImplementedError("n_pos_per_anchor > 1 is not implemented yet")
+
         self.bg_hop = segment_duration # Background noise hop-size is equal to segment duration
 
         # Create segment information for each track
@@ -102,7 +115,7 @@ class GenerationLoader(Sequence):
     def __len__(self):
         """ Returns the number of batches."""
 
-        return int(np.ceil(self.n_samples/self.bsz))
+        return int(np.ceil(self.n_samples/self.n_anchor))
 
     def __getitem__(self, idx):
         """ Loads the chunk associated with a track and creates a batch of
@@ -126,7 +139,7 @@ class GenerationLoader(Sequence):
 
         # Get the segments for this batch
         X = []
-        for i in self.indexes[idx*self.bsz:(idx+1)*self.bsz]:
+        for i in self.indexes[idx*self.n_anchor:(idx+1)*self.n_anchor]:
 
             # Get the track information
             fname, seg_idx, _, _ = self.track_seg_list[i]
@@ -134,68 +147,51 @@ class GenerationLoader(Sequence):
             # Determine the anchor start time
             anchor_start_sec = seg_idx * self.hop_duration
 
-            # Load the anchor 
+            # Load the anchor segment and append it to the batch
+            # We normalize later so that if augmentation is used
+            # normalization is realistic
             xs = audio_utils.load_audio(fname,
                                         seg_start_sec=anchor_start_sec, 
                                         seg_length_sec=self.segment_duration, 
                                         fs=self.fs,
-                                        normalize=False) # We normalize later so that
-                                                         # if augmentation is used
-                                                         # normalization is realistic
+                                        normalize=False)
             X.append(xs.reshape((1, -1)))
-        # Create the batch
+        # Create the batch of audio
         X = np.concatenate(X, axis=0)
 
-        # TODO: return back to NAFP?
-        # TODO: method for augmenting the data
         # Apply augmentations if specified
         if self.bg_mix and self.ir_mix:
 
-            # Get a random background noise sample
-            bg_fname = self.bg_fnames[idx%self.n_bg_files]
-            bg_noise = self.bg_clips[bg_fname]
+            # Get a batch of random background noise samples
+            bg_noise_batch = []
+            for i in np.arange(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz) % self.n_bg_files:
+                bg_noise_sample = self.bg_clips[self.bg_fnames[i]]
+                if len(bg_noise_sample) > self.segment_length:
+                    # Get a random segment of the background noise
+                    start_idx = np.random.randint(0, len(bg_noise_sample) - self.segment_length)
+                    bg_noise_sample = bg_noise_sample[start_idx:start_idx+self.segment_length]
+                else:
+                    # Pad the background noise with zeros
+                    bg_noise_sample = np.pad(bg_noise_sample, 
+                                            (0, self.segment_length - len(bg_noise_sample)))
+                bg_noise_batch.append(bg_noise_sample)
+            bg_noise_batch = np.concatenate(bg_noise_batch, axis=0)
 
-            # If the background noise sample is shorter than the chunk length,
-            # we repeat it until we have a sample of length chunk_length
-            chunk_length  = len(X)
-            if len(bg_noise) < chunk_length:
-                n_repeats = int(np.ceil(chunk_length / len(bg_noise)))
-                bg_noise = np.tile(bg_noise, n_repeats)
-                bg_noise = bg_noise[:chunk_length]
-            elif len(bg_noise) > chunk_length:
-                # Otherwise we cut a random part
-                start = np.random.randint(0, len(bg_noise) - chunk_length)
-                bg_noise = bg_noise[start:start+chunk_length]
+            # Mix the batch of segments with the batch of background noises
+            X = audio_utils.bg_mix_batch(X,
+                                        bg_noise_batch,
+                                        self.fs,
+                                        snr_range=self.bg_snr_range)
 
-            # Randomly sample an SNR for mixing the background noise
-            snr = audio_utils.sample_SNR(1, self.bg_snr_range)[0]
+            # Get a batch of random IR samples
+            ir_batch = []
+            for i in np.arange(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz) % self.n_ir_files:
+                # IR has all the segments of the same length
+                ir_batch.append(self.ir_clips[self.ir_fnames[i]])
+            ir_batch = np.concatenate(ir_batch, axis=0)
 
-            # Mix the OLA'd track with the background noise
-            X = audio_utils.background_mix(X.reshape(-1), 
-                                           bg_noise.reshape(-1), 
-                                           snr_db=snr)
-
-            # Cut the track back to segments (n_segments, segment_length)
-            X, _ = audio_utils.cut_to_segments(X, 
-                                               self.segment_length, 
-                                               self.hop_length)
-
-            # Get a random IR sample
-            ir_fname = self.ir_fnames[idx%self.n_ir_files]
-            ir = self.ir_clips[ir_fname].reshape(1,-1)
-    
-            # Apply the same IR to all segments
-            # This is not realistic, and its a little bit cheating but we
-            # do it because the original authors get good results with this 
-            # approach. In the future, we will train a separate model for 
-            # dealing with reverberation from past music.
-            ir = np.repeat(ir, X.shape[0], axis=0)
-
-            # Convolve with IR.
-            X = audio_utils.ir_aug_batch(X, ir, normalize=False)
-
-        # Normalize the audio before computing the mel-spectrogram
-        X = audio_utils.normalize(X)
+            # Convolve with IR
+            X = audio_utils.ir_aug_batch(X, ir_batch, normalize=True)
 
         # Compute mel spectrograms
         X_mel = self.mel_spec.compute_batch(X)

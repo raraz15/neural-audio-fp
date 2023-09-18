@@ -173,8 +173,8 @@ def trainer(cfg, checkpoint_name):
 
     # Loss objects
     if cfg['TRAIN']['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
-        n_org = cfg['TRAIN']['BSZ']['N_ANCHOR']
-        n_rep = cfg['TRAIN']['BSZ']['BATCH_SZ'] - cfg['TRAIN']['BSZ']['N_ANCHOR']
+        n_org = train_ds.n_anchor
+        n_rep = train_ds.n_pos_bsz
         loss_obj_train = NTxentLoss(
             n_org=n_org,
             n_rep=n_rep,

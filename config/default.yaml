@@ -36,7 +36,6 @@ TRAIN:
         VAL_ROOT : '../neural-audio-fp-dataset/discotube_2023-188000/dev/val/'
     # Audio segment parameters
     AUDIO:
-        # SEGMENT_HOP : .5 # Hop-size of the segment window in seconds.
         INPUT_AUDIO_DUR : 2.
                         # Extracted audio segment duration in seconds. We use 
                         # Should MODEL['AUDIO']['SEGMENT_DUR'] seconds of audio
@@ -53,13 +52,12 @@ TRAIN:
                         # fingerprint.
     # Hyperparameters
     MAX_EPOCH : 100
-    BSZ:
-        BATCH_SZ : 384 # Training batch size N must be EVEN number.
-        N_ANCHOR : 192 # Usually N/2; N/5 for Triplet-loss. 
+    BATCH_SZ : 384 # Training batch size N must be EVEN number. 
+                    # Half of the batch is used for positive pairs 
+                    # and the other half for anchor pairs.
     LOSS:
-        LOSS_MODE : 'NTxent' # 'NTxent'(default) or 'Online-Triplet'(now-playing). 
+        LOSS_MODE : 'NTxent' # default
         TAU : 0.05 # **NTXENT ONLY** temperature parameter 0. < TAU < 1. 
-        MARGIN : 0.5 # **ONLINE-TRIPLET ONLY** 
     OPTIMIZER : 'Adam' # 'LAMB' or 'Adam'. LAMB for BSZ >= 240
     LR:
         INITIAL_RATE: 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
@@ -112,7 +110,7 @@ TEST:
         # provided, NOISE_ROOT is ignored.
     # Audio segment parameters
     SEGMENT_HOP : .5 # Hop-size of the segment window in seconds.
-    BATCH_SZ : 125 # Batch size for testing.
+    BATCH_SZ : 400 # Batch size for testing.
     # Augmentation parameters
     AUG:
         TD: # We only apply time-domain augmentation during testing.
