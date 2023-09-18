@@ -542,9 +542,9 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
 
 #### Room IR Augmentation ####
 
-def ir_aug(x, x_ir):
+def ir_aug(x, x_ir, normalize=True):
     """ Augment input signal with impulse response. The returned signal
-    has the same length as x and is max-normalized."""
+    has the same length as x. If specified the output is max-normalized."""
 
     assert len(x) > 0, 'x should not be empty.'
     assert len(x_ir) > 0, 'x_ir should not be empty.'
@@ -552,11 +552,12 @@ def ir_aug(x, x_ir):
 
     # Convolve with impulse response
     x_aug = convolve(x, x_ir, mode='same', method='fft')
-    x_aug = max_normalize(x_aug)
+    if normalize:
+        x_aug = max_normalize(x_aug)
 
     return x_aug
 
-def ir_aug_batch(event_batch, ir_batch):
+def ir_aug_batch(event_batch, ir_batch, normalize=True):
     """ Augment a batch of events with a batch of impulse responses. """
 
     n_batch = len(event_batch)
@@ -565,7 +566,7 @@ def ir_aug_batch(event_batch, ir_batch):
     for i in range(n_batch):
         x = event_batch[i]
         x_ir = ir_batch[i]
-        x_aug = ir_aug(x, x_ir)
+        x_aug = ir_aug(x, x_ir, normalize=normalize)
         X_ir_aug[i] = x_aug
 
     return X_ir_aug
