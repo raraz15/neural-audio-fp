@@ -68,6 +68,8 @@ def train(checkpoint_name, config, max_epoch, deterministic):
     cfg = load_config(config)
     if max_epoch:
         update_config(cfg, 'TRAIN', 'MAX_EPOCH', max_epoch)
+    # Write the model name inside the config file
+    update_config(cfg, 'MODEL', 'NAME', checkpoint_name)
     print_config(cfg)
     trainer(cfg, checkpoint_name)
 

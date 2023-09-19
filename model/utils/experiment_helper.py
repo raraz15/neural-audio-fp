@@ -20,6 +20,7 @@ class ExperimentHelper():
         5. In your training loop, call the methods described in the below.
 
     Methods:
+    --------
         - save_checkpoint():
             Save current model and optimizer states to checkpoint.
         - update_on_epoch_end():
@@ -40,26 +41,29 @@ class ExperimentHelper():
             model_to_checkpoint,
             best_loss="val_loss",
             max_to_keep=10,
-            cfg=None):
+            cfg=dict()):
         """
 
         Parameters
         ----------
-        checkpoint_name : (str)
-            Checkpoint name.
-        optimizer : <tf.keras.optimizer>
-            Assign a pre-constructed optimizer.
-        model_to_checkpoint : <tf.keras.Model>
-            Model to train.
-        best_loss : (str), optional
-            The loss to determine the best model. The default is "val_loss".
-            Can be either "val_loss" or "tr_loss".
-        max_to_keep : (int), optional
-            Maximum number of checkpoints to keep. The default is 10.
-        cfg : (dict), optional
-            Config file, if available. The default is None.
+            checkpoint_name : (str)
+                Checkpoint name.
+            optimizer : <tf.keras.optimizer>
+                Assign a pre-constructed optimizer.
+            model_to_checkpoint : <tf.keras.Model>
+                Model to train.
+            best_loss : (str), optional
+                The loss to determine the best model. The default is 
+                "val_loss". Can be either "val_loss" or "tr_loss".
+            max_to_keep : (int), optional
+                Maximum number of checkpoints to keep. The default is 10.
+            cfg : (dict), optional
+                Config file, if available. The default is {}.
 
         """
+
+        assert best_loss in ["val_loss", "tr_loss"], \
+            "best_loss must be either 'val_loss' or 'tr_loss'"
 
         # Experiment settings
         self._checkpoint_name = checkpoint_name
@@ -138,6 +142,10 @@ class ExperimentHelper():
         # TODO: can this overwrite the loaded checkpoint?
         if self._cfg_use_tensorboard:
             self.write_lr()
+
+        # Save the config file
+        with open(self._log_dir + 'config.yaml', 'w') as f:
+            f.write(cfg.dump())
 
     def update_on_epoch_end(self, save_checkpoint_now=True):
         """ Update current epoch index, and loss metrics. """
