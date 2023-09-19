@@ -140,7 +140,6 @@ def trainer(cfg, checkpoint_name):
 
     # Learning schedule
     # TODO: warmup
-    # TODO: shouldnt we update lr at every epoch?
     total_nsteps = cfg['TRAIN']['MAX_EPOCH'] * len(train_ds)
     if cfg['TRAIN']['LR']['SCHEDULE'].upper() == 'COS':
         lr_schedule = CosineDecay(
