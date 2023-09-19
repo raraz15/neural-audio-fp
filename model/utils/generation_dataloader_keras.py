@@ -52,7 +52,7 @@ class GenerationLoader(Sequence):
         ir_mix_parameter : list([(bool), list(str), float], optional
             [True, IR_FILEPATHS, MAX_IR_DURATION]. Default is [False].
         bsz : (int), optional
-            In TPUs code, global batch size. The default is 120.
+            Generation batch size. The default is 120.
         """
 
         assert hop_duration <= segment_duration, \
@@ -65,7 +65,7 @@ class GenerationLoader(Sequence):
         self.hop_duration = hop_duration
         self.hop_length = int(fs*hop_duration)
         self.overlap_ratio = (self.segment_length - self.hop_length) / self.segment_length
-
+        self.bg_hop = segment_duration # Background noise hop-size is equal to segment duration
         self.fs = fs
         self.bsz = bsz
         if ir_mix_parameter[0] and bg_mix_parameter[0]:
@@ -76,13 +76,13 @@ class GenerationLoader(Sequence):
             # The rest are anchors
             self.n_anchor = bsz - self.n_pos_bsz
         elif (not ir_mix_parameter[0]) and (not bg_mix_parameter[0]):
+            # No positive samples
             self.n_pos_per_anchor = 0
-            self.n_pos_bsz = 0 # No positive samples
-            self.n_anchor = bsz # All samples are anchors
+            self.n_pos_bsz = 0
+            # All samples are anchors
+            self.n_anchor = bsz
         else:
-            raise NotImplementedError("n_pos_per_anchor > 1 is not implemented yet")
-
-        self.bg_hop = segment_duration # Background noise hop-size is equal to segment duration
+            raise NotImplementedError("Single augmentation is not implemented.")
 
         # Create segment information for each track
         track_seg_dict = audio_utils.get_fns_seg_dict(track_paths,
