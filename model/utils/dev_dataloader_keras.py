@@ -59,11 +59,10 @@ class DevLoader(Sequence):
         # The rest are anchors
         self.n_anchor = bsz - self.n_pos_bsz
 
-        # TODO ??
-        self.track_seg_dict = None
-        self.n_samples = None
-        self.track_fnames = None
-        self.n_tracks = None
+        self.track_seg_dict = {}
+        self.n_samples = 0
+        self.track_fnames = []
+        self.n_tracks = 0
 
     def __len__(self):
         """ Returns the number of batches per epoch. An epoch is defined as
