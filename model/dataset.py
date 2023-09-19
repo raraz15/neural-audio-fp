@@ -197,9 +197,7 @@ class Dataset:
 
             if reduce_items_p<100:
                 print(f"Reducing the number of tracks used to {reduce_items_p}%")
-                self.tr_source_fps = {k: v
-                                    for i,(k,v) in enumerate(self.tr_source_fps.items())
-                                    if i < int(len(self.tr_source_fps)*reduce_items_p/100)}
+                self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
                 print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
 
             return TrackDevLoader(
@@ -313,7 +311,7 @@ class Dataset:
             print(f"{len(self.val_source_fps):,} tracks found.")
 
             return TrackDevLoader(
-                track_paths=self.tr_source_fps,
+                track_paths=self.val_source_fps,
                 segment_duration=self.segment_duration,
                 hop_duration=self.cfg['TRAIN']['AUDIO']['SEGMENT_HOP_DUR'],
                 fs=self.fs,
@@ -333,6 +331,7 @@ class Dataset:
         else:
             raise ValueError("Invalid validation tracks directory.")
 
+    # TODO make dummy again
     def get_test_noise_ds(self):
         """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.
         Supports both discotube and nafp datasets. The folder structure 
@@ -442,6 +441,7 @@ class Dataset:
             assert len(self.ts_ir_fps)>0, "No impulse response found."
 
             # Create the augmented query dataset
+            # Returns only the augmented segments, not the clean ones
             ds_query = GenerationLoader(
                 track_paths=self.ts_query_clean, # Augment the clean query tracks
                 segment_duration=self.segment_duration,
@@ -486,8 +486,8 @@ class Dataset:
 
         else:
 
-                # For now we do not support single augmentation
-                raise ValueError("Invalid augmentation parameters.")
+            # For now we do not support single augmentation
+            raise ValueError("Invalid augmentation parameters.")
 
         return ds_query, ds_db
 
