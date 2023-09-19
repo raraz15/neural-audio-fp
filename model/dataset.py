@@ -375,7 +375,6 @@ class Dataset:
             f_max=self.fmax,
             scale_output=self.scale_inputs,
             bsz=self.ts_batch_sz,
-            n_pos_per_segment=0, # No augmentations
             )
 
     def get_test_query_ds(self):
@@ -425,7 +424,6 @@ class Dataset:
             f_max=self.fmax,
             scale_output=self.scale_inputs,
             bsz=self.ts_batch_sz,
-            n_pos_per_segment=0, # No augmentations
             )
 
         print("Creating the augmented query dataset...")
@@ -458,7 +456,6 @@ class Dataset:
                 bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
                 ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
                 bsz=self.ts_batch_sz,
-                n_pos_per_segment=1, # Augment each segment
                 )
 
         elif (not self.ts_use_bg_aug) and (not self.ts_use_ir_aug):
@@ -485,7 +482,6 @@ class Dataset:
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
                 bsz=self.ts_batch_sz,
-                n_pos_per_segment=0 # No augmentations
                 )
 
         else:
@@ -513,5 +509,4 @@ class Dataset:
             f_max=self.fmax,
             scale_output=self.scale_inputs,
             bsz=self.ts_batch_sz,
-            n_pos_per_segment=0 # No augmentations
             )
