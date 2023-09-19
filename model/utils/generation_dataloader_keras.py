@@ -61,28 +61,12 @@ class GenerationLoader(Sequence):
         # Save the Input parameters
         self.segment_duration = segment_duration
         self.segment_length = int(fs*self.segment_duration)
-
         self.hop_duration = hop_duration
         self.hop_length = int(fs*hop_duration)
         self.overlap_ratio = (self.segment_length - self.hop_length) / self.segment_length
         self.bg_hop = segment_duration # Background noise hop-size is equal to segment duration
         self.fs = fs
         self.bsz = bsz
-        if ir_mix_parameter[0] and bg_mix_parameter[0]:
-            assert bsz % 2 == 0, "Batch size should be even when both bg_mix and ir_mix are True"
-            self.n_pos_per_anchor = 1
-            # Half of the batch is positive samples
-            self.n_pos_bsz = bsz // (1+self.n_pos_per_anchor)
-            # The rest are anchors
-            self.n_anchor = bsz - self.n_pos_bsz
-        elif (not ir_mix_parameter[0]) and (not bg_mix_parameter[0]):
-            # No positive samples
-            self.n_pos_per_anchor = 0
-            self.n_pos_bsz = 0
-            # All samples are anchors
-            self.n_anchor = bsz
-        else:
-            raise NotImplementedError("Single augmentation is not implemented.")
 
         # Create segment information for each track
         track_seg_dict = audio_utils.get_fns_seg_dict(track_paths,
@@ -115,7 +99,7 @@ class GenerationLoader(Sequence):
     def __len__(self):
         """ Returns the number of batches."""
 
-        return int(np.ceil(self.n_samples/self.n_anchor))
+        return int(np.ceil(self.n_samples/self.bsz))
 
     def __getitem__(self, idx):
         """ Loads the chunk associated with a track and creates a batch of
@@ -139,7 +123,7 @@ class GenerationLoader(Sequence):
 
         # Get the segments for this batch
         X = []
-        for i in self.indexes[idx*self.n_anchor:(idx+1)*self.n_anchor]:
+        for i in self.indexes[idx*self.bsz:(idx+1)*self.bsz]:
 
             # Get the track information
             fname, seg_idx, _, _ = self.track_seg_list[i]
@@ -162,9 +146,10 @@ class GenerationLoader(Sequence):
         # Apply augmentations if specified
         if self.bg_mix and self.ir_mix:
 
+            # TODO: simplify?
             # Get a batch of random background noise samples
             bg_noise_batch = []
-            for i in np.arange(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz) % self.n_bg_files:
+            for i in np.arange(idx*self.bsz, (idx+1)*self.bsz) % self.n_bg_files:
                 bg_noise_sample = self.bg_clips[self.bg_fnames[i]]
                 if len(bg_noise_sample) > self.segment_length:
                     # Get a random segment of the background noise
@@ -185,7 +170,7 @@ class GenerationLoader(Sequence):
 
             # Get a batch of random IR samples
             ir_batch = []
-            for i in np.arange(idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz) % self.n_ir_files:
+            for i in np.arange(idx*self.bsz, (idx+1)*self.bsz) % self.n_ir_files:
                 # IR has all the segments of the same length
                 ir_batch.append(self.ir_clips[self.ir_fnames[i]])
             ir_batch = np.concatenate(ir_batch, axis=0)
