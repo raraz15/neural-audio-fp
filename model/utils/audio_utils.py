@@ -401,7 +401,7 @@ def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),
                            fs=8000,
-                           normalize=True):
+                           normalize=True) -> np.array:
     """ Load_audio wrapper for loading audio with multiple start indices each 
     with same duration. 
 
@@ -425,13 +425,14 @@ def load_audio_multi_start(filename=str(),
 
 def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
 
-    import wavio, glob, scipy
+    import wavio, glob
+    from scipy.signal import resample
 
     fns = glob.glob(root_dir + '**/*.npy', recursive=True)
     for fname in fns:
         audio = np.load(fname)
         resampled_length = int(len(audio) / source_fs * target_fs)
-        audio = scipy.signal.resample(audio, resampled_length)
+        audio = resample(audio, resampled_length)
         audio = audio * 2**15
         audio = audio.astype(np.int16)  # 16-bit PCM
         wavio.write(fname[:-4] + '.wav', audio, target_fs, sampwidth=2)
