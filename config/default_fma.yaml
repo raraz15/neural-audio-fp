@@ -37,11 +37,6 @@ TRAIN:
     # Audio segment parameters
     AUDIO:
         SEGMENT_HOP_DUR : .5 # Hop-size of the segment window in seconds.
-        #INPUT_AUDIO_DUR : 2. # TODO: remove this from fma?
-                        # Extracted audio segment duration in seconds. We use 
-                        # Should MODEL['AUDIO']['SEGMENT_DUR'] seconds of audio
-                        # from INPUT_AUDIO_DUR during training. It must be
-                        # be greater than or equal to MODEL['AUDIO']['SEGMENT_DUR']
         SEGMENTS_PER_TRACK: 59
                         # Use this many segments per track for training.
         MAX_OFFSET_DUR : 0.2
@@ -53,13 +48,12 @@ TRAIN:
                         # fingerprint.
     # Hyperparameters
     MAX_EPOCH : 100
-    BSZ:
-        BATCH_SZ : 384 # Training batch size N must be EVEN number.
-        N_ANCHOR : 192 # Usually N/2; N/5 for Triplet-loss. 
+    BATCH_SZ : 384 # Training batch size N must be EVEN number. 
+                    # Half of the batch is used for positive pairs 
+                    # and the other half for anchor pairs.
     LOSS:
         LOSS_MODE : 'NTxent' # 'NTxent'(default) or 'Online-Triplet'(now-playing). 
         TAU : 0.05 # **NTXENT ONLY** temperature parameter 0. < TAU < 1. 
-        MARGIN : 0.5 # **ONLINE-TRIPLET ONLY** 
     OPTIMIZER : 'Adam' # 'LAMB' or 'Adam'. LAMB for BSZ >= 240
     LR:
         INITIAL_RATE: 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
@@ -112,7 +106,7 @@ TEST:
         # provided, NOISE_ROOT is ignored.
     # Audio segment parameters
     SEGMENT_HOP : .5 # Hop-size of the segment window in seconds.
-    BATCH_SZ : 125 # Batch size for testing.
+    BATCH_SZ : 400 # Batch size for testing.
     # Augmentation parameters
     AUG:
         TD: # We only apply time-domain augmentation during testing.
