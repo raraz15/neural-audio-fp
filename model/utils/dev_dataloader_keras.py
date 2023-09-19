@@ -336,7 +336,7 @@ class SegmentDevLoader(DevLoader):
 
     def __init__(
         self, 
-        segment_dict,
+        segment_dict:dict,
         segment_duration=1, 
         full_segment_duration=2,
         fs=8000, 
@@ -530,7 +530,7 @@ class TrackDevLoader(DevLoader):
 
     def __init__(
         self, 
-        track_paths,
+        track_paths:list,
         segment_duration=1, 
         hop_duration=.5,
         fs=8000, 
