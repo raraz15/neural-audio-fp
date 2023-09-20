@@ -106,7 +106,7 @@ TEST:
         # provided, NOISE_ROOT is ignored.
     # Audio segment parameters
     SEGMENT_HOP : .5 # Hop-size of the segment window in seconds.
-    BATCH_SZ : 368 # Batch size for testing.
+    BATCH_SZ : 400 # Batch size for testing.
     # Augmentation parameters
     AUG:
         TD: # We only apply time-domain augmentation during testing.
@@ -114,11 +114,11 @@ TEST:
                 # corresponding augmentation files. Setting them to True will 
                 # not use the tracks in AUGMENTED_QUERY_ROOT for testing. For simulating real life 
                     # scenarios, you should either augment the queries beforehand.
-            BG : True # If you augment beforehand, set this to FALSE.
+            BG : False # If you augment beforehand, set this to FALSE.
             BG_ROOT : '../neural-audio-fp-dataset/aug/bg/ts/'
                 # If BG=True, you must provide the background noise files.
             BG_SNR : [0, 10] # Active in real-time synthesis of test queries.
-            IR : True # If you augment beforehand, set this to False.
+            IR : False # If you augment beforehand, set this to False.
             IR_ROOT : '../neural-audio-fp-dataset/aug/ir/ts/'
                     # If IR=True, you must provide the background noise files.
             IR_MAX_DUR : 0.5 # Maximum duration of the impulse response in seconds.
