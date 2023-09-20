@@ -144,7 +144,7 @@ def trainer(cfg, checkpoint_name):
     dataset = Dataset(cfg)
 
     train_ds = dataset.get_train_ds(cfg['TRAIN']['REDUCE_ITEMS_P'])
-    val_ds = dataset.get_val_ds()
+    val_ds = dataset.get_val_ds(cfg['TRAIN']['REDUCE_ITEMS_P'])
 
     # Build models.
     m_specaug, m_fp = build_fp(cfg)

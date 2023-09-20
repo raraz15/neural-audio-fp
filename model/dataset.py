@@ -163,6 +163,7 @@ class Dataset:
             print(f"{len(self.tr_source_fps):,} tracks found.")
             print(f"{total_segments:,} segments found.")
 
+            # Reduce the number of items in each track if requested
             if reduce_items_p<100:
                 print(f"Reducing the number of tracks used to {reduce_items_p}%")
                 self.tr_source_fps = {k: v
@@ -200,6 +201,7 @@ class Dataset:
             assert len(self.tr_source_fps)>0, "No training tracks found."
             print(f"{len(self.tr_source_fps):,} tracks found.")
 
+            # Reduce the total number of tracks if requested
             if reduce_items_p<100:
                 print(f"Reducing the number of tracks used to {reduce_items_p}%")
                 self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
@@ -227,7 +229,7 @@ class Dataset:
         else:
             raise ValueError("Invalid training tracks directory.")
 
-    def get_val_ds(self):
+    def get_val_ds(self, reduce_items_p=100):
         """ Source (music) file paths for validation set. 
 
         When segmented tracks are used for training the folder structure
@@ -260,9 +262,18 @@ class Dataset:
                 dir1/
                     track1.wav
                     ...
-                ...        """
+                ...        
+
+        Parameters
+        ----------
+            reduce_items_p : int (default 100)
+                Reduce the number of items in each track to this percentage.
+
+        """
 
         print(f"Creating the validation dataset...")
+
+        assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
 
         # Find the augmentation files
         if self.tr_use_bg_aug:
@@ -287,6 +298,16 @@ class Dataset:
             assert total_segments>0, "No segments found."
             print(f"{len(self.val_source_fps):,} tracks found.")
             print(f"{total_segments:,} segments found.")
+
+            # Reduce the number of items in each track if requested
+            if reduce_items_p<100:
+                print(f"Reducing the number of tracks used to {reduce_items_p}%")
+                self.val_source_fps = {k: v
+                                    for i,(k,v) in enumerate(self.val_source_fps.items())
+                                    if i < int(len(self.val_source_fps)*reduce_items_p/100)}
+                print(f"Reduced to {len(self.val_source_fps):,} tracks.")
+                total_segments = sum([len(v) for v in self.val_source_fps.values()])
+                print(f"Reduced to {total_segments:,} segments.")
 
             return SegmentDevLoader(
                 segment_dict=self.val_source_fps,
@@ -314,6 +335,12 @@ class Dataset:
                 glob.glob(self.val_audio_dir + '**/*.wav', recursive=True))
             assert len(self.val_source_fps)>0, "No validation tracks found."
             print(f"{len(self.val_source_fps):,} tracks found.")
+
+            # Reduce the total number of tracks if requested
+            if reduce_items_p<100:
+                print(f"Reducing the number of tracks used to {reduce_items_p}%")
+                self.val_source_fps = self.val_source_fps[:int(len(self.val_source_fps)*reduce_items_p/100)]
+                print(f"Reduced to {len(self.val_source_fps):,} tracks.")
 
             return TrackDevLoader(
                 track_paths=self.val_source_fps,
