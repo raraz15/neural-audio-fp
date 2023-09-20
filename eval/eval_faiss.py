@@ -220,7 +220,6 @@ def eval_faiss(emb_dir,
     top10_exact = np.zeros((n_test, len(test_seq_len))).astype(int)
     # top1_song = np.zeros((n_test, len(test_seq_len))).astype(np.int)
 
-    # TODO: understand sequence level search, are the elements independent?
     scr = curses.initscr()
     pt = PrintTable(scr=scr, 
                     test_seq_len=test_seq_len,

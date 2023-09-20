@@ -137,7 +137,7 @@ def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, source,
               "file's location that contains the start indices to the the evaluation. "
               "Any numeric input N (int) > 0 will perform search test at random position "
               "(ID) N times. 'equally_spaced' will use boundary information to get an "
-              "equal number of samples from each track. Default is 'equally_spaced'.")
+              "equal number of samples from each track. Default is 'path/file.npy'.")
 @click.option('--nogpu', default=False, is_flag=True,
               help='Use this flag to use CPU only.')
 def evaluate(checkpoint_name, checkpoint_index, config, index_type, test_seq_len, test_ids, nogpu):
