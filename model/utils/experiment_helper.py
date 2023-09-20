@@ -67,6 +67,9 @@ class ExperimentHelper():
         assert best_loss in ["val_loss", "tr_loss"], \
             "best_loss must be either 'val_loss' or 'tr_loss'"
 
+        # Save the config file
+        self.cfg = cfg
+
         # Experiment settings
         self._checkpoint_name = checkpoint_name
         self._cfg_use_tensorboard = cfg['TRAIN']['TENSORBOARD']
@@ -144,13 +147,6 @@ class ExperimentHelper():
         # TODO: can this overwrite the loaded checkpoint?
         if self._cfg_use_tensorboard:
             self.write_lr()
-
-        for _dir in [self._checkpoint_save_dir, self._best_checkpoint_save_dir]:
-            if not os.path.exists(_dir):
-                os.makedirs(_dir)
-            # Save the config file
-            with open(_dir + 'config.yaml', 'w') as f:
-                yaml.dump(cfg, f)
 
     def update_on_epoch_end(self, save_checkpoint_now=True):
         """ Update current epoch index, and loss metrics. """
@@ -302,7 +298,13 @@ class ExperimentHelper():
             self.epoch = int(self.c_manager.latest_checkpoint.split(sep='ckpt-')[-1]) + 1
         else:
             tf.print("-----------Initializing model from scratch-----------")
-
+            # Write the config file to the checkpoint directory
+            for _dir in [self._checkpoint_save_dir, self._best_checkpoint_save_dir]:
+                if not os.path.exists(_dir):
+                    os.makedirs(_dir)
+                # Save the config file
+                with open(_dir + 'config.yaml', 'w') as f:
+                    yaml.dump(self.cfg, f)
     def save_checkpoint(self):
         """Save current model and optimizer states to checkpoint."""
 
