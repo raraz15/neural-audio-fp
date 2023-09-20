@@ -1,8 +1,10 @@
-# -*- coding: utf-8 -*-
-""" experiment_helper.py """
+import os
+import yaml
+
 import tensorflow as tf
 import tensorflow.keras as K
 from tensorflow.summary import create_file_writer
+
 from model.utils.plotter import get_imshow_image
 
 class ExperimentHelper():
@@ -143,9 +145,12 @@ class ExperimentHelper():
         if self._cfg_use_tensorboard:
             self.write_lr()
 
-        # Save the config file
-        with open(self._log_dir + 'config.yaml', 'w') as f:
-            f.write(cfg.dump())
+        for _dir in [self._checkpoint_save_dir, self._best_checkpoint_save_dir]:
+            if not os.path.exists(_dir):
+                os.makedirs(_dir)
+            # Save the config file
+            with open(_dir + 'config.yaml', 'w') as f:
+                yaml.dump(cfg, f)
 
     def update_on_epoch_end(self, save_checkpoint_now=True):
         """ Update current epoch index, and loss metrics. """
