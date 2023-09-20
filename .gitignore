@@ -4,6 +4,7 @@
 **/**/**/__pycache__
 logs/
 **/dev/
+.vscode/*
 
 afp/*
 data/figures/*
