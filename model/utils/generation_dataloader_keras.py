@@ -165,7 +165,6 @@ class GenerationLoader(Sequence):
             # Mix the batch of segments with the batch of background noises
             X = audio_utils.bg_mix_batch(X,
                                         bg_noise_batch,
-                                        self.fs,
                                         snr_range=self.bg_snr_range)
 
             # Get a batch of random IR samples
