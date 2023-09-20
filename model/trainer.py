@@ -52,10 +52,21 @@ def build_fp(cfg):
 
 @tf.function
 def train_step(X, m_specaug, m_fp, loss_obj, helper):
-    # X: (Xa, Xp)
-    # Xa: anchors or originals, s.t. [xa_0, xa_1,...]
-    # Xp: augmented replicas, s.t. [xp_0, xp_1] with xp_n = rand_aug(xa_n).
-    # avg_loss: The cumulative average loss until current step within the current epoch.
+    """ Training step
+
+    Parameters
+    ----------
+        X: (Xa, Xp)
+        Xa: anchors or originals, s.t. [xa_0, xa_1,...]
+        Xp: augmented replicas, s.t. [xp_0, xp_1] with xp_n = rand_aug(xa_n).
+
+    Returns
+    -------
+        avg_loss: The cumulative average loss until current 
+            step within the current epoch.
+        sim_mtx: Similarity matrix, used for tensorboard visualization.
+
+    """
 
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
@@ -87,10 +98,10 @@ def val_step(X, m_fp, loss_obj, helper):
 @tf.function
 def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
-    X = tf.concat(X, axis=0)
-    feat = X  # (nA+nP, F, T, 1)
+
+    X = tf.concat(X, axis=0) # (nA+nP, F, T, 1)
     m_fp.trainable = False
-    emb_f = m_fp.front_conv(feat)  # (BSZ, Dim)
+    emb_f = m_fp.front_conv(X)  # (BSZ, Dim)
     emb_f_postL2 = tf.math.l2_normalize(emb_f, axis=1)
     emb_gf = m_fp.div_enc(emb_f)
     emb_gf = tf.math.l2_normalize(emb_gf, axis=1)
