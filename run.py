@@ -131,7 +131,7 @@ def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, source,
               "Numbers are separated by spaces. Default is '1 3 5 9 11 19', "
               "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec "
               "segment duration and 0.5 sec hop duration.")
-@click.option('--test_ids', '-t', default='equally_spaced', type=click.STRING,
+@click.option('--test_ids', '-t', default='./eval/test_ids_icassp2021.npy', type=click.STRING,
               help="One of {'all', 'equally_spaced', 'path/file.npy', (int)}. "
               "If 'all', test all IDs from the test. You can also specify a 1-D array "
               "file's location that contains the start indices to the the evaluation. "
