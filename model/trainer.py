@@ -161,16 +161,16 @@ def trainer(cfg, checkpoint_name):
         lr_schedule = CosineDecayRestarts(
             initial_learning_rate=float(cfg['TRAIN']['LR']['INITIAL_RATE']),
             first_decay_steps=int(total_nsteps * 0.1), # TODO: configurable
-            num_periods=0.5,
+            #num_periods=0.5, # doesnt exist in current tensorflow
             alpha=float(cfg['TRAIN']['LR']['ALPHA'])) # Default 2e-6
     else:
         lr_schedule = float(cfg['TRAIN']['LR']['INITIAL_RATE'])
 
     # Optimizer
     if cfg['TRAIN']['OPTIMIZER'].upper() == 'LAMB':
-        opt = LAMB(learning_rate=lr_schedule)
+        opt = LAMB(learning_rate=lr_schedule) # type: ignore
     elif cfg['TRAIN']['OPTIMIZER'].upper() == 'ADAM':
-        opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+        opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule) # type: ignore
     else:
         raise NotImplementedError(cfg['TRAIN']['OPTIMIZER'])
 
@@ -195,6 +195,9 @@ def trainer(cfg, checkpoint_name):
             tau=cfg['TRAIN']['LOSS']['TAU'])
     else:
         raise NotImplementedError(cfg['TRAIN']['LOSS']['LOSS_MODE'])
+
+    # Initialize variables
+    sim_mtx = None
 
     # Training loop
     ep_start = helper.epoch
