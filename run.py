@@ -76,8 +76,8 @@ def train(checkpoint_name, config, max_epoch, deterministic):
 """ Generate fingerprint (after training) """
 @cli.command()
 @click.argument('checkpoint_name', required=True)
-@click.option('--checkpoint_type', default='best', type=click.STRING,
-              help="Checkpoint type must be one of {'best', 'custom'}. Default is 'best'.")
+@click.option('--checkpoint_type', default='custom', type=click.STRING,
+              help="Checkpoint type must be one of {'best', 'custom'}. Default is 'custom'.")
 @click.option('--checkpoint_index', default=None, type=click.INT,
             help="Checkpoint index. If not specified, the latest checkpoint " +
             "in the OUTPUT_ROOT_DIR will be loaded.")
