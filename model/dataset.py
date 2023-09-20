@@ -83,6 +83,11 @@ class Dataset:
         self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
         self.ts_ir_fps = []
 
+        # Check if the augmented query tracks are provided
+        if self.ts_augmented_query_tracks_dir is not None:
+            assert not (self.ts_use_bg_aug or self.ts_use_ir_aug), \
+                "Augmented query tracks are provided, but augmentation is not enabled."
+
     def get_train_ds(self, reduce_items_p=100):
         """ Source (music) file paths for training set. 
 
