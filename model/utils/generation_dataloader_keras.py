@@ -102,10 +102,11 @@ class GenerationLoader(Sequence):
         return int(np.ceil(self.n_samples/self.bsz))
 
     def __getitem__(self, idx):
-        """ Loads the chunk associated with a track and creates a batch of
-        segments. If bg_mix is True, we mix the segments with background noise. 
-        If ir_mix is True, we convolve the segments with a room Impulse 
-        Response (IR).
+        """ Loads  a batch of segments. If bg_mix and ir_mix are False, we
+        simply load the segments. If bg_mix and ir_mix are True, we mix the
+        segments with background noise and convolve them with a room Impulse
+        Response (IR) in cascade. We use a different background noise and IR
+        for each segment in the batch.
 
         Parameters:
         ----------
@@ -122,7 +123,7 @@ class GenerationLoader(Sequence):
         """
 
         # Get the segments for this batch
-        X = []
+        X_batch = []
         for i in self.indexes[idx*self.bsz:(idx+1)*self.bsz]:
 
             # Get the track information
@@ -139,9 +140,9 @@ class GenerationLoader(Sequence):
                                         seg_length_sec=self.segment_duration, 
                                         fs=self.fs,
                                         normalize=False)
-            X.append(xs.reshape((1, -1)))
+            X_batch.append(xs.reshape((1, -1)))
         # Create the batch of audio
-        X = np.concatenate(X, axis=0)
+        X_batch = np.concatenate(X_batch, axis=0)
 
         # Apply augmentations if specified
         if self.bg_mix and self.ir_mix:
@@ -163,7 +164,7 @@ class GenerationLoader(Sequence):
             bg_noise_batch = np.concatenate(bg_noise_batch, axis=0)
 
             # Mix the batch of segments with the batch of background noises
-            X = audio_utils.bg_mix_batch(X,
+            X_batch = audio_utils.bg_mix_batch(X_batch,
                                         bg_noise_batch,
                                         snr_range=self.bg_snr_range)
 
@@ -175,14 +176,14 @@ class GenerationLoader(Sequence):
             ir_batch = np.concatenate(ir_batch, axis=0)
 
             # Convolve with IR
-            X = audio_utils.ir_aug_batch(X, ir_batch, normalize=True)
+            X_batch = audio_utils.ir_aug_batch(X_batch, ir_batch, normalize=True)
 
         # Compute mel spectrograms
-        X_mel = self.mel_spec.compute_batch(X)
+        X_batch_mel = self.mel_spec.compute_batch(X_batch)
         # Fix the dimensions and types
-        X_mel = np.expand_dims(X_mel, 3).astype(np.float32)
+        X_batch_mel = np.expand_dims(X_batch_mel, 3).astype(np.float32)
 
-        return X, X_mel
+        return X_batch, X_batch_mel
 
     def load_and_store_bg_samples(self, bg_mix_parameter):
         """ Load background noise samples in memory and their segmentation
