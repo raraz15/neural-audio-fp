@@ -63,7 +63,6 @@ class GenerationLoader(Sequence):
         self.segment_length = int(fs*self.segment_duration)
         self.hop_duration = hop_duration
         self.hop_length = int(fs*hop_duration)
-        self.overlap_ratio = (self.segment_length - self.hop_length) / self.segment_length
         self.bg_hop = segment_duration # Background noise hop-size is equal to segment duration
         self.fs = fs
         self.bsz = bsz
@@ -133,8 +132,6 @@ class GenerationLoader(Sequence):
             anchor_start_sec = seg_idx * self.hop_duration
 
             # Load the anchor segment and append it to the batch
-            # We normalize later so that if augmentation is used
-            # normalization is realistic
             xs = audio_utils.load_audio(fname,
                                         seg_start_sec=anchor_start_sec, 
                                         seg_length_sec=self.segment_duration, 
