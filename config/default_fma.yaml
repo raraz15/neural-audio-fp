@@ -94,7 +94,7 @@ TRAIN:
 TEST:
     # TEST tracks directories
     DIR:
-        NOISE_ROOT : '../neural-audio-fp-dataset/music/test-dummy-db-100k-full/from_fma_large10k-30s_for_mini/'
+        NOISE_ROOT : '../neural-audio-fp-dataset/music/test-dummy-db-100k-full/fma_full/' # from_fma_large10k-30s_for_mini
         CLEAN_QUERY_ROOT : '../neural-audio-fp-dataset/music/test-query-db-500-30s/db/'
         AUGMENTED_QUERY_ROOT : '../neural-audio-fp-dataset/music/test-query-db-500-30s/query/'
                             # You can provide empty string to AUGMENTED_QUERY_ROOT and set
