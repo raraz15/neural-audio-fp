@@ -539,7 +539,7 @@ class TrackDevLoader(DevLoader):
         f_min=300, 
         f_max=4000, 
         scale_output=True, 
-        segments_per_track=59, 
+        segments_per_track=58, 
         bsz=120, 
         shuffle=False, 
         random_offset_anchor=False, 
@@ -577,13 +577,11 @@ class TrackDevLoader(DevLoader):
                                                         duration=self.segment_duration,
                                                         hop=self.hop_duration)
 
-        # Filter out the tracks with less than segments_per_track
-        self.track_seg_dict = {k: v 
-                                for k, v in self.track_seg_dict.items() 
-                                if len(v) >= segments_per_track}
+        # Filter out the tracks with less than segments_per_track and
         # Keep only segments_per_track segments for each track
         self.track_seg_dict = {k: v[:segments_per_track] 
-                                for k, v in self.track_seg_dict.items()}
+                                for k, v in self.track_seg_dict.items() 
+                                if len(v) >= segments_per_track}
 
         # Determine the tracks to use at each epoch
         # Remove the tracks that do not fill the last batch. Each batch contains
@@ -592,8 +590,8 @@ class TrackDevLoader(DevLoader):
         self.track_seg_dict = {k: v 
                                 for i, (k, v) in enumerate(self.track_seg_dict.items()) 
                                 if i < self.n_tracks}
-        self.n_samples = self.n_tracks * self.segments_per_track
         self.track_fnames = list(self.track_seg_dict.keys())
+        self.n_samples = self.n_tracks * self.segments_per_track # TODO
 
         # Save augmentation parameters, read the files, and store them in memory
         self.load_and_store_bg_samples(bg_mix_parameter)

@@ -37,7 +37,7 @@ TRAIN:
     # Audio segment parameters
     AUDIO:
         SEGMENT_HOP_DUR : .5 # Hop-size of the segment window in seconds.
-        SEGMENTS_PER_TRACK: 59
+        SEGMENTS_PER_TRACK: 58
                         # Use this many segments per track for training.
         MAX_OFFSET_DUR : 0.2
                         # Maximum offset duration in seconds. 
