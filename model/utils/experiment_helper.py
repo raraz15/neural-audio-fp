@@ -280,9 +280,14 @@ class ExperimentHelper():
 
     def write_lr(self):
 
+        if isinstance(self.optimizer.lr, tf.keras.optimizers.schedules.LearningRateSchedule):
+            current_lr = self.optimizer.lr(self.optimizer.iterations)
+        else:
+            current_lr = self.optimizer.lr
+
         with self._lr_summary_writer.as_default():
             tf.summary.scalar('lr', 
-                              self.optimizer.lr(self.optimizer.iterations),
+                              current_lr,
                               step=self.optimizer.iterations)
 
     def load_checkpoint(self):
@@ -305,6 +310,7 @@ class ExperimentHelper():
                 # Save the config file
                 with open(_dir + 'config.yaml', 'w') as f:
                     yaml.dump(self.cfg, f)
+
     def save_checkpoint(self):
         """Save current model and optimizer states to checkpoint."""
 
