@@ -56,8 +56,8 @@ TRAIN:
         TAU : 0.05 # **NTXENT ONLY** temperature parameter 0. < TAU < 1. 
     OPTIMIZER : 'Adam' # 'LAMB' or 'Adam'. LAMB for BSZ >= 240
     LR:
-        INITIAL_RATE: 5e-3 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
-        SCHEDULE : 'cos' # ['cos', 'cos-restart', 'None'].
+        INITIAL_RATE: 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
+        SCHEDULE : 'None' # ['cos', 'cos-restart', 'None'].
         ALPHA : 1e-4 # Minimum learning rate value for decay as a fraction of INITIAL_RATE.
     # Augmentation parameters
     AUG:
@@ -94,7 +94,7 @@ TRAIN:
 TEST:
     # TEST tracks directories
     DIR:
-        NOISE_ROOT : '../neural-audio-fp-dataset/music/test-dummy-db-100k-full/fma_full/'
+        NOISE_ROOT : '../neural-audio-fp-dataset/music/test-dummy-db-100k-full/'
         CLEAN_QUERY_ROOT : '../neural-audio-fp-dataset/music/test-query-db-500-30s/db/'
         AUGMENTED_QUERY_ROOT : '../neural-audio-fp-dataset/music/test-query-db-500-30s/query/'
                             # You can provide empty string to AUGMENTED_QUERY_ROOT and set
