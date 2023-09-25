@@ -117,12 +117,7 @@ def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, source,
 
 """ Search and evalutation """
 @cli.command()
-@click.argument('checkpoint_name', required=True)
-@click.argument('checkpoint_index', required=True)
-@click.option('--config', '-c', default='default', required=False,
-              type=click.STRING,
-              help="Name of the model configuration file located in 'config/'."
-              " Default is 'default'.")
+@click.argument('embedding_dir', required=True)
 @click.option('--index_type', '-i', default='ivfpq', type=click.STRING,
               help="Index type must be one of {'L2', 'IVF', 'IVFPQ', "
               "'IVFPQ-RR', 'IVFPQ-ONDISK', HNSW'}")
@@ -140,28 +135,24 @@ def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, source,
               "equal number of samples from each track. Default is 'path/file.npy'.")
 @click.option('--nogpu', default=False, is_flag=True,
               help='Use this flag to use CPU only.')
-def evaluate(checkpoint_name, checkpoint_index, config, index_type, test_seq_len, test_ids, nogpu):
+def evaluate(embedding_dir, index_type, test_seq_len, test_ids, nogpu):
     """ Search and evalutation.
 
-    ex) python run.py evaluate CHECKPOINT_NAME CHECKPOINT_INDEX
+        ex) python run.py evaluate logs/emb/CHECKPOINT_NAME/CHECKPOINT_INDEX
 
     With options: \b\n
 
-    ex) python run.py evaluate CHECKPOINT_NAME CHEKPOINT_INDEX -i ivfpq -t 3000 --nogpu
+        ex) python run.py evaluate logs/emb/CHECKPOINT_NAME/CHECKPOINT_INDEX -i ivfpq -t 3000 --nogpu
 
-    • Currently, the 'evaluate' command does not reference any information other
-        than the output log directory from the config file.
     """
+
     from eval.eval_faiss import eval_faiss
 
-    cfg = load_config(config)
-    emb_dir = cfg['MODEL']['LOG_ROOT_DIR'] + f"emb/{checkpoint_name}/{checkpoint_index}/"
-
     if nogpu:
-        eval_faiss([emb_dir, "--index_type", index_type, "--test_seq_len",
+        eval_faiss([embedding_dir, "--index_type", index_type, "--test_seq_len",
                     test_seq_len, "--test_ids", test_ids, "--nogpu"])
     else:
-        eval_faiss([emb_dir, "--index_type", index_type, "--test_seq_len",
+        eval_faiss([embedding_dir, "--index_type", index_type, "--test_seq_len",
                     test_seq_len, "--test_ids", test_ids])
 
 if __name__ == '__main__':
