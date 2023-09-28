@@ -323,7 +323,8 @@ class Dataset:
                 scale_output=self.scale_inputs,
                 bsz=self.tr_batch_sz,
                 shuffle=False,
-                random_offset_anchor=False,
+                random_offset_anchor=True,
+                offset_duration=self.tr_offset_duration, # Same as the training set
                 bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
                 ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
 
