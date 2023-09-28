@@ -73,7 +73,7 @@ TRAIN:
                     # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
             IR : True
             IR_ROOT : '../datasets/neural-audio-fp-dataset/aug/ir/tr/'
-            IR_MAX_DUR : 0.5
+            IR_MAX_DUR : 0.05
                     # Maximum duration of the impulse response in seconds.
         # Spectral-domain augmentation parameters
         SPEC:
@@ -98,9 +98,9 @@ TRAIN:
 TEST:
     # TEST tracks directories
     DIR:
-        NOISE_ROOT : '../datasets/neural-audio-fp-dataset/discotube_2023-188000/test/noise/'
-        CLEAN_QUERY_ROOT : '../datasets/neural-audio-fp-dataset/discotube_2023-188000/test/query_clean/'
-        AUGMENTED_QUERY_ROOT : Null
+        NOISE_ROOT : '../datasets/neural-audio-fp-dataset/music/test-dummy-db-100k-full/fma_full/'
+        CLEAN_QUERY_ROOT : '../datasets/neural-audio-fp-dataset/music/test-query-db-500-30s/db/'
+        AUGMENTED_QUERY_ROOT : '../datasets/neural-audio-fp-dataset/music/test-query-db-500-30s/query/'
                             # You can provide empty string to AUGMENTED_QUERY_ROOT and set
                             # TD_AUG.TS_BG_AUG=True and TD_AUG.TS_IR_AUG=True to enable
                             # real-time augmentation during testing. 
@@ -118,14 +118,14 @@ TEST:
                 # corresponding augmentation files. Setting them to True will 
                 # not use the tracks in AUGMENTED_QUERY_ROOT for testing. For simulating real life 
                     # scenarios, you should either augment the queries beforehand.
-            BG : True # If you augment beforehand, set this to FALSE.
+            BG : False # If you augment beforehand, set this to FALSE.
             BG_ROOT : '../datasets/neural-audio-fp-dataset/aug/bg/ts/'
                 # If BG=True, you must provide the background noise files.
             BG_SNR : [0, 10] # Active in real-time synthesis of test queries.
-            IR : True # If you augment beforehand, set this to False.
+            IR : False # If you augment beforehand, set this to False.
             IR_ROOT : '../datasets/neural-audio-fp-dataset/aug/ir/ts/'
                     # If IR=True, you must provide the background noise files.
-            IR_MAX_DUR : 0.5 # Maximum duration of the impulse response in seconds.
+            IR_MAX_DUR : 0.05 # Maximum duration of the impulse response in seconds.
 
 # Device setup
 DEVICE:
