@@ -191,7 +191,7 @@ if __name__=="__main__":
     for split, paths in zip(["train", "val"], [train_paths, val_paths]):
 
         # Create the split directory
-        split_dir = os.path.join(args.output_dir, "dev" split)
+        split_dir = os.path.join(args.output_dir, "dev", split)
         main(paths, split_dir, args.sample_rate, T_min, L0, args.n_segments)
 
     print("Done!")
