@@ -204,6 +204,16 @@ def cut_to_segments(audio:np.array, L:int, H:int):
 
     return segments, boundaries
 
+def get_random_chunk(audio, min_samples):
+    """Returns a random chunk of at least min_samples from the audio."""
+
+    start = np.random.randint(0, len(audio) - min_samples)
+    end = start + min_samples
+    chunk = audio[start:end]
+    boundary = np.array([start, end])
+
+    return chunk, boundary
+
 #### Audio IO ####
 
 def load_wav(filename=str(), 

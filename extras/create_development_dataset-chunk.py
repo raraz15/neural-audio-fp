@@ -1,3 +1,9 @@
+""" Creates a development dataset for training and validation by sampling 
+a consecutive audio chunk from the audio files in the discotube dataset. The 
+chunks are saved as .wav files and their start and end indices 
+in the original audio file are saved as a .npy file. We do not use 
+multiprocessing here to preserve reproducibility."""
+
 import os
 import sys
 import argparse
@@ -6,7 +12,7 @@ import numpy as np
 
 import essentia.standard as es
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from model.utils.audio_utils import max_normalize, get_random_chunk
 
 SEED = 27
@@ -17,10 +23,10 @@ def main(paths, split_dir, sample_rate, min_duration):
     # Calculate the minimum number of samples required for each audio file
     min_samples = int(min_duration * sample_rate)
 
-    print(f"Writing query_clean segments to {split_dir}...")
+    print(f"Writing {split} segments to {split_dir}...")
 
     # Sample chunks from each audio file
-    for i, audio_path in enumerate(paths):
+    for i,audio_path in enumerate(paths):
 
         # Create a directory for the audio segments following the same
         # directory structure as the original discotube dataset
@@ -37,7 +43,7 @@ def main(paths, split_dir, sample_rate, min_duration):
             continue
 
         try:
-            # Load the audio and downsample to args.sample_rate, 
+            # Load the audio and downsample to sample_rate, 
             # use the lowest quality for high speed downsampling
             audio = es.MonoLoader(filename=audio_path, 
                                 sampleRate=sample_rate, 
@@ -63,7 +69,7 @@ def main(paths, split_dir, sample_rate, min_duration):
                     format="wav", 
                     sampleRate=sample_rate)(chunk)
 
-        # Save the boundary
+        # Save the chunk boundary next to the audio file
         np.save(os.path.join(output_dir, audio_name+".npy"), boundary)
 
         # Print progress
@@ -72,40 +78,46 @@ def main(paths, split_dir, sample_rate, min_duration):
 
 if __name__=="__main__":
 
-    parser = argparse.ArgumentParser(description='Extracts segments from audio files.')
-    parser.add_argument('query_text', 
+    parser = argparse.ArgumentParser(description='Extracts chunks from audio files.')
+    parser.add_argument('train_text', 
+                        type=str, 
+                        help='Path to the text file containing train audio paths.')
+    parser.add_argument('val_text', 
+                        type=str, 
+                        help='Path to the text file containing validation audio paths.')
+    parser.add_argument('output_dir', 
                         type=str,
-                        help='Path to the text file containing test_query audio paths.')
-    parser.add_argument('--output_dir', 
-                        type=str,
-                        default="../data/",
-                        help='Path to the output directory. Segments will be written '
-                         'here as in single .npz file. The directory structure will be '
-                         'output_dir/test/<split>/audio_name[:2]/audio_name.npz')
-    parser.add_argument('--query_chunk_duration',
-                        type=float,
-                        default=30.,
-                        help='Duration of a query track chunk in seconds.')
+                        help='Path to the output directory. Sampled chunks will '
+                        'be written here inside the corresponding partition. '
+                        'The directory structure will be:\n'
+                        'output_dir/dev/<split>/audio_name[:2]/audio_name.wav')
+    parser.add_argument('--chunk_duration', 
+                        type=float, 
+                        default=30.0,
+                        help='Duration of a chunk in seconds.')
     parser.add_argument("--sample_rate",
                         type=int,
                         default=8000,
                         help="Sample rate to use for audio files.")
     args = parser.parse_args()
 
-    # Read the text files containing the audio paths
-    query_paths = []
-    with open(args.query_text, "r") as f:
-        query_paths = [line.strip() for line in f.readlines()]
-    assert len(query_paths) > 0, "No query files found."
-    print(f"Number of query files: {len(query_paths)}")
+    # Read the text files
+    with open(args.train_text, "r") as f:
+        train_paths = [line.strip() for line in f.readlines()]
+    assert len(train_paths) > 0, "No files found for training."
+    print(f"Number of training files: {len(train_paths)}")
+    with open(args.val_text, "r") as f:
+        val_paths = [line.strip() for line in f.readlines()]
+    assert len(val_paths) > 0, "No files found for validation."
+    print(f"Number of validation files: {len(val_paths)}")
 
-    # Calculate the minimum number of samples required for each audio file
-    assert args.query_chunk_duration > 0, "noise_chunk_duration should be positive."
+    # Sample segments from each audio file for train and val sets
+    for split, paths in zip(["train", "val"], [train_paths, val_paths]):
 
-    # Determine the output directory for this split
-    split_dir = os.path.join(args.output_dir, "test", "query_clean")
+        # Create the split directory
+        split_dir = os.path.join(args.output_dir, "dev_chunk", split)
 
-    # Cut segments from each audio file and write them to disk
-    main(query_paths, split_dir, args.sample_rate, args.query_chunk_duration)
+        # Process the paths and write the chunks to disk
+        main(paths, split_dir, args.sample_rate, args.chunk_duration)
 
     print("Done!")
