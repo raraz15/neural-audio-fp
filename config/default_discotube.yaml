@@ -30,19 +30,21 @@ MODEL:
 
 # Training parameters
 TRAIN:
-    # Train and Validation, and Augmentation directories
+    # Train and Validation chunk directories
     DIR:
-        TRAIN_ROOT : '../datasets/discotube_2023-188000/dev/train/'
-        VAL_ROOT : '../datasets/discotube_2023-188000/dev/val/'
+        TRAIN_ROOT : '../datasets/discotube_2023-188000/dev_chunk/train/'
+        VAL_ROOT : '../datasets/discotube_2023-188000/dev_chunk/val/'
     # Audio segment parameters
     AUDIO:
-        INPUT_AUDIO_DUR : 2.
-                        # Extracted audio segment duration in seconds. We use 
-                        # Should MODEL['AUDIO']['SEGMENT_DUR'] seconds of audio
-                        # from INPUT_AUDIO_DUR during training. It must be
-                        # be greater than or equal to MODEL['AUDIO']['SEGMENT_DUR']
-        SEGMENTS_PER_TRACK: 59
+        # INPUT_AUDIO_DUR : 2.
+        #                 # Extracted audio segment duration in seconds. We use 
+        #                 # Should MODEL['AUDIO']['SEGMENT_DUR'] seconds of audio
+        #                 # from INPUT_AUDIO_DUR during training. It must be
+        #                 # be greater than or equal to MODEL['AUDIO']['SEGMENT_DUR']
+        SEGMENTS_PER_TRACK : 59
                         # Use this many segments per track for training.
+        SEGMENT_HOP_DUR : 0.5
+                        # Hop-size of the segment window in seconds.
         MAX_OFFSET_DUR : 0.2
                         # Maximum offset duration in seconds. 
                         # We randomly offset the audio segment by a random 
@@ -61,8 +63,8 @@ TRAIN:
     OPTIMIZER : 'Adam' # 'LAMB' or 'Adam'. LAMB for BSZ >= 240
     LR:
         INITIAL_RATE: 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
-        SCHEDULE : 'None' # ['cos', 'cos-restart', 'None'].
-        ALPHA : 1e-4 # Minimum learning rate value for decay as a fraction of INITIAL_RATE.
+        SCHEDULE : 'cos' # ['cos', 'cos-restart', 'None'].
+        ALPHA : 1e-6 # Minimum learning rate value for decay as a fraction of INITIAL_RATE.
     # Augmentation parameters
     AUG:
         # Time-domain augmentation parameters
