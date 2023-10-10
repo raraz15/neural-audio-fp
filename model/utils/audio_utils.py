@@ -7,13 +7,14 @@
 import os
 import wave
 import numpy as np
+import essentia.standard as es
 from scipy.signal import convolve
 
 #### File Check ####
 
 def get_fns_seg_dict(fns_list=[],
                      segment_mode='all',
-                     fs=22050,
+                     fs=8000,
                      duration=1,
                      hop=None):
     """
@@ -38,8 +39,8 @@ def get_fns_seg_dict(fns_list=[],
         hop = duration
 
     # Get audio info
-    n_frames_in_seg = fs * duration
-    n_frames_in_hop = fs * hop # 2019 09.05
+    n_samples_in_seg = int(fs * duration)
+    n_samples_in_hop = int(fs * hop) # 2019 09.05
 
     fns_event_seg_dict = {}
     for filename in fns_list:
@@ -59,25 +60,28 @@ def get_fns_seg_dict(fns_list=[],
         if fs != _fs:
             raise ValueError('Sample rate should be {} but got {} for {}'.format(str(fs), str(_fs)), filename)
 
-        # Determine number of segments
-        n_frames = pt_wav.getnframes()
-        if n_frames > n_frames_in_seg:
-            n_segs = int((n_frames - n_frames_in_seg + n_frames_in_hop) // n_frames_in_hop)
-            assert n_segs > 0
-        else:
-            n_segs = 1 # load_audio can pad the audio if it is shorter than n_frames_in_seg
-        residual_frames = np.max([0, n_frames - ((n_segs - 1) * n_frames_in_hop + n_frames_in_seg)])
-
+        # Get the number of samples the file has
+        n_total_samples = pt_wav.getnframes()
         pt_wav.close()
 
+        # Calculate number of segments and residual frames
+        if n_total_samples > n_samples_in_seg:
+            n_segs = int((n_total_samples - n_samples_in_seg + n_samples_in_hop) // n_samples_in_hop)
+            assert n_segs > 0
+        else:
+            n_segs = 1 # load_audio can pad the audio if it is shorter than n_samples_in_seg
+        residual_samples = np.max([0, n_total_samples - ((n_segs - 1) * n_samples_in_hop + n_samples_in_seg)])
+
+        # Create a list of segments from the file
         if segment_mode == 'all': # Load all segments
             # A segment can be randomly offsetted to the left or right without going out of bounds
             for seg_idx in range(n_segs):
-                offset_min, offset_max = int(-1 * n_frames_in_hop), n_frames_in_hop
-                if seg_idx == 0:  # first seg
+                # A segment can be offsetted max by n_samples_in_hop to the left or right
+                offset_min, offset_max = -1*n_samples_in_hop, n_samples_in_hop
+                if seg_idx == 0: # first seg
                     offset_min = 0 # no offset to the left
                 if seg_idx == n_segs - 1: # last seg
-                    offset_max = residual_frames # Maximal offset to the right is the residual frames
+                    offset_max = residual_samples # Maximal offset to the right is the residual frames
                 fns_event_seg_dict[filename].append([seg_idx, offset_min, offset_max])
         elif segment_mode == 'first':
             # Load only the first segment
@@ -87,11 +91,11 @@ def get_fns_seg_dict(fns_list=[],
         elif segment_mode == 'random_oneshot':
             # Load only one random segment
             seg_idx = np.random.randint(0, n_segs)
-            offset_min, offset_max = n_frames_in_hop, n_frames_in_hop
+            offset_min, offset_max = n_samples_in_hop, n_samples_in_hop
             if seg_idx == 0:  # first seg
                 offset_min = 0
             if seg_idx == n_segs - 1:  # last seg
-                offset_max = residual_frames
+                offset_max = residual_samples
             fns_event_seg_dict[filename].append([seg_idx, offset_min, offset_max])
         else:
             raise NotImplementedError(segment_mode)
@@ -100,41 +104,123 @@ def get_fns_seg_dict(fns_list=[],
 
 #### Audio Processing ####
 
+# TODO: RMS normalize?
+
 def max_normalize(x):
-    """
+    """ Max-normalize an audio signal or a batch of audio signals.
+    
     Parameters
     ----------
-    x : (float)
+        x : (ndarray)
 
     Returns
     -------
-    (float)
-        Max-normalized audio signal.
+        x: (float)
+            Max-normalized audio signal.
     """
 
-    max_val = np.max(np.abs(x))
-    if max_val==0:
-        return x
+    if len(x.shape)==1:
+        max_val = np.max(np.abs(x))
+        if max_val==0:
+            return x
+        else:
+            return x / np.max(np.abs(max_val))
+    elif len(x.shape)==2:
+        max_val = np.max(np.abs(x), axis=1, keepdims=True)
+        max_val[max_val==0] = 1
+        return x / max_val
     else:
-        return x / np.max(np.abs(max_val))
+        raise NotImplementedError
+
+def OLA(segments:np.array, overlap_ratio:float):
+    """ Overlap and add segments."""
+
+    # Check inputs
+    assert len(segments.shape) == 2, 'segments should be 2D array'
+    assert overlap_ratio>=0 and overlap_ratio<=1, 'overlap_ratio should be between 0 and 1'
+    if overlap_ratio!=0.5:
+        raise NotImplementedError('We only support overlap_ratio=0.5 for now.')
+    assert len(segments.shape) == 2, 'segments should be 2D array'
+
+    # Get the number of segments and samples
+    n_segments, n_samples = segments.shape
+
+    # Calculate the hop size and the number of samples in the output
+    hop = int(n_samples * (1-overlap_ratio))
+    n_samples_out = (n_segments - 1) * hop + n_samples
+
+    out = np.zeros(n_samples_out)
+    for i in range(n_segments):
+        out[i*hop: i*hop + n_samples] += segments[i]
+
+    # Since we are adding the segments, we need to divide the overlapping parts by 2
+    out[hop:-hop] /= 2
+
+    return out
+
+def number_of_segments(signal_length:int, L:int, H:int):
+    """ Calculates how many segments can be taken from 
+    an audio signal with length L and hop size H. Discards the remainder."""
+
+    assert L > 0, 'L should be positive'
+    assert H > 0, 'H should be positive'
+    assert H <= L, 'H should be smaller than or equal to L'
+    assert signal_length >= L, 'signal_length should be longer than or equal to L'
+
+    # Calculate the number of segments that can be cut from the audio
+    N_cut = int(np.floor((signal_length - L + H) / H))
+    assert N_cut > 0, "signal is too short for L and H"
+
+    return N_cut
+
+# TODO: cut to segment function with and without remainder
+def cut_to_segments(audio:np.array, L:int, H:int):
+    """ Cut the audio into consecutive segments of length L with hop size H.
+    Discards the remainder segment."""
+
+    assert len(audio.shape) == 1, 'audio should be 1D array'
+
+    # Calculate the number of segments that can be cut from the audio
+    N_cut = number_of_segments(len(audio), L, H)
+    remainder = len(audio) - L - (N_cut-1)*H
+    assert remainder < L, "remainder should be smaller than L"
+    assert remainder >= 0, "remainder should not be negative"
+
+    # Cut the signal into segments and discard the remainder
+    start_indices = np.arange(N_cut)*H
+    end_indices = start_indices + L
+    assert np.all(end_indices <= len(audio)), "end times are out of bounds"
+
+    # Get the segments
+    segments, boundaries = [], []
+    for start,end in zip(start_indices, end_indices):
+        segment = audio[start:end]
+        segments.append(segment)
+        boundaries.append([start, end])
+
+    # Convert to numpy array
+    segments = np.array(segments)
+    boundaries = np.array(boundaries)
+
+    return segments, boundaries
 
 #### Audio IO ####
 
-def load_audio(filename=str(),
-               seg_start_sec=0.0,
-               offset_sec=0.0,
-               seg_length_sec=None,
-               seg_pad_offset_sec=0.0,
-               fs=8000,
-               normalize=True):
-    """ Loads a wav file if the sample rate is correct.
+def load_wav(filename=str(), 
+            seg_start_sec=0.0,
+            offset_sec=0.0,
+            seg_length_sec=None,
+            seg_pad_offset_sec=0.0,
+            fs=8000):
+    """
+    Opens a wav file, checks its format and sample rate, and returns a segment.
 
     Parameters:
     -----------
         filename: string
-        seg_start_sec: start reading from this time in seconds
-        offset_sec: offset the seg_start_sec by this amount of seconds
-        seg_length_sec: read this amount of seconds. If None, read the rest of the file.
+        seg_start_sec: Start of the segment in seconds.
+        offset_sec: Offset from seg_start_sec in seconds.
+        seg_length_sec: Length of the segment in seconds.
         seg_pad_offset_sec: If padding is required (seg_length_sec is longer than file duration),
             pad the segment from the rgiht and give an offset from the left 
             with this amount of seconds.
@@ -145,15 +231,14 @@ def load_audio(filename=str(),
     --------
         audio: numpy array of shape (n_samples,)
 
+    Returns:
+        x: Segment (T,)
     """
 
-    assert (seg_length_sec is None) or (seg_length_sec > 0.0), 'seg_length_sec should be positive'\
-                                                'or None (read all the rest of the file).'
-
-    # Only support .wav
-    file_ext = os.path.splitext(filename)[1]
-    if file_ext != '.wav':
-        raise NotImplementedError(file_ext)
+    assert seg_start_sec>=0.0, "The start time must be positive"
+    if seg_length_sec is not None:
+        assert seg_length_sec>0.0, "If you specify a duration, it must be positive."\
+                                    "Use None to read the rest of the file."
 
     # Open file
     pt_wav = wave.open(filename, 'r')
@@ -161,7 +246,7 @@ def load_audio(filename=str(),
     # Check sample rate
     _fs = pt_wav.getframerate()
     if fs != _fs:
-        raise ValueError('Sample rate should be {} but got {} for {}'.format(str(fs), str(_fs)), filename)
+        raise ValueError(f'Sample rate should be {fs} but got {_fs} for {filename}')
 
     # Calculate segment start index
     start_frame_idx = np.floor((seg_start_sec + offset_sec) * fs).astype(int)
@@ -183,10 +268,6 @@ def load_audio(filename=str(),
     x = np.frombuffer(x, dtype=np.int16)
     x = x / 2**15 # normalize to [-1, 1] float
 
-    # Max Normalize, random amplitude
-    if normalize:
-        x = max_normalize(x)
-
     # Pad the segment if it is shorter than seg_length_sec
     if len(x) < seg_length_frame:
         audio_arr = np.zeros(int(seg_length_sec * fs))
@@ -198,11 +279,129 @@ def load_audio(filename=str(),
     else:
         return x
 
+def read_cut_resample(filename, 
+                    seg_start_sec=0.0, 
+                    offset_sec=0.0, 
+                    seg_length_sec=None, 
+                    fs=8000, 
+                    resample_quality=4):
+    """
+    Reads an audio file, cuts a segment, mixes to mono and resamples it. 
+    Also pads or cuts the segment if necessary. It can read any audio 
+    file format supported by FFmpeg.
+
+    Parameters:
+        filename: (string)
+        seg_start_sec: (float)
+            Start of the segment in seconds.
+        offset_sec: (float)
+            Offset from seg_start_sec in seconds.
+        seg_length_sec: (float)
+            Length of the segment in seconds. If None, read the rest of the file.
+        fs: (int)
+            Sample rate.
+        resample_quality: (int)
+            Quality of the resampling. 0 is the slowest, 4 is the fastest.
+
+    Returns:
+        x: Segment (T,)
+    """
+
+    if seg_length_sec is not None:
+        assert seg_length_sec>0.0, \
+            "If specified, duration must be positive"
+    assert seg_start_sec>=0.0, \
+        "The start time must be positive"
+    assert resample_quality in {0,1,2,3,4}, \
+        "resample_quality should be in {0,1,2,3,4}"
+
+    # Load the audio
+    audio, _fs, numberChannels, _, _, _ = es.AudioLoader(filename=filename)()
+
+    # Calculate the start and end samples
+    t0 = seg_start_sec + offset_sec
+    n0 = int(t0*_fs)
+    assert n0>=0, "The start time + offset is before the start of the audio"
+
+    if seg_length_sec is None:
+        n1 = len(audio)
+    else:
+        n1 = n0 + int(_fs*seg_length_sec)
+        assert n1<=len(audio), \
+        "The end time is after the end of the audio. Specify a shorter duration."
+
+    # Cut the audio
+    audio = audio[n0:n1]
+
+    # Convert to mono if necessary
+    if numberChannels>1:
+        audio = np.mean(audio, axis=1)
+
+    # Resample if necessary
+    if _fs!=fs:
+        resampler = es.Resample(inputSampleRate=_fs, 
+                                outputSampleRate=fs, 
+                                quality=resample_quality)
+        audio = resampler(audio)
+
+    # Pad the audio to the correct length if necessary
+    N_desired = int(seg_length_sec*fs)
+    if (seg_length_sec is not None) and len(audio)<N_desired:
+        audio = np.pad(audio, 
+                    (0, N_desired-len(audio)), 
+                    mode='constant')
+
+    return audio
+
+def load_audio(filename=str(),
+               seg_start_sec=0.0,
+               offset_sec=0.0,
+               seg_length_sec=None,
+               fs=8000,
+               normalize=True):
+    """ Loads an audio file.
+
+    Parameters:
+        filename: string
+        seg_start_sec: start reading from this time in seconds
+        offset_sec: offset the seg_start_sec by this amount of seconds
+        seg_length_sec: read this amount of seconds. If None, read the rest of the file.
+
+    Returns:
+        audio: numpy array of shape (n_total_samples,)
+    """
+
+    assert (seg_length_sec is None) or (seg_length_sec > 0.0), 'seg_length_sec should be positive'\
+                                        'or None (read all the rest of the file from seg_start_sec).'
+
+    # Only support .wav or .mp3 or .mp4
+    file_ext = os.path.splitext(filename)[1]
+    if file_ext == '.wav':
+        x = load_wav(filename=filename,
+                     seg_start_sec=seg_start_sec,
+                     offset_sec=offset_sec,
+                     seg_length_sec=seg_length_sec,
+                     fs=fs)
+    elif file_ext == '.mp3' or file_ext == '.mp4':
+        x = read_cut_resample(filename=filename,
+                              seg_start_sec=seg_start_sec,
+                              offset_sec=offset_sec,
+                              seg_length_sec=seg_length_sec,
+                              fs=fs)
+    else:
+        raise NotImplementedError(file_ext)
+
+    # Max Normalize
+    if normalize:
+        x = max_normalize(x)
+
+    return x
+
 def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),
                            fs=8000,
-                           normalize=True):
+                           normalize=True) -> np.array:
     """ Load_audio wrapper for loading audio with multiple start indices each 
     with same duration. 
 
@@ -225,18 +424,40 @@ def load_audio_multi_start(filename=str(),
     return out  # (B,T)
 
 def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
-    import wavio, glob, scipy
+
+    import wavio, glob
+    from scipy.signal import resample
 
     fns = glob.glob(root_dir + '**/*.npy', recursive=True)
     for fname in fns:
         audio = np.load(fname)
         resampled_length = int(len(audio) / source_fs * target_fs)
-        audio = scipy.signal.resample(audio, resampled_length)
+        audio = resample(audio, resampled_length)
         audio = audio * 2**15
         audio = audio.astype(np.int16)  # 16-bit PCM
         wavio.write(fname[:-4] + '.wav', audio, target_fs, sampwidth=2)
 
 #### Background Noise Augmentation ####
+
+def sample_SNR(n, snr_range=(6, 24)):
+    """ Sample n uniformly random SNRs (dB) from snr_range. 
+    
+    Parameters
+    ----------
+        n : int
+            Number of samples to sample.
+        
+        snr_range : tuple (float)
+            SNR range in dB. (min, max)
+    """
+
+    assert snr_range[0] <= snr_range[1], 'snr_range should be (min, max)'
+
+    # Random SNR for each sample in the batch
+    min_snr, max_snr = snr_range
+    snr = np.random.rand(n) * (max_snr - min_snr) + min_snr
+
+    return snr
 
 def background_mix(x, x_bg, snr_db):
     """
@@ -258,7 +479,7 @@ def background_mix(x, x_bg, snr_db):
     def _RMS_amplitude(x):
         return np.sqrt(np.mean(x**2))
 
-    assert len(x) == len(x_bg), 'x and x_bg should have the same length.'
+    assert len(x) == len(x_bg), f'x=({len(x)}) and x_bg=({len(x_bg)}) should have the same length.'
 
     # Get the RMS Amplitude for each signal
     rms_bg = _RMS_amplitude(x_bg)
@@ -301,7 +522,7 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
             SNR range in dB. (min, max)
     """
 
-    assert snr_range[0] < snr_range[1], 'snr_range should be (min, max)'
+    assert snr_range[0] <= snr_range[1], 'snr_range should be (min, max)'
     assert event_batch.shape == bg_batch.shape, \
         'event_batch and bg_batch should have the same shape.'
 
@@ -309,9 +530,8 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
     X_bg_mix = np.zeros((event_batch.shape[0], event_batch.shape[1]))
 
     # Random SNR for each sample in the batch
-    min_snr, max_snr = snr_range
-    snrs = np.random.rand(len(event_batch))
-    snrs = snrs * (max_snr - min_snr) + min_snr
+    snrs = sample_SNR(n=event_batch.shape[0], 
+                      snr_range=snr_range)
 
     # Mix each element with random SNR
     for i in range(len(event_batch)):
@@ -323,10 +543,9 @@ def bg_mix_batch(event_batch, bg_batch, snr_range=(6, 24)):
 
 #### Room IR Augmentation ####
 
-# TODO: does len(x) need to be longer than len(x_ir)?
-def ir_aug(x, x_ir):
+def ir_aug(x, x_ir, normalize=True):
     """ Augment input signal with impulse response. The returned signal
-    has the same length as x and is max-normalized."""
+    has the same length as x. If specified the output is max-normalized."""
 
     assert len(x) > 0, 'x should not be empty.'
     assert len(x_ir) > 0, 'x_ir should not be empty.'
@@ -334,11 +553,12 @@ def ir_aug(x, x_ir):
 
     # Convolve with impulse response
     x_aug = convolve(x, x_ir, mode='same', method='fft')
-    x_aug = max_normalize(x_aug)
+    if normalize:
+        x_aug = max_normalize(x_aug)
 
     return x_aug
 
-def ir_aug_batch(event_batch, ir_batch):
+def ir_aug_batch(event_batch, ir_batch, normalize=True):
     """ Augment a batch of events with a batch of impulse responses. """
 
     n_batch = len(event_batch)
@@ -347,7 +567,7 @@ def ir_aug_batch(event_batch, ir_batch):
     for i in range(n_batch):
         x = event_batch[i]
         x_ir = ir_batch[i]
-        x_aug = ir_aug(x, x_ir)
+        x_aug = ir_aug(x, x_ir, normalize=normalize)
         X_ir_aug[i] = x_aug
 
     return X_ir_aug
