@@ -42,7 +42,7 @@ class ExperimentHelper():
             optimizer,
             model_to_checkpoint,
             best_loss="val_loss",
-            max_to_keep=10,
+            max_to_keep=5,
             cfg=dict()):
         """
 
