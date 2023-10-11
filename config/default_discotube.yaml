@@ -54,7 +54,7 @@ TRAIN:
                         # fingerprint.
     # Hyperparameters
     MAX_EPOCH : 100
-    BATCH_SZ : 384 # Training batch size N must be EVEN number. 
+    BATCH_SZ : 128 # Training batch size N must be EVEN number. 
                     # Half of the batch is used for positive pairs 
                     # and the other half for anchor pairs.
     LOSS:
