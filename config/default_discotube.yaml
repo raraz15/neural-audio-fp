@@ -132,4 +132,4 @@ TEST:
 # Device setup
 DEVICE:
     CPU_N_WORKERS : 8 # 4 for minimal system. 8 is recommended.
-    CPU_MAX_QUEUE : 10 # 10 for minimal system. 20 is recommended.
+    CPU_MAX_QUEUE : 14 # 10 for minimal system. 20 is recommended.
