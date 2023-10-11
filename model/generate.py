@@ -10,6 +10,7 @@ import sys
 import numpy as np
 
 import tensorflow as tf
+from tensorflow.keras.mixed_precision.experimental import Policy, set_policy
 from tensorflow.keras.utils import Progbar
 
 from model.dataset import Dataset
@@ -97,6 +98,7 @@ def generate_fingerprint(cfg: dict,
                          source_root_dir: str ="",
                          output_root_dir: str="",
                          skip_dummy: bool=False,
+                         mixed_precision=False
                          ):
     """ Generate fingerprints from a trained model checkpoint.
 
@@ -118,6 +120,9 @@ def generate_fingerprint(cfg: dict,
         If not specified, load from the default directory specified in the config file.
     skip_dummy : bool, optional
         Whether generating the skip dummy_db. (default: False)
+    mixed_precision : bool, optional
+        Whether to use mixed precision. (default: False)
+        If True, use mixed precision for faster processing.
 
     After run, the output (generated fingerprints) directory will be:
       .
@@ -125,8 +130,12 @@ def generate_fingerprint(cfg: dict,
             └── emb
                 └── checkpoint_name
                     └── checkpoint_index
-                        ├── custom.mm
-                        ├── custom_shape.npy
+                     ├── db.mm
+                     ├── db_shape.npy
+                     ├── dummy_db.mm
+                     ├── dummy_db_shape.npy
+                     ├── query.mm
+                     └── query_shape.npy
     """
 
     # Get information from the config file
@@ -134,6 +143,16 @@ def generate_fingerprint(cfg: dict,
     log_root_dir = cfg['MODEL']['LOG_ROOT_DIR'] # Can be overwritten by the arguments
     dim = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
     bsz = cfg['TEST']['BATCH_SZ']
+
+    # Set mixed precision
+    if mixed_precision:
+        set_policy(Policy('mixed_float16'))
+        print('Mixed precision enabled.')
+
+    # Set mixed precision
+    if mixed_precision:
+        set_policy(Policy('mixed_float16'))
+        print('Mixed precision enabled.')
 
     # Build the model checkpoint
     m_fp = get_fingerprinter(cfg, trainable=False)
@@ -146,6 +165,20 @@ def generate_fingerprint(cfg: dict,
     checkpoint_index = get_checkpoint_index_and_restore_model(m_fp, 
                                                             checkpoint_dir, 
                                                             checkpoint_index)
+
+    # Choose the output directory
+    if not output_root_dir:
+        output_root_dir = log_root_dir + "emb/"
+    # Here the checkpoint_type does not matter because checkpoint_index is specified.
+    output_dir = output_root_dir + f'{checkpoint_name}/{checkpoint_index}/'
+    # Write the precision type of the inference
+    if mixed_precision:
+        output_dir += 'mixed_precision/'
+    else:
+        output_dir += 'float32/'
+    os.makedirs(output_dir, exist_ok=True)
+    if not skip_dummy:
+        prevent_overwrite('dummy_db', output_dir+'dummy_db.mm')
 
     # Get data source
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """

@@ -52,6 +52,7 @@ TRAIN:
     BATCH_SZ : 384  # Training batch size N must be EVEN number. 
                     # Half of the batch is used for positive pairs 
                     # and the other half for anchor pairs.
+    MIXED_PRECISION: True
     LOSS:
         LOSS_MODE : 'NTxent' # 'NTxent'(default) or 'Online-Triplet'(now-playing). 
         TAU : 0.05 # **NTXENT ONLY** temperature parameter 0. < TAU < 1. 

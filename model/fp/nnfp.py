@@ -193,7 +193,8 @@ class FingerPrinter(tf.keras.Model):
                                 [(1,1), (2,1)], [(1,2), (2,1)]],
                  emb_sz=128, # q
                  fc_unit_dim=[32,1],
-                 norm='layer_norm2d'):
+                 norm='layer_norm2d',
+                 mixed_precision=False):
         super(FingerPrinter, self).__init__()
 
         assert len(front_hidden_ch) == len(front_strides), \
@@ -203,6 +204,7 @@ class FingerPrinter(tf.keras.Model):
         self.front_strides = front_strides
         self.emb_sz = emb_sz
         self.norm = norm
+        self.mixed_precision = mixed_precision
 
         # Front (sep-)conv layers
         self.n_clayers = len(front_strides)
@@ -220,10 +222,21 @@ class FingerPrinter(tf.keras.Model):
 
     @tf.function
     def call(self, inputs):
-        """ Input: (B,F,T,1)"""
+        """  Input: (B,F,T,1)
+            Output: (B,Q)
+        """
 
+        # Main processing blocks
         x = self.front_conv(inputs) # (B,D) with D = (T/2^4) x last_hidden_ch
         x = self.div_enc(x) # (B,Q)
+
+        # Convert the output to float32 for:
+        #   1) avoiding underflow at l2_normalize
+        #   2) avoiding underflow at loss calculation
+        if self.mixed_precision:
+            x = tf.keras.layers.Activation('linear', dtype='float32')(x)
+
+        # L2-normalization of the final embedding
         x = tf.math.l2_normalize(x, axis=1)
 
         return x
@@ -246,10 +259,12 @@ def get_fingerprinter(cfg, trainable=False):
     emb_sz = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
     norm = cfg['MODEL']['ARCHITECTURE']['BN']
     fc_unit_dim = [32, 1] # TODO: configurable
+    mixed_precision = cfg['TRAIN']['MIXED_PRECISION'] # TODO: TRAINING or MODEL?
 
     m = FingerPrinter(emb_sz=emb_sz,
                       fc_unit_dim=fc_unit_dim,
-                      norm=norm)
+                      norm=norm,
+                      mixed_precision=mixed_precision)
     m.trainable = trainable
 
     return m

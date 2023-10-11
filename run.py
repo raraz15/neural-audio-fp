@@ -89,7 +89,10 @@ def train(config_path, max_epoch, deterministic):
               "will be stored. Default is OUTPUT_ROOT_DIR/CHECKPOINT_NAME defined in config.")
 @click.option('--skip_dummy', default=False, is_flag=True, 
               help='Exclude dummy-DB from the default source.')
-def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_root, skip_dummy):
+@click.option('--mixed_precision', default=False, is_flag=True,
+              help='Use mixed precision during inference. The fingerprint ' +
+              'will be saved in FP32 in both cases.')
+def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_root, skip_dummy, mixed_precision):
     """ Generate fingerprints from a saved checkpoint.
 
     ex) python run.py generate CONFIG_PATH
@@ -123,7 +126,8 @@ def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_
                          checkpoint_index=checkpoint_index,
                          source_root_dir=source_root,
                          output_root_dir=output_root,
-                         skip_dummy=skip_dummy)
+                         skip_dummy=skip_dummy, 
+                         mixed_precision=mixed_precision)
 
 """ Search and evalutation """
 @cli.command()

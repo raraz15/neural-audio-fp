@@ -9,6 +9,7 @@ import os
 
 import tensorflow as tf
 from tensorflow.keras.experimental import CosineDecay, CosineDecayRestarts
+from tensorflow.keras.mixed_precision.experimental import Policy, set_policy, LossScaleOptimizer
 from tensorflow.keras.utils import Progbar
 
 from model.dataset import Dataset
@@ -45,6 +46,11 @@ def build_fp(cfg):
     m_specaug = get_specaug_chain_layer(cfg, trainable=False)
     assert(m_specaug.bypass==False) # Detachable by setting m_specaug.bypass.
 
+    # Enable mixed precision after specaug is built.
+    if cfg["TRAIN"]["MIXED_PRECISION"]:
+        set_policy(Policy('mixed_float16'))
+        print('Mixed precision enabled.')
+
     # m_fp: fingerprinter g(f(.)).
     m_fp = get_fingerprinter(cfg, trainable=False)
 
@@ -76,7 +82,13 @@ def train_step(X, m_specaug, m_fp, loss_obj, helper):
         emb = m_fp(feat) # (BSZ, Dim)
         loss, sim_mtx, _ = loss_obj.compute_loss(emb[:n_anchors, :], 
                                                  emb[n_anchors:, :]) # {emb_org, emb_rep}
-    g = t.gradient(loss, m_fp.trainable_variables)
+        if m_fp.mixed_precision:
+            scaled_loss = helper.optimizer.get_scaled_loss(loss)
+    if m_fp.mixed_precision:
+        scaled_g = t.gradient(scaled_loss, m_fp.trainable_variables)
+        g = helper.optimizer.get_unscaled_gradients(scaled_g)
+    else:
+        g = t.gradient(loss, m_fp.trainable_variables)
     helper.optimizer.apply_gradients(zip(g, m_fp.trainable_variables))
     avg_loss = helper.update_tr_loss(loss) # To tensorboard
     return avg_loss, sim_mtx
@@ -95,6 +107,7 @@ def val_step(X, m_fp, loss_obj, helper):
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
+# TODO: mixed_precision
 @tf.function
 def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
@@ -173,6 +186,8 @@ def trainer(cfg):
         opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule) # type: ignore
     else:
         raise NotImplementedError(cfg['TRAIN']['OPTIMIZER'])
+    if cfg['TRAIN']['MIXED_PRECISION']:
+        opt = LossScaleOptimizer(opt, loss_scale='dynamic')
 
     # Experiment helper: see utils.experiment_helper.py for details.
     helper = ExperimentHelper(
