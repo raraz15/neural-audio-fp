@@ -364,117 +364,6 @@ class Dataset:
         else:
             raise ValueError("Invalid validation tracks directory.")
 
-    # TODO make dummy again
-    def get_test_noise_ds(self):
-        """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.
-        Supports both discotube and nafp datasets. The folder structure 
-        should be as follows:
-            self.ts_noise_tracks_dir/
-                dir0/
-                    track1.wav
-                    track2.wav
-                    ...
-                dir1/
-                    track1.wav
-                    track2.wav
-                    ...
-                ...
-
-        Returns:
-        --------
-            ds_dummy_db : genUnbalSequenceGeneration
-                The dataset for test-dummy-DB.
-        """
-
-        print(f"Creating the test-dummy-DB dataset (noise tracks)...")
-
-        # Find the noise tracks and their segments
-        self.ts_noise_paths = sorted(
-            glob.glob(self.ts_noise_tracks_dir+ '/**/*.wav', 
-                    recursive=True))
-        assert len(self.ts_noise_paths)>0, "No noise tracks found."
-        print(f"{len(self.ts_noise_paths):,} noise tracks found.")
-
-        return GenerationLoader(
-            track_paths=self.ts_noise_paths,
-            segment_duration=self.segment_duration,
-            hop_duration=self.ts_segment_hop,
-            fs=self.fs,
-            n_fft=self.n_fft,
-            stft_hop=self.stft_hop,
-            n_mels=self.n_mels,
-            f_min=self.fmin,
-            f_max=self.fmax,
-            scale_output=self.scale_inputs,
-            bsz=self.ts_batch_sz,
-            )
-
-    def get_test_query_ds(self):
-        """ Create 2 databases for query segments. One of them is the augmented 
-        version of the clean queries. If the config does not specify a folder for
-        augmented queries, then the clean queries are augmented in real time.
-        Supports both discotube and nafp datasets. Query tracks folders structure 
-        should be as follows:
-            self.ts_clean_query_tracks_dir/
-                dir0/
-                    track1.wav
-                    track2.wav
-                    ...
-                dir1/
-                    track1.wav
-                    track2.wav
-                    ...
-                ...
-
-        Returns
-        -------
-            (ds_query, ds_db)
-                ds_query is the augmented version of the clean queries.
-                ds_db is the clean queries without augmentation.
-
-        """
-
-        print("Creating the clean query dataset...")
-
-        # Find the clean query tracks and their segments
-        self.ts_query_clean = sorted(
-                glob.glob(self.ts_clean_query_tracks_dir + '/**/*.wav', 
-                        recursive=True))
-        assert len(self.ts_query_clean)>0, "No clean query tracks found."
-        print(f"{len(self.ts_query_clean):,} clean query tracks found.")
-
-        #     _query_ts_batch_sz = self.ts_batch_sz * 2
-        #     _query_ts_n_anchor = self.ts_batch_sz
-        #     ds_query = genUnbalSequence(
-        #         track_paths=self.ts_query_db_unseen_fps,
-        #         bsz=_query_ts_batch_sz,
-        #         n_anchor=_query_ts_n_anchor,
-        #         duration=self.dur,
-        #         hop=self.hop,
-        #         fs=self.fs,
-        #         normalize_audio=self.normalize_audio,
-        #         shuffle=False,
-        #         random_offset_anchor=False,
-        #         bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_snr],
-        #         ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps],
-        #         drop_the_last_non_full_batch=False)
-
-        #     _db_ts_n_anchor = self.ts_batch_sz
-        #     ds_db = genUnbalSequence(
-        #         track_paths=self.ts_query_db_unseen_fps,
-        #         bsz=self.ts_batch_sz,
-        #         n_anchor=_db_ts_n_anchor,
-        #         duration=self.dur,
-        #         hop=self.hop,
-        #         fs=self.fs,
-        #         normalize_audio=self.normalize_audio,
-        #         shuffle=False,
-        #         random_offset_anchor=False,
-        #         drop_the_last_non_full_batch=False)
-        #     return ds_query, ds_db
-        else:
-            raise NotImplementedError(self.datasel_test_query_db)
-
     def get_custom_db_ds(self, source: str, isdir):
         """ Construct DB (or query) from custom source files. """
         if isdir is True:
@@ -486,15 +375,17 @@ class Dataset:
                     fps.append(l.split('\n')[0])
             fps = sorted(fps)
 
-        ds =  genUnbalSequenceGeneration(
+        ds =  GenerationLoader(
             track_paths=fps,
-            bsz=self.ts_batch_sz, # Only anchors
-            duration=self.dur,
-            hop=self.hop,
+            segment_duration=self.segment_duration,
+            hop_duration=self.ts_segment_hop,
             fs=self.fs,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
-            f_max=self.fmax) # No augmentations, No drop-samples.
+            f_max=self.fmax,
+            scale_output=self.scale_inputs,
+            bsz=self.ts_batch_sz,
+            ) # No augmentations, No drop-samples.
         return ds

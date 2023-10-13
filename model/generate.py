@@ -103,10 +103,10 @@ def generate_fingerprint(cfg,
     if not output_root_dir:
         output_root_dir = log_root_dir + "emb/"
     # Here the checkpoint_type does not matter because checkpoint_index is specified.
-    output_root_dir = os.path.join(output_root_dir, checkpoint_name, checkpoint_index)
+    output_dir = os.path.join(output_root_dir, checkpoint_name, checkpoint_index)
     os.makedirs(output_root_dir, exist_ok=True)
     if not skip_dummy:
-        prevent_overwrite('dummy_db', output_dir+'dummy_db.mm')
+        prevent_overwrite('dummy_db', os.path.join(output_dir, 'dummy_db.mm'))
 
     # Get data source
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
@@ -186,14 +186,10 @@ def generate_fingerprint(cfg,
             emb = m_fp(Xa)
             # Write to disk. We must know the shape of the emb in advance
             arr[i*bsz : (i+1)*bsz, :] = emb.numpy()
-            boundaries.append((i+1)*bsz) # Save the boundaries of each track
             i += 1
         progbar.update(i, finalize=True)
         enq.stop()
         # End of Parallelism--------------------------------------------
-
-        # Write the boundaries to disk
-        np.save(f"{output_dir}/{key}_boundaries.npy", boundaries)
 
         tf.print(f'=== Succesfully stored {len(arr)} fingerprints to {output_dir} ===')
         sz_check[key] = len(arr)
