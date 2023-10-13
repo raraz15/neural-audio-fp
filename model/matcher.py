@@ -8,13 +8,16 @@ import intervaltree
 class Matcher:
     """Class that acts as a manager to perform query - references match.
     """
-    def __init__(self, cfg, index, references_segments):
-        self.chunk_length = cfg['MATCHER']['CHUNK_LENGTH']
-        self.index_nn = cfg['MATCHER']['INDEX_NN']
-        self.threshold = cfg['MATCHER']['THRESHOLD']
-        self.segment_length = cfg['MODEL']['DUR']  # in seconds
-        self.segment_hop = cfg['MODEL']['HOP']  # in seconds
-        self.overlap = cfg['MATCHER']['OVERLAP']
+    def __init__(self, index, references_segments):
+
+        # OGUZ: I fix these parameters for now. If you need to change them, you can change them in the code.
+        self.chunk_length = 9
+        self.index_nn = 5
+        self.threshold = 0.65
+        self.segment_length = 1.  # in seconds
+        self.segment_hop = 0.5  # in seconds
+        self.overlap = 7
+
         self.chunk_hopsize = self.chunk_length * self.segment_hop
         self.references_segments = references_segments
         self.index = index

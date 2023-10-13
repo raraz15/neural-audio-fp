@@ -4,7 +4,7 @@ import numpy as np
 import faiss
 
 
-def create_index(path_data, path_shape, index_path, cfg):
+def create_index(path_data, path_shape, index_path):
     """ Create Faiss index.
     While Using IVF-PQ index if no enough training data --> try smaller code_sz and n_centroids
         code_sz power of 2
@@ -15,11 +15,13 @@ def create_index(path_data, path_shape, index_path, cfg):
     Default values:
         index_type='ivfpq', n_centroids=256, code_sz=64, nbits=8, nprobe=40
     """
-    index_type = cfg['INDEX']['INDEX_TYPE']
-    n_centroids = cfg['INDEX']['N_CENTROIDS']
-    code_sz = cfg['INDEX']['CODE_SZ']
-    nbits = cfg['INDEX']['NBITS']
-    nprobe = cfg['INDEX']['NPROBE']
+    # Oguz: I fix them for now to have a unified config file.
+    index_type = 'ivfpq'
+    n_centroids = 256
+    code_sz = 64
+    nbits = 8
+    nprobe = 40
+
     data_shape = np.load(path_shape)
     emb_dim = int(data_shape[1]) # Fingerprint dimension
     data = np.memmap(path_data, dtype='float32', mode='r+',

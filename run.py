@@ -134,25 +134,22 @@ def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, source,
 @click.argument('path_data', required=True)
 @click.argument('path_shape', required=True)
 @click.argument('index_path', required=True)
-@click.option('--config', '-c', default='default', required=False,
-              type=click.STRING,
-              help="Path of the model configuration file located in 'config/'." +
-              " Default is 'default'")
-def index(path_data, path_shape, index_path, config):
+def index(path_data, path_shape, index_path):
     """ Create FAISS index from fingerprint memap file.
-    ex) python run.py index PATH_DATA PATH_SHAPE INDEX_PATH -c CONFIG
+    ex) python run.py index PATH_DATA PATH_SHAPE INDEX_PATH
     args:
         PATH_DATA: Path of the fp embeddings memap file.
         PATH_SHAPE: Path of the fp embeddings shape npy file.
         INDEX_PATH: Path where the index will be stored.
-        CONFIG: Config file path
+    
+    Notes:
+        OGUZ: If you need to change the index type or other parameters you can change it in the code.
     """
     from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
     from model.create_index import create_index
 
-    cfg = load_config(config)
     allow_gpu_memory_growth()
-    create_index(path_data, path_shape, index_path, cfg)
+    create_index(path_data, path_shape, index_path)
 
 # match
 @cli.command()
@@ -160,30 +157,23 @@ def index(path_data, path_shape, index_path, config):
 @click.argument('query_fp_path', required=True)
 @click.argument('refs_fp_path', required=True)
 @click.argument('index_path', required=True)
-@click.option('--config', '-c', default='default', required=False,
-              type=click.STRING,
-              help="Path of the model configuration file located in 'config/' ." +
-              " Default is 'default'")
 @click.option('--extension', '-e', default='.mp3', required=False,
               type=click.STRING,
               help="Extension of the original audios.")
-def match(query_bname, query_fp_path, refs_fp_path, index_path, config,
-          extension):
+def match(query_bname, query_fp_path, refs_fp_path, index_path, extension):
     """ Create FAISS index from fingerprint memap file.
-    ex) python run.py match QUERY_BNAME QUERY_FP_PATH REFS_FP_PATH INDEX_PATH -c CONFIG -e EXTENSION
+    ex) python run.py match QUERY_BNAME QUERY_FP_PATH REFS_FP_PATH INDEX_PATH -e EXTENSION
     args:
         QUERY_BNAME: Audio file basename (without dir)
         QUERY_FP_PATH: Path of the query fp embedding npy file.
         REFS_FP_PATH: Path of the references fp embeddings memap file.
         INDEX_PATH: Path where the index will be stored.
-        CONFIG: Config file path
         EXTENSION: Refs extension
     """
     from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
     from model.matcher import Matcher
     from eval.eval_faiss import load_memmap_data
 
-    cfg = load_config(config)
     allow_gpu_memory_growth()
 
     refs_segments_path = os.path.join(
@@ -197,7 +187,7 @@ def match(query_bname, query_fp_path, refs_fp_path, index_path, config,
         append_extra_length=None,
         shape_only=False,
         display=False)
-    matcher = Matcher(cfg, index, references_segments)
+    matcher = Matcher(index, references_segments)
     formatted_matches = matcher.match(query, references_fp)
     print('"Query","Query begin time","Query end time","Reference",'
         '"Reference begin time","Reference end time","Confidence"')
