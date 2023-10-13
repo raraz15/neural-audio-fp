@@ -59,7 +59,7 @@ TRAIN:
     OPTIMIZER : 'Adam' # 'LAMB' or 'Adam'. LAMB for BSZ >= 240
     LR:
         INITIAL_RATE: 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
-        SCHEDULE : 'cos' # ['cos', 'cos-restart', 'None'].
+        SCHEDULE : 'none' # ['cos', 'cos-restart', 'None'].
         ALPHA : 1e-6 # Minimum learning rate value for decay as a fraction of INITIAL_RATE.
     # Augmentation parameters
     AUG:
