@@ -8,13 +8,13 @@ import numpy as np
 import os
 
 import tensorflow as tf
+from tensorflow.keras.experimental import CosineDecay, CosineDecayRestarts
 from tensorflow.keras.utils import Progbar
 
 from model.dataset import Dataset
 from model.fp.specaug_chain.specaug_chain import get_specaug_chain_layer
 from model.fp.nnfp import get_fingerprinter
 from model.fp.NTxent_loss_single_gpu import NTxentLoss
-from model.fp.online_triplet_loss import OnlineTripletLoss
 from model.fp.lamb_optimizer import LAMB
 from model.utils.experiment_helper import ExperimentHelper
 from model.utils.mini_search_subroutines import mini_search_eval
@@ -32,7 +32,8 @@ def set_seed(seed: int = SEED):
     print(f"Random seed set as {seed}")
 
 def set_global_determinism():
-    # When running on the CuDNN backend, two further options must be set
+    """ When running on the CuDNN backend, two further options must be set"""
+
     os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
     os.environ['TF_DETERMINISTIC_OPS'] = '1'
     print("Global determinism set")
@@ -51,10 +52,21 @@ def build_fp(cfg):
 
 @tf.function
 def train_step(X, m_specaug, m_fp, loss_obj, helper):
-    # X: (Xa, Xp)
-    # Xa: anchors or originals, s.t. [xa_0, xa_1,...]
-    # Xp: augmented replicas, s.t. [xp_0, xp_1] with xp_n = rand_aug(xa_n).
-    # avg_loss: The cumulative average loss until current step within the current epoch.
+    """ Training step
+
+    Parameters
+    ----------
+        X: (Xa, Xp)
+        Xa: anchors or originals, s.t. [xa_0, xa_1,...]
+        Xp: augmented replicas, s.t. [xp_0, xp_1] with xp_n = rand_aug(xa_n).
+
+    Returns
+    -------
+        avg_loss: The cumulative average loss until current 
+            step within the current epoch.
+        sim_mtx: Similarity matrix, used for tensorboard visualization.
+
+    """
 
     n_anchors = len(X[0])
     X = tf.concat(X, axis=0)
@@ -67,7 +79,7 @@ def train_step(X, m_specaug, m_fp, loss_obj, helper):
     g = t.gradient(loss, m_fp.trainable_variables)
     helper.optimizer.apply_gradients(zip(g, m_fp.trainable_variables))
     avg_loss = helper.update_tr_loss(loss) # To tensorboard
-    return avg_loss, sim_mtx # avg_loss: average within the current epoch
+    return avg_loss, sim_mtx
 
 @tf.function
 def val_step(X, m_fp, loss_obj, helper):
@@ -83,14 +95,13 @@ def val_step(X, m_fp, loss_obj, helper):
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
-# TODO: return only l2(gf)
 @tf.function
 def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
-    X = tf.concat(X, axis=0)
-    feat = X  # (nA+nP, F, T, 1)
+
+    X = tf.concat(X, axis=0) # (nA+nP, F, T, 1)
     m_fp.trainable = False
-    emb_f = m_fp.front_conv(feat)  # (BSZ, Dim)
+    emb_f = m_fp.front_conv(X)  # (BSZ, Dim)
     emb_f_postL2 = tf.math.l2_normalize(emb_f, axis=1)
     emb_gf = m_fp.div_enc(emb_f)
     emb_gf = tf.math.l2_normalize(emb_gf, axis=1)
@@ -128,38 +139,38 @@ def mini_search_validation(ds, m_fp, mode='argmin',
 
 def trainer(cfg, checkpoint_name):
 
-    # Dataloader
-    dataset = Dataset(cfg)
-
     # Initialize the datasets
     tf.print('-----------Initializing the datasets-----------')
-    train_ds = dataset.get_train_ds(cfg['DATA_SEL']['REDUCE_ITEMS_P'])
-    val_ds = dataset.get_val_ds()
+    dataset = Dataset(cfg)
+
+    train_ds = dataset.get_train_ds(cfg['TRAIN']['REDUCE_ITEMS_P'])
+    val_ds = dataset.get_val_ds(cfg['TRAIN']['REDUCE_ITEMS_P'])
 
     # Build models.
     m_specaug, m_fp = build_fp(cfg)
 
     # Learning schedule
+    # TODO: warmup
     total_nsteps = cfg['TRAIN']['MAX_EPOCH'] * len(train_ds)
-    if cfg['TRAIN']['LR_SCHEDULE'].upper() == 'COS':
-        lr_schedule = tf.keras.experimental.CosineDecay(
-            initial_learning_rate=float(cfg['TRAIN']['LR']),
-            decay_steps=total_nsteps,
-            alpha=1e-06)
-    elif cfg['TRAIN']['LR_SCHEDULE'].upper() == 'COS-RESTART':
-        lr_schedule = tf.keras.experimental.CosineDecayRestarts(
-            initial_learning_rate=float(cfg['TRAIN']['LR']),
-            first_decay_steps=int(total_nsteps * 0.1),
-            num_periods=0.5,
-            alpha=2e-06)
+    if cfg['TRAIN']['LR']['SCHEDULE'].upper() == 'COS':
+        lr_schedule = CosineDecay(
+                    initial_learning_rate=float(cfg['TRAIN']['LR']['INITIAL_RATE']),
+                    decay_steps=total_nsteps,
+                    alpha=float(cfg['TRAIN']['LR']['ALPHA']))
+    elif cfg['TRAIN']['LR']['SCHEDULE'].upper() == 'COS-RESTART':
+        lr_schedule = CosineDecayRestarts(
+            initial_learning_rate=float(cfg['TRAIN']['LR']['INITIAL_RATE']),
+            first_decay_steps=int(total_nsteps * 0.1), # TODO: configurable
+            #num_periods=0.5, # doesnt exist in current tensorflow
+            alpha=float(cfg['TRAIN']['LR']['ALPHA'])) # Default 2e-6
     else:
-        lr_schedule = float(cfg['TRAIN']['LR'])
+        lr_schedule = float(cfg['TRAIN']['LR']['INITIAL_RATE'])
 
     # Optimizer
     if cfg['TRAIN']['OPTIMIZER'].upper() == 'LAMB':
-        opt = LAMB(learning_rate=lr_schedule)
+        opt = LAMB(learning_rate=lr_schedule) # type: ignore
     elif cfg['TRAIN']['OPTIMIZER'].upper() == 'ADAM':
-        opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+        opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule) # type: ignore
     else:
         raise NotImplementedError(cfg['TRAIN']['OPTIMIZER'])
 
@@ -171,28 +182,22 @@ def trainer(cfg, checkpoint_name):
         cfg=cfg)
 
     # Loss objects
-    if cfg['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
+    if cfg['TRAIN']['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
+        n_org = train_ds.n_anchor
+        n_rep = train_ds.n_pos_bsz
         loss_obj_train = NTxentLoss(
-            n_org=cfg['BSZ']['TR_N_ANCHOR'],
-            n_rep=cfg['BSZ']['TR_BATCH_SZ'] - cfg['BSZ']['TR_N_ANCHOR'],
-            tau=cfg['LOSS']['TAU'])
+            n_org=n_org,
+            n_rep=n_rep,
+            tau=cfg['TRAIN']['LOSS']['TAU'])
         loss_obj_val = NTxentLoss(
-            n_org=cfg['BSZ']['VAL_N_ANCHOR'],
-            n_rep=cfg['BSZ']['VAL_BATCH_SZ'] - cfg['BSZ']['VAL_N_ANCHOR'],
-            tau=cfg['LOSS']['TAU'])
-    elif cfg['LOSS']['LOSS_MODE'].upper() == 'ONLINE-TRIPLET': # Now-playing
-        loss_obj_train = OnlineTripletLoss(
-            bsz=cfg['BSZ']['TR_BATCH_SZ'],
-            n_anchor=cfg['BSZ']['TR_N_ANCHOR'],
-            mode = 'semi-hard',
-            margin=cfg['LOSS']['MARGIN'])
-        loss_obj_val = OnlineTripletLoss(
-            bsz=cfg['BSZ']['VAL_BATCH_SZ'],
-            n_anchor=cfg['BSZ']['VAL_N_ANCHOR'],
-            mode = 'all', # use 'all' mode for validation
-            margin=0.)
+            n_org=n_org,
+            n_rep=n_rep,
+            tau=cfg['TRAIN']['LOSS']['TAU'])
     else:
-        raise NotImplementedError(cfg['LOSS']['LOSS_MODE'])
+        raise NotImplementedError(cfg['TRAIN']['LOSS']['LOSS_MODE'])
+
+    # Initialize variables
+    sim_mtx = None
 
     # Training loop
     ep_start = helper.epoch
@@ -209,7 +214,7 @@ def trainer(cfg, checkpoint_name):
         enq = tf.keras.utils.OrderedEnqueuer(train_ds, 
                                             use_multiprocessing=True, 
                                             # We shuffle inside the dataset
-                                            # OrderedEnqueuer calls on_epoch_end
+                                            # OrderedEnqueuer calls train_ds.on_epoch_end()
                                             shuffle=False)
         enq.start(workers=cfg['DEVICE']['CPU_N_WORKERS'],
                   max_queue_size=cfg['DEVICE']['CPU_MAX_QUEUE'])
@@ -226,6 +231,7 @@ def trainer(cfg, checkpoint_name):
             helper.write_image_tensorboard('tr_sim_mtx', sim_mtx.numpy())
 
         # Validate
+        progbar = Progbar(len(val_ds))
         """ Parallelism to speed up preprocessing.............. """
         enq = tf.keras.utils.OrderedEnqueuer(val_ds, 
                                             use_multiprocessing=True, 
@@ -235,7 +241,8 @@ def trainer(cfg, checkpoint_name):
         i = 0
         while i < len(enq.sequence):
             _, _, Xa, Xp = next(enq.get())
-            _, sim_mtx = val_step((Xa, Xp), m_fp, loss_obj_val, helper)
+            avg_loss, sim_mtx = val_step((Xa, Xp), m_fp, loss_obj_val, helper)
+            progbar.add(1, values=[("val loss", avg_loss)])
             i += 1
         enq.stop()
         """ End of Parallelism................................. """

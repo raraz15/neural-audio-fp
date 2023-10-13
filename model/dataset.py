@@ -1,273 +1,447 @@
-# -*- coding: utf-8 -*-
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-""" dataset.py """
-
+import os
 import glob
-from model.utils.dataloader_keras import genUnbalSequence
-from model.utils.generation_dataloader_keras import genUnbalSequenceGeneration
+
+from model.utils.dev_dataloader_keras import SegmentDevLoader, TrackDevLoader
+from model.utils.generation_dataloader_keras import GenerationLoader
 
 class Dataset:
     """
-    Build dataset for train, validation and test.
+    Build datasets for train, validation and test sets.
 
-    USAGE:
+    USAGE
+    -----
         dataset = Dataset(cfg)
         ds_train = dataset.get_train_ds()
         print(ds_train.__getitem__(0))
-
-    ...
+        ...
 
     Attributes
     ----------
-    cfg : dict
-        a dictionary containing configurations
+        cfg : dict
+            a dictionary containing configurations
 
     Public Methods
     --------------
-    get_train_ds()
-    get_val_ds()
-    get_test_dummy_db_ds()
-    get_test_query_db_ds()
-    get_custom_db_ds(source, dir)
+        get_train_ds()
+        get_val_ds()
+        get_test_dummy_db_ds()
+        get_test_query_db_ds()
+        get_custom_db_ds(source_root_dir)
 
     """
 
     def __init__(self, cfg=dict()):
 
-        # Data location
-        self.source_root_dir = cfg['DIR']['SOURCE_ROOT_DIR']
-        self.bg_root_dir = cfg['DIR']['BG_ROOT_DIR'] #!
-        self.ir_root_dir = cfg['DIR']['IR_ROOT_DIR']
-
-        # Data selection
-        self.datasel_train = cfg['DATA_SEL']['TRAIN']
-        self.datasel_test_dummy_db = cfg['DATA_SEL']['TEST_DUMMY_DB']
-        self.datasel_test_query_db = cfg['DATA_SEL']['TEST_QUERY_DB']
-
-        # BSZ
-        self.tr_batch_sz = cfg['BSZ']['TR_BATCH_SZ']
-        self.tr_n_anchor = cfg['BSZ']['TR_N_ANCHOR']
-        self.val_batch_sz = cfg['BSZ']['VAL_BATCH_SZ']
-        self.val_n_anchor = cfg['BSZ']['VAL_N_ANCHOR']
-        self.ts_batch_sz = cfg['BSZ']['TS_BATCH_SZ']
+        self.cfg = cfg
 
         # Model parameters
-        self.normalize_audio = cfg['MODEL']['NORMALIZE_AUDIO']
-        self.dur = cfg['MODEL']['DUR']
-        self.hop = cfg['MODEL']['HOP']
-        self.fs = cfg['MODEL']['FS']
-        self.scale = cfg['MODEL']['SCALE_INPUTS']
-        self.stft_hop = cfg['MODEL']['STFT_HOP']
-        self.n_fft = cfg['MODEL']['STFT_WIN']
-        self.n_mels = cfg['MODEL']['N_MELS']
-        self.fmin = cfg['MODEL']['F_MIN']
-        self.fmax = cfg['MODEL']['F_MAX']
+        self.segment_duration = cfg['MODEL']['AUDIO']['SEGMENT_DUR']
+        self.fs = cfg['MODEL']['AUDIO']['FS']
+        self.stft_hop = cfg['MODEL']['INPUT']['STFT_HOP']
+        self.n_fft = cfg['MODEL']['INPUT']['STFT_WIN']
+        self.n_mels = cfg['MODEL']['INPUT']['N_MELS']
+        self.fmin = cfg['MODEL']['INPUT']['F_MIN']
+        self.fmax = cfg['MODEL']['INPUT']['F_MAX']
+        self.scale_inputs = cfg['MODEL']['INPUT']['SCALE_INPUTS']
 
-        # Time-domain augmentation parameter
-        self.tr_snr = cfg['TD_AUG']['TR_SNR']
-        self.ts_snr = cfg['TD_AUG']['TS_SNR']
-        self.val_snr = cfg['TD_AUG']['VAL_SNR']
-        self.tr_use_bg_aug = cfg['TD_AUG']['TR_BG_AUG']
-        self.ts_use_bg_aug = cfg['TD_AUG']['TS_BG_AUG']
-        self.val_use_bg_aug = cfg['TD_AUG']['VAL_BG_AUG']
-        self.tr_use_ir_aug = cfg['TD_AUG']['TR_IR_AUG']
-        self.ts_use_ir_aug = cfg['TD_AUG']['TS_IR_AUG']
-        self.val_use_ir_aug = cfg['TD_AUG']['VAL_IR_AUG']
+        # Train Parameters
+        self.tr_audio_dir = cfg['TRAIN']['DIR']['TRAIN_ROOT']
 
-        # Pre-load file paths for augmentation
-        self.tr_bg_fps = self.ts_bg_fps = self.val_bg_fps = None
-        self.tr_ir_fps = self.ts_ir_fps = self.val_ir_fps = None
-        self.__set_augmentation_fps()
+        self.tr_segments_per_track = cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK']
+        self.tr_offset_duration = cfg['TRAIN']['AUDIO']["MAX_OFFSET_DUR"]
+        self.tr_batch_sz = cfg['TRAIN']['BATCH_SZ']
 
-        # Source (music) file paths
-        self.tr_source_fps = self.val_source_fps = None
-        self.ts_dummy_db_source_fps = None
-        self.ts_query_icassp_fps = self.ts_db_icassp_fps = None
-        self.ts_query_db_unseen_fps = None
+        self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
+        self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
+        self.tr_bg_snr = cfg['TRAIN']['AUG']['TD']['BG_SNR']
+        self.tr_bg_fps = []
 
-    def __set_augmentation_fps(self):
+        self.tr_ir_root_dir = cfg['TRAIN']['AUG']['TD']['IR_ROOT']
+        self.tr_use_ir_aug = cfg['TRAIN']['AUG']['TD']['IR']
+        self.tr_max_ir_dur = cfg['TRAIN']['AUG']['TD']['IR_MAX_DUR']
+        self.tr_ir_fps = []
+
+        # Validation Parameters
+        self.val_audio_dir = cfg['TRAIN']['DIR']['VAL_ROOT']
+        # We use the same augmentations for train and validation sets
+
+        # Test Parameters
+        self.ts_noise_tracks_dir = cfg['TEST']['DIR']['NOISE_ROOT']
+        self.ts_clean_query_tracks_dir = cfg['TEST']['DIR']['CLEAN_QUERY_ROOT']
+        self.ts_augmented_query_tracks_dir = cfg['TEST']['DIR']['AUGMENTED_QUERY_ROOT']
+
+        self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP']
+        self.ts_batch_sz = cfg['TEST']['BATCH_SZ']
+
+        self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
+        self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
+        self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
+        self.ts_bg_fps = []
+
+        self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
+        self.ts_use_ir_aug = cfg['TEST']['AUG']['TD']['IR']
+        self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
+        self.ts_ir_fps = []
+
+        # Check if the augmented query tracks are provided
+        if self.ts_augmented_query_tracks_dir is not None:
+            assert not (self.ts_use_bg_aug or self.ts_use_ir_aug), \
+                "Augmented query tracks are provided, but augmentation is not enabled."
+
+    def get_train_ds(self, reduce_items_p=100):
+        """ Source (music) file paths for training set. 
+
+        When segmented tracks are used for training the folder structure
+        should be as follows:
+            self.tr_audio_dir/
+                dir0/
+                    track1/
+                        segment1.wav
+                        ...
+                    track2/
+                        segment1.wav
+                        ...
+                    ...
+                dir1/
+                    track1/
+                        segment1.wav
+                        ...
+                    track2/
+                        segment1.wav
+                        ...
+                    ...
+                ...
+
+        If full length tracks are used for training the folder structure
+        should be as follows:
+            self.tr_audio_dir/
+                dir0/
+                    track1.wav
+                    ...
+                dir1/
+                    track1.wav
+                    ...
+                ...
+
+        Parameters
+        ----------
+            reduce_items_p : int (default 100)
+                Reduce the number of items in each track to this percentage.
         """
-        Set file path lists:
 
-            If validation set was not available, we replace it with subset of
-            the trainset.
-        """
+        print("Creating the training dataset...")
 
-        # TODO: Why do they use the same augmentation for train and val?
-        # File lists for Augmentations
+        assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
+
+        # Find the augmentation files
         if self.tr_use_bg_aug:
-            self.tr_bg_fps = sorted(glob.glob(self.bg_root_dir +
-                                              'tr/**/*.wav', recursive=True))
-        if self.ts_use_bg_aug:
-            self.ts_bg_fps = sorted(glob.glob(self.bg_root_dir +
-                                              'ts/**/*.wav', recursive=True))
-        if self.val_use_bg_aug:
-            self.val_bg_fps = sorted(glob.glob(self.bg_root_dir +
-                                               'tr/**/*.wav', recursive=True))
-
+            self.tr_bg_fps = sorted(glob.glob(self.tr_bg_root_dir + "**/*.wav", 
+                                    recursive=True))
+            print(f"tr_bg_fps: {len(self.tr_bg_fps):>6,}")
+            assert len(self.tr_bg_fps)>0, "No background noise found."
         if self.tr_use_ir_aug:
-            self.tr_ir_fps = sorted(
-                glob.glob(self.ir_root_dir + 'tr/**/*.wav', recursive=True))
-        if self.ts_use_ir_aug:
-            self.ts_ir_fps = sorted(
-                glob.glob(self.ir_root_dir + 'ts/**/*.wav', recursive=True))
-        if self.val_use_ir_aug:
-            self.val_ir_fps = sorted(
-                glob.glob(self.ir_root_dir + 'tr/**/*.wav', recursive=True))
+            self.tr_ir_fps = sorted(glob.glob(self.tr_ir_root_dir + "**/*.wav", 
+                                    recursive=True))
+            print(f"tr_ir_fps: {len(self.tr_ir_fps):>6,}")
+            assert len(self.tr_ir_fps)>0, "No impulse response found."
 
-    def get_train_ds(self, reduce_items_p=0):
-        # Source (music) file paths for train set
-        if self.datasel_train == '10k_icassp':
-            _prefix = 'train-10k-30s/'
+        # Determine the dataset
+        if "discotube" in self.tr_audio_dir.lower():
+
+            # Find the tracks and their segments
+            self.tr_source_fps = {}
+            main_dirs = os.listdir(self.tr_audio_dir)
+            for main_dir in main_dirs:
+                track_names = os.listdir(os.path.join(self.tr_audio_dir, main_dir))
+                for track_name in track_names:
+                    track_dir = os.path.join(self.tr_audio_dir, main_dir, track_name)
+                    segment_paths = sorted(glob.glob(track_dir + '/*.wav', recursive=True))
+                    self.tr_source_fps[track_name] = segment_paths
+            assert len(self.tr_source_fps)>0, "No training tracks found."
+            total_segments = sum([len(v) for v in self.tr_source_fps.values()])
+            assert total_segments>0, "No segments found."
+            print(f"{len(self.tr_source_fps):,} tracks found.")
+            print(f"{total_segments:,} segments found.")
+
+            # Reduce the number of items in each track if requested
+            if reduce_items_p<100:
+                print(f"Reducing the number of tracks used to {reduce_items_p}%")
+                self.tr_source_fps = {k: v
+                                    for i,(k,v) in enumerate(self.tr_source_fps.items())
+                                    if i < int(len(self.tr_source_fps)*reduce_items_p/100)}
+                print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
+                total_segments = sum([len(v) for v in self.tr_source_fps.values()])
+                print(f"Reduced to {total_segments:,} segments.")
+
+            return SegmentDevLoader(
+                segment_dict=self.tr_source_fps,
+                segment_duration=self.segment_duration,
+                full_segment_duration=self.cfg['TRAIN']['AUDIO']['INPUT_AUDIO_DUR'],
+                fs=self.fs,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax,
+                scale_output=self.scale_inputs,
+                segments_per_track=self.tr_segments_per_track,
+                bsz=self.tr_batch_sz,
+                shuffle=True,
+                random_offset_anchor=True,
+                offset_duration=self.tr_offset_duration,
+                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
+                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+
+        # If the training tracks are from the NAFP FMA dataset
+        elif "music" in self.tr_audio_dir.lower():
+
+            # Find the wav tracks 
+            self.tr_source_fps = sorted(
+                glob.glob(self.tr_audio_dir + "**/*.wav", recursive=True))
+            assert len(self.tr_source_fps)>0, "No training tracks found."
+            print(f"{len(self.tr_source_fps):,} tracks found.")
+
+            # Reduce the total number of tracks if requested
+            if reduce_items_p<100:
+                print(f"Reducing the number of tracks used to {reduce_items_p}%")
+                self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
+                print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
+
+            return TrackDevLoader(
+                track_paths=self.tr_source_fps,
+                segment_duration=self.segment_duration,
+                hop_duration=self.cfg['TRAIN']['AUDIO']['SEGMENT_HOP_DUR'],
+                fs=self.fs,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax,
+                scale_output=self.scale_inputs,
+                segments_per_track=self.tr_segments_per_track,
+                bsz=self.tr_batch_sz,
+                shuffle=True,
+                random_offset_anchor=True,
+                offset_duration=self.tr_offset_duration,
+                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
+                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+
         else:
-            raise NotImplementedError(self.datasel_train)
-        self.tr_source_fps = sorted(
-            glob.glob(self.source_root_dir + _prefix + '**/*.wav',
-                      recursive=True))
+            raise ValueError("Invalid training tracks directory.")
 
-        return genUnbalSequence(
-            track_paths=self.tr_source_fps,
-            bsz=self.tr_batch_sz,
-            n_anchor=self.tr_n_anchor, #ex) bsz=40, n_anchor=8: 4 positive samples per anchor
-            duration=self.dur,  # duration in seconds
-            hop=self.hop,
+    def get_val_ds(self, reduce_items_p=100):
+        """ Source (music) file paths for validation set. 
+
+        When segmented tracks are used for training the folder structure
+        should be as follows:
+            self.val_audio_dir/
+                dir0/
+                    track1/
+                        segment1.wav
+                        ...
+                    track2/
+                        segment1.wav
+                        ...
+                    ...
+                dir1/
+                    track1/
+                        segment1.wav
+                        ...
+                    track2/
+                        segment1.wav
+                        ...
+                    ...
+                ...
+
+        If full length tracks are used for training the folder structure
+        should be as follows:
+            self.val_audio_dir/
+                dir0/
+                    track1.wav
+                    ...
+                dir1/
+                    track1.wav
+                    ...
+                ...        
+
+        Parameters
+        ----------
+            reduce_items_p : int (default 100)
+                Reduce the number of items in each track to this percentage.
+
+        """
+
+        print(f"Creating the validation dataset...")
+
+        assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
+
+        # Find the augmentation files
+        if self.tr_use_bg_aug:
+            print(f"val_bg_fps: {len(self.tr_bg_fps):>6,} (Same as the training set)")
+        if self.tr_use_ir_aug:
+            print(f"val_ir_fps: {len(self.tr_ir_fps):>6,} (Same as the training set)")
+
+        # Determine the dataset
+        if "discotube" in self.val_audio_dir.lower():
+
+            # Find the tracks and their segments
+            self.val_source_fps = {}
+            main_dirs = os.listdir(self.val_audio_dir)
+            for main_dir in main_dirs:
+                track_names = os.listdir(os.path.join(self.val_audio_dir, main_dir))
+                for track_name in track_names:
+                    track_dir = os.path.join(self.val_audio_dir, main_dir, track_name)
+                    segment_paths = sorted(glob.glob(track_dir + '/*.wav', recursive=True))
+                    self.val_source_fps[track_name] = segment_paths
+            assert len(self.val_source_fps)>0, "No validation tracks found."
+            total_segments = sum([len(v) for v in self.val_source_fps.values()])
+            assert total_segments>0, "No segments found."
+            print(f"{len(self.val_source_fps):,} tracks found.")
+            print(f"{total_segments:,} segments found.")
+
+            # Reduce the number of items in each track if requested
+            if reduce_items_p<100:
+                print(f"Reducing the number of tracks used to {reduce_items_p}%")
+                self.val_source_fps = {k: v
+                                    for i,(k,v) in enumerate(self.val_source_fps.items())
+                                    if i < int(len(self.val_source_fps)*reduce_items_p/100)}
+                print(f"Reduced to {len(self.val_source_fps):,} tracks.")
+                total_segments = sum([len(v) for v in self.val_source_fps.values()])
+                print(f"Reduced to {total_segments:,} segments.")
+
+            return SegmentDevLoader(
+                segment_dict=self.val_source_fps,
+                segment_duration=self.segment_duration,
+                full_segment_duration=self.cfg['TRAIN']['AUDIO']['INPUT_AUDIO_DUR'],
+                fs=self.fs,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax,
+                segments_per_track=self.tr_segments_per_track,
+                scale_output=self.scale_inputs,
+                bsz=self.tr_batch_sz,
+                shuffle=False,
+                random_offset_anchor=True,
+                offset_duration=self.tr_offset_duration, # Same as the training set
+                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
+                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+
+        # If the validation tracks are from the NAFP FMA dataset
+        elif "music" in self.val_audio_dir.lower():
+
+            # Find the wav tracks
+            self.val_source_fps = sorted(
+                glob.glob(self.val_audio_dir + '**/*.wav', recursive=True))
+            assert len(self.val_source_fps)>0, "No validation tracks found."
+            print(f"{len(self.val_source_fps):,} tracks found.")
+
+            # Reduce the total number of tracks if requested
+            if reduce_items_p<100:
+                print(f"Reducing the number of tracks used to {reduce_items_p}%")
+                self.val_source_fps = self.val_source_fps[:int(len(self.val_source_fps)*reduce_items_p/100)]
+                print(f"Reduced to {len(self.val_source_fps):,} tracks.")
+
+            return TrackDevLoader(
+                track_paths=self.val_source_fps,
+                segment_duration=self.segment_duration,
+                hop_duration=self.cfg['TRAIN']['AUDIO']['SEGMENT_HOP_DUR'],
+                fs=self.fs,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax,
+                scale_output=self.scale_inputs,
+                segments_per_track=self.tr_segments_per_track,
+                bsz=self.tr_batch_sz,
+                shuffle=False,
+                random_offset_anchor=False,
+                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
+                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+
+        else:
+            raise ValueError("Invalid validation tracks directory.")
+
+    # TODO make dummy again
+    def get_test_noise_ds(self):
+        """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.
+        Supports both discotube and nafp datasets. The folder structure 
+        should be as follows:
+            self.ts_noise_tracks_dir/
+                dir0/
+                    track1.wav
+                    track2.wav
+                    ...
+                dir1/
+                    track1.wav
+                    track2.wav
+                    ...
+                ...
+
+        Returns:
+        --------
+            ds_dummy_db : genUnbalSequenceGeneration
+                The dataset for test-dummy-DB.
+        """
+
+        print(f"Creating the test-dummy-DB dataset (noise tracks)...")
+
+        # Find the noise tracks and their segments
+        self.ts_noise_paths = sorted(
+            glob.glob(self.ts_noise_tracks_dir+ '/**/*.wav', 
+                    recursive=True))
+        assert len(self.ts_noise_paths)>0, "No noise tracks found."
+        print(f"{len(self.ts_noise_paths):,} noise tracks found.")
+
+        return GenerationLoader(
+            track_paths=self.ts_noise_paths,
+            segment_duration=self.segment_duration,
+            hop_duration=self.ts_segment_hop,
             fs=self.fs,
-            normalize_audio=self.normalize_audio,
-            scale=self.scale,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,
             f_min=self.fmin,
             f_max=self.fmax,
-            shuffle=True,
-            random_offset_anchor=True,
-            bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_snr],
-            ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps],
-            reduce_items_p=reduce_items_p,
+            scale_output=self.scale_inputs,
+            bsz=self.ts_batch_sz,
             )
 
-    def get_val_ds(self, max_song=500):
-        """
-        Source (music) file paths for validation set.
-        max_song: (int) <= 500.
-        """
-
-        self.val_source_fps = sorted(
-            glob.glob(self.source_root_dir + 'val-query-db-500-30s/' +
-                      '**/*.wav', recursive=True))[:max_song]
-
-        return genUnbalSequence(
-            track_paths=self.val_source_fps,
-            bsz=self.val_batch_sz,
-            n_anchor=self.val_n_anchor,
-            duration=self.dur,
-            hop=self.hop,
-            fs=self.fs,
-            normalize_audio=self.normalize_audio,
-            scale=self.scale,
-            n_fft=self.n_fft,
-            stft_hop=self.stft_hop,
-            n_mels=self.n_mels,
-            f_min=self.fmin,
-            f_max=self.fmax,
-            shuffle=False,
-            random_offset_anchor=False,
-            bg_mix_parameter=[self.val_use_bg_aug, self.val_bg_fps, self.val_snr],
-            ir_mix_parameter=[self.val_use_ir_aug, self.val_ir_fps],
-            )
-
-    # TODO: why does ts_n_anchor=ts_batch_sz makes it faster?
-    def get_test_dummy_db_ds(self):
-        """Test-dummy-DB without augmentation:
-            In this case, high-speed fingerprinting is possible without
-            augmentation by setting ts_n_anchor=ts_batch_sz.
-        """
-
-        # Source (music) file paths for test-dummy-DB set
-        self.ts_dummy_db_source_fps = sorted(
-            glob.glob(self.source_root_dir + 'test-dummy-db-100k-full/' +
-                      '**/*.wav', recursive=True))
-        if self.datasel_test_dummy_db in ['10k_full', '10k_30s']:
-            self.ts_dummy_db_source_fps = self.ts_dummy_db_source_fps[:10000]
-        elif self.datasel_test_dummy_db == '100k_full_icassp':
-            self.ts_dummy_db_source_fps = self.ts_dummy_db_source_fps
-        elif self.datasel_test_dummy_db.isnumeric():
-            self.ts_dummy_db_source_fps = self.ts_dummy_db_source_fps[:int(self.datasel_test_db)]
-        else:
-            raise NotImplementedError(self.datasel_test_dummy_db)
-
-        return genUnbalSequenceGeneration(
-            track_paths=self.ts_dummy_db_source_fps,
-            bsz=self.ts_batch_sz, # Only anchors
-            duration=self.dur,
-            hop=self.hop,
-            fs=self.fs,
-            normalize_audio=self.normalize_audio,
-            scale=self.scale,
-            n_fft=self.n_fft,
-            stft_hop=self.stft_hop,
-            n_mels=self.n_mels,
-            f_min=self.fmin,
-            f_max=self.fmax) # No augmentations...
-
-    def get_test_query_db_ds(self):
-        """
-        To select test dataset, you can use config file or datasel parameter.
-
-        cfg['DATASEL']['TEST_QUERY_DB']:
-
-            'unseen_icassp' will use pre-defined queries and DB.
-                DB has selected clips without augmentations and queries are their
-                augmented versions.
-            'unseen_syn' will synthesize queries from DB in real-time.
+    def get_test_query_ds(self):
+        """ Create 2 databases for query segments. One of them is the augmented 
+        version of the clean queries. If the config does not specify a folder for
+        augmented queries, then the clean queries are augmented in real time.
+        Supports both discotube and nafp datasets. Query tracks folders structure 
+        should be as follows:
+            self.ts_clean_query_tracks_dir/
+                dir0/
+                    track1.wav
+                    track2.wav
+                    ...
+                dir1/
+                    track1.wav
+                    track2.wav
+                    ...
+                ...
 
         Returns
         -------
-        (ds_query, ds_db)
+            (ds_query, ds_db)
+                ds_query is the augmented version of the clean queries.
+                ds_db is the clean queries without augmentation.
 
         """
 
-        if self.datasel_test_query_db=='unseen_icassp':
-            self.ts_query_icassp_fps = sorted(
-                glob.glob(self.source_root_dir + 'test-query-db-500-30s/' +
-                      'query/**/*.wav', recursive=True))
-            self.ts_db_icassp_fps = sorted(
-                glob.glob(self.source_root_dir + 'test-query-db-500-30s/' +
-                      'db/**/*.wav', recursive=True))
+        print("Creating the clean query dataset...")
 
-            ds_query = genUnbalSequenceGeneration(
-                track_paths=self.ts_query_icassp_fps,
-                bsz=self.ts_batch_sz,
-                duration=self.dur,
-                hop=self.hop,
-                fs=self.fs,
-                normalize_audio=self.normalize_audio,
-                scale=self.scale,
-                n_fft=self.n_fft,
-                stft_hop=self.stft_hop,
-                n_mels=self.n_mels,
-                f_min=self.fmin,
-                f_max=self.fmax) # No augmentations...
-            ds_db = genUnbalSequenceGeneration(
-                track_paths=self.ts_db_icassp_fps,
-                bsz=self.ts_batch_sz,
-                duration=self.dur,
-                hop=self.hop,
-                fs=self.fs,
-                normalize_audio=self.normalize_audio,
-                scale=self.scale,
-                n_fft=self.n_fft,
-                stft_hop=self.stft_hop,
-                n_mels=self.n_mels,
-                f_min=self.fmin,
-                f_max=self.fmax) # No augmentations...
-            return ds_query, ds_db
-        # elif self.datasel_test_query_db=='unseen_syn':
-        #     self.ts_query_db_unseen_fps = sorted(
-        #     glob.glob(self.source_root_dir + 'val-query-db-500-30s/' +
-        #               'db/**/*.wav', recursive=True))
+        # Find the clean query tracks and their segments
+        self.ts_query_clean = sorted(
+                glob.glob(self.ts_clean_query_tracks_dir + '/**/*.wav', 
+                        recursive=True))
+        assert len(self.ts_query_clean)>0, "No clean query tracks found."
+        print(f"{len(self.ts_query_clean):,} clean query tracks found.")
 
         #     _query_ts_batch_sz = self.ts_batch_sz * 2
         #     _query_ts_n_anchor = self.ts_batch_sz
@@ -318,8 +492,6 @@ class Dataset:
             duration=self.dur,
             hop=self.hop,
             fs=self.fs,
-            normalize_audio=self.normalize_audio,
-            scale=self.scale,
             n_fft=self.n_fft,
             stft_hop=self.stft_hop,
             n_mels=self.n_mels,

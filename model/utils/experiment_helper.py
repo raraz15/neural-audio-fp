@@ -1,8 +1,10 @@
-# -*- coding: utf-8 -*-
-""" experiment_helper.py """
+import os
+import yaml
+
 import tensorflow as tf
 import tensorflow.keras as K
 from tensorflow.summary import create_file_writer
+
 from model.utils.plotter import get_imshow_image
 
 class ExperimentHelper():
@@ -20,6 +22,7 @@ class ExperimentHelper():
         5. In your training loop, call the methods described in the below.
 
     Methods:
+    --------
         - save_checkpoint():
             Save current model and optimizer states to checkpoint.
         - update_on_epoch_end():
@@ -39,27 +42,33 @@ class ExperimentHelper():
             optimizer,
             model_to_checkpoint,
             best_loss="val_loss",
-            max_to_keep=10,
-            cfg=None):
+            max_to_keep=5,
+            cfg=dict()):
         """
 
         Parameters
         ----------
-        checkpoint_name : (str)
-            Checkpoint name.
-        optimizer : <tf.keras.optimizer>
-            Assign a pre-constructed optimizer.
-        model_to_checkpoint : <tf.keras.Model>
-            Model to train.
-        best_loss : (str), optional
-            The loss to determine the best model. The default is "val_loss".
-            Can be either "val_loss" or "tr_loss".
-        max_to_keep : (int), optional
-            Maximum number of checkpoints to keep. The default is 10.
-        cfg : (dict), optional
-            Config file, if available. The default is None.
+            checkpoint_name : (str)
+                Checkpoint name.
+            optimizer : <tf.keras.optimizer>
+                Assign a pre-constructed optimizer.
+            model_to_checkpoint : <tf.keras.Model>
+                Model to train.
+            best_loss : (str), optional
+                The loss to determine the best model. The default is 
+                "val_loss". Can be either "val_loss" or "tr_loss".
+            max_to_keep : (int), optional
+                Maximum number of checkpoints to keep. The default is 10.
+            cfg : (dict), optional
+                Config file, if available. The default is {}.
 
         """
+
+        assert best_loss in ["val_loss", "tr_loss"], \
+            "best_loss must be either 'val_loss' or 'tr_loss'"
+
+        # Save the config file
+        self.cfg = cfg
 
         # Experiment settings
         self._checkpoint_name = checkpoint_name
@@ -71,36 +80,40 @@ class ExperimentHelper():
         self.best_val_loss = (self.epoch, 1e10)
         self.best_loss_track = best_loss
 
-        # Directories
-        if cfg['DIR']['LOG_ROOT_DIR']:
-            _root_dir = cfg['DIR']['LOG_ROOT_DIR']
+        # Choose the root directory for logs
+        if cfg['MODEL']['LOG_ROOT_DIR']:
+            _root_dir = cfg['MODEL']['LOG_ROOT_DIR']
         else:
             _root_dir = './logs/'
-        self._log_dir = _root_dir + 'fit/' + checkpoint_name + '/'
 
-        # Checkpoint directories
-        if cfg['DIR']['CHECKPOINT_DIR']:
-            self._checkpoint_save_dir = cfg["DIR"]["CHECKPOINT_DIR"] + f"{checkpoint_name}/"
-        else:
-            self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
-        if cfg['DIR']['BEST_CHECKPOINT_DIR']:
-            self._best_checkpoint_save_dir = cfg["DIR"]["BEST_CHECKPOINT_DIR"] + f"{checkpoint_name}/"
-        else:
-            self._best_checkpoint_save_dir = _root_dir + f'best_checkpoint/{checkpoint_name}/'
+        # Set the default directories
+        self._log_dir = _root_dir + f'fit/{checkpoint_name}/'
+        self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
+        self._best_checkpoint_save_dir = _root_dir + f'best_checkpoint/{checkpoint_name}/'
 
-        # Tensorboard writers
+        # Tensorboard writers for train and validation losses
         self._tr_summary_writer = create_file_writer(self._log_dir + '/train')
         self._val_summary_writer = create_file_writer(self._log_dir + '/val')
-        self._minitest_summary_writer_dict = dict()
-        for key in ['f', 'L2(f)', 'g(f)']:
-            self._minitest_summary_writer_dict[key] = create_file_writer(
-                self._log_dir + '/mini_test/' + key)
+
+        # Track the learning rate
+        self._lr_summary_writer = create_file_writer(self._log_dir + '/lr')
+
+        # Tensorboard writers for mini test accuracies if mini test is enabled
+        if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:
+            self._minitest_summary_writer_dict = dict()
+            for key in ['f', 'L2(f)', 'g(f)']:
+                self._minitest_summary_writer_dict[key] = create_file_writer(
+                    self._log_dir + '/mini_test/' + key)
+            self._minitest_acc = None
+
+        # Tensorboard writer for images
         self._image_writer = create_file_writer(self._log_dir + '/images')
 
         # Logging loss and acc metrics
         self._tr_loss = K.metrics.Mean(name='train_loss')
+        self._tr_loss.reset_states()
         self._val_loss = K.metrics.Mean(name='val_loss')
-        self._minitest_acc = None
+        self._val_loss.reset_states()
 
         # Assign optimizer and model to checkpoint
         self.optimizer = optimizer # assign, not to create.
@@ -131,6 +144,9 @@ class ExperimentHelper():
             )
 
         self.load_checkpoint()
+        # TODO: can this overwrite the loaded checkpoint?
+        if self._cfg_use_tensorboard:
+            self.write_lr()
 
     def update_on_epoch_end(self, save_checkpoint_now=True):
         """ Update current epoch index, and loss metrics. """
@@ -159,45 +175,32 @@ class ExperimentHelper():
         self._val_loss.reset_states()
         self.epoch += 1
 
-    def load_checkpoint(self):
-        """ Try loading a saved checkpoint. If no checkpoint, initialize from
-            scratch.
-        """
-
-        if self.c_manager.latest_checkpoint:
-            tf.print("-----------Restoring model from {}-----------".format(
-                self.c_manager.latest_checkpoint))
-            status = self._checkpoint.restore(self.c_manager.latest_checkpoint)
-            status.expect_partial()
-            self.epoch = int(self.c_manager.latest_checkpoint.split(sep='ckpt-')[-1]) + 1
-        else:
-            tf.print("-----------Initializing model from scratch-----------")
-
-    def save_checkpoint(self):
-        """Save current model and optimizer states to checkpoint."""
-
-        self.c_manager.save()
+        # Save learning rate to tensorboard
+        if self._cfg_use_tensorboard:
+            self.write_lr()
 
     def update_tr_loss(self, value, tb=None):
         """
         Parameters
         ----------
-        value : (float)
-            Update training loss value to return the average loss within this epoch.
-        tb : (bool), optional
-            Write to tensorboard if set True. The default is set by config flie or False.
+            value : (float)
+                Loss value of the current train step.
+            tb : (bool), optional
+                Write to tensorboard if set True. The default is True.
 
         Returns
         -------
-        avg_tr_loss: (float) Average training loss within current epoch.
+            avg_val_loss: (float) 
+                Cumulative-average validation loss within current epoch after
+                current iteration.
         """
-
-        # Average the loss over the epoch
-        avg_tr_loss = self._tr_loss(value)
 
         if tb or (tb==None and self._cfg_use_tensorboard):
             with self._tr_summary_writer.as_default():
                 tf.summary.scalar('loss', value, step=self.optimizer.iterations)
+
+        # Average the loss over the epoch
+        avg_tr_loss = self._tr_loss(value)
 
         return avg_tr_loss
 
@@ -205,22 +208,24 @@ class ExperimentHelper():
         """
         Parameters
         ----------
-        value : (float)
-            Update validation loss value to return the average loss within this epoch.
-        tb : (bool), optional
-            Write to tensorboard if set True. The default is True.
+            value : (float)
+                Loss value of the current validation step.
+            tb : (bool), optional
+                Write to tensorboard if set True. The default is True.
 
         Returns
         -------
-        avg_val_loss: (float) Cumulative Average validation loss within current epoch.
+            avg_val_loss: (float) 
+                Cumulative-average validation loss within current epoch after
+                current iteration.
         """
-
-        # Cumulative Average the loss over the epoch
-        avg_val_loss = self._val_loss(value)
 
         if tb or (tb==None and self._cfg_use_tensorboard):
             with self._val_summary_writer.as_default():
                 tf.summary.scalar('loss', value, step=self.optimizer.iterations)
+
+        # Cumulative Average the loss over the epoch
+        avg_val_loss = self._val_loss(value)
 
         return avg_val_loss
 
@@ -272,3 +277,41 @@ class ExperimentHelper():
                                  step=self.optimizer.iterations)
         else:
             pass; # Not implemented yet
+
+    def write_lr(self):
+
+        if isinstance(self.optimizer.lr, tf.keras.optimizers.schedules.LearningRateSchedule):
+            current_lr = self.optimizer.lr(self.optimizer.iterations)
+        else:
+            current_lr = self.optimizer.lr
+
+        with self._lr_summary_writer.as_default():
+            tf.summary.scalar('lr', 
+                              current_lr,
+                              step=self.optimizer.iterations)
+
+    def load_checkpoint(self):
+        """ Try loading a saved checkpoint. If no checkpoint, initialize from
+            scratch.
+        """
+
+        if self.c_manager.latest_checkpoint:
+            tf.print("-----------Restoring model from {}-----------".format(
+                self.c_manager.latest_checkpoint))
+            status = self._checkpoint.restore(self.c_manager.latest_checkpoint)
+            status.expect_partial()
+            self.epoch = int(self.c_manager.latest_checkpoint.split(sep='ckpt-')[-1]) + 1
+        else:
+            tf.print("-----------Initializing model from scratch-----------")
+            # Write the config file to the checkpoint directory
+            for _dir in [self._checkpoint_save_dir, self._best_checkpoint_save_dir]:
+                if not os.path.exists(_dir):
+                    os.makedirs(_dir)
+                # Save the config file
+                with open(_dir + 'config.yaml', 'w') as f:
+                    yaml.dump(self.cfg, f)
+
+    def save_checkpoint(self):
+        """Save current model and optimizer states to checkpoint."""
+
+        self.c_manager.save()

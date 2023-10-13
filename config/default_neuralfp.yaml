@@ -1,109 +1,129 @@
-# Dataset directories
-DIR:
-    SOURCE_ROOT_DIR : '../neural-audio-fp-dataset/music/'
-    BG_ROOT_DIR : '../neural-audio-fp-dataset/aug/bg/'
-    IR_ROOT_DIR : '../neural-audio-fp-dataset/aug/ir/'
-    OUTPUT_ROOT_DIR : './logs/emb/'
-                # Root directory where the generated embeddings (uncompressed
-                #  fingerprints) will be stored.
-    LOG_ROOT_DIR : './logs/'
-                # Root directory where the checkpoint, tensorboard logs and
-                # images will be stored.
-    CHECKPOINT_DIR : './logs/checkpoint/'
-                # Directory where the checkpoint will be stored.
-    BEST_CHECKPOINT_DIR : './logs/best_checkpoint/'
-                # Directory where the best checkpoint will be stored.
-
-# Data selection for 'train' and 'generate' commands
-DATA_SEL:
-    TRAIN : '10k_icassp'
-                # '10k_icassp' for ICASSP results. No other options now.
-    TEST_DUMMY_DB : '10k_full'
-                # '10k_full' or '100k_full_icassp'. This scales your search
-                # experiment. Dataset_mini users can only use '10k_full' mode.
-                # It's actually '10k_30s' though.
-    TEST_QUERY_DB : 'unseen_icassp' #'unseen_icassp'
-                # TEST_QUERY_DB presets:
-                # - 'unseen_icassp': use the fixed {query, db} pairs reproducing
-                #                    ICASSP results--2,000 test IDs for 500
-                #                    songs.
-                # - 'unseen_syn': randomly synthesize new queries from DB as
-                #                 in the training, and generate fingerprints.
-                #                 Currently, the DB source is set to 500 songs
-                #                 of the validation set.
-    REDUCE_ITEMS_P : 0
-                # Reduce training dataset size by percentage (%). Set 0 to
-                # inactivate.
-
-# Model hyper-parameters
+# Model parameters. 
+# Here we define how the audio is converted to the input that the model can use,
+# the model architecture, and the log directory.
 MODEL:
-    FS : 8000 # Sampling rate
-    NORMALIZE_AUDIO: True # Scale the audio to [-1,1].
-    DUR : 1. # Unit segment length in seconds.
-    HOP : .5 # Hop-size of the segment window in seconds.
-    STFT_WIN : 1024
-    STFT_HOP : 256
-    F_MIN : 300. # Frequency range.
-    F_MAX : 4000. # Frequency range.
-    N_MELS : 256 # Number of mel-frequency bins.
-    EMB_SZ : 128  # Dimension of fingerprint, d in this paper.
-    BN : 'layer_norm2d' # or 'batch_norm'
-    SCALE_INPUTS: True # Scale the power mel-spectrogram to [-1,1].
+    # Parameters for audio segment extraction.
+    AUDIO :
+        SEGMENT_DUR : 1. # Duration of an audio segment the model uses in seconds.
+        FS : 8000 # Sampling rate (Hz).
+    # Parameters for computing the mel-spectrogram input to the model.
+    INPUT:
+        STFT_WIN : 1024
+        STFT_HOP : 256
+        F_MIN : 300. # Lowest frequency used for Melspectrogram computation.
+        F_MAX : 4000. # Highest frequency used for Melspectrogram computation.
+        N_MELS : 256 # Number of mel-frequency bins.
+        SCALE_INPUTS: True # Scale the power mel-spectrogram to [-1,1].
+    # Model architecture parameters.
+    ARCHITECTURE:
+        EMB_SZ : 128  # Dimension of fingerprint, d in this paper.
+        BN : 'layer_norm2d' # or 'layer_norm2d' or 'batch_norm'
     # NOTE:
     # - In the current version, modifying {FS, DUR, HOB, STFT WIN, STFT HOP}
     #   may cause the model to malfunction or cause input shape mismatch errors.
     #   In that case, you will need to modify the kernel size strides of Conv
     #   layers in 'model/fp/nnfp.py'.
-
-# Batch-size
-BSZ:
-    TR_BATCH_SZ : 120 #
-        # Training batch size N must be EVEN number.
-    TR_N_ANCHOR : 60 # Usually N/2; N/5 for Triplet-loss. 
-    VAL_BATCH_SZ : 120 # Must be EVEN number.
-    VAL_N_ANCHOR : 60 # Usually N_val/2 
-    TS_BATCH_SZ : 125
+    LOG_ROOT_DIR : './logs/'
+            # Directories to store the model checkpoints, its training process and 
+            # generated embeddings (uncompressed fingerprints) will be stored.
+            # The embedding directory can later be changed in generate.py
 
 # Training parameters
 TRAIN:
-    MAX_EPOCH : 200
+    # Train and Validation, and Augmentation directories
+    DIR:
+        TRAIN_ROOT : '../datasets/neural-audio-fp-dataset/music/train-10k-30s/fma_small_8k_plus_medium_2k/'
+        VAL_ROOT : '../datasets/neural-audio-fp-dataset/music/val-query-db-500-30s/'
+    # Audio segment parameters
+    AUDIO:
+        SEGMENT_HOP_DUR : .5 # Hop-size of the segment window in seconds.
+        SEGMENTS_PER_TRACK: 58
+                        # Use this many segments per track for training.
+        MAX_OFFSET_DUR : 0.2
+                        # Maximum offset duration in seconds. 
+                        # We randomly offset the audio segment by a random 
+                        # amount in the range of [0, MAX_OFFSET_DUR] seconds.
+                        # This is to simulate real-life scenarios where the 
+                        # audio segment is not perfectly aligned with the 
+                        # fingerprint.
+    # Hyperparameters
+    MAX_EPOCH : 100
+    BATCH_SZ : 384  # Training batch size N must be EVEN number. 
+                    # Half of the batch is used for positive pairs 
+                    # and the other half for anchor pairs.
+    LOSS:
+        LOSS_MODE : 'NTxent' # 'NTxent'(default) or 'Online-Triplet'(now-playing). 
+        TAU : 0.05 # **NTXENT ONLY** temperature parameter 0. < TAU < 1. 
     OPTIMIZER : 'Adam' # 'LAMB' or 'Adam'. LAMB for BSZ >= 240
-    LR : 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
-    LR_SCHEDULE : 'cos' # ['cos', 'cos-restart', 'None'].
+    LR:
+        INITIAL_RATE: 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
+        SCHEDULE : 'cos' # ['cos', 'cos-restart', 'None'].
+        ALPHA : 1e-6 # Minimum learning rate value for decay as a fraction of INITIAL_RATE.
+    # Augmentation parameters
+    AUG:
+        # Time-domain augmentation parameters
+        TD:
+            BG : True
+            BG_ROOT : '../datasets/neural-audio-fp-dataset/aug/bg/tr/'
+            BG_SNR : [0, 10]
+                    # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
+            IR : True
+            IR_ROOT : '../datasets/neural-audio-fp-dataset/aug/ir/tr/'
+            IR_MAX_DUR : 0.5
+                    # Maximum duration of the impulse response in seconds.
+        # Spectral-domain augmentation parameters
+        SPEC:
+            CHAIN : ['cutout', 'horizontal'] 
+                            # 'cutout', 'horizontal', 'vertical'
+            PROBS : 1.
+            N_HOLES : 1
+            HOLE_FILL : 'zeros' 
+                    # one of {'min', 'zeros', 'random', [min_mag, max_mag]}
+    # Miscanelous
     TENSORBOARD : True
-    SAVE_IMG : True # Saving similarity matrix generated by loss object.
-    MINI_TEST_IN_TRAIN : True
-    # NOTE:
-    # - MINI_TEST_IN_TRAIN=True performs mini-search-test using part of
-    #   validation dataset at the end of every epoch in training.
+            # Tensorboard logging. If True, logs will be stored in LOG_ROOT_DIR.
+    SAVE_IMG : True
+            # Saving similarity matrix generated by loss object.
+    MINI_TEST_IN_TRAIN : False
+                    # NOTE:
+                    # - MINI_TEST_IN_TRAIN=True performs mini-search-test using part of
+                    #   validation dataset at the end of every epoch in training.
+    REDUCE_ITEMS_P : 100
+                # Reduce training tracks size to this percentage (%). 100 uses all the data.
 
-# Loss parameters
-LOSS:
-    LOSS_MODE : 'NTxent' # 'NTxent'(default) or 'Online-Triplet'(now-playing). 
-    TAU : 0.05 # **NTXENT ONLY** temperature parameter 0. < TAU < 1. 
-    MARGIN : 0.5 # **ONLINE-TRIPLET ONLY** 
-
-# Time-domain augmentation parameters
-TD_AUG:
-    TR_SNR : [0, 10] # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
-    TS_SNR : [0, 10] # Active in real-time synthesis of test queries. TEST_QUERY='unseen_icassp' will inactivate this.
-    VAL_SNR : [0, 10]
-    TR_BG_AUG : True
-    TS_BG_AUG : True # TEST_QUERY='unseen_icassp' will inactivate this.
-    VAL_BG_AUG : True # Validation set always flollow this even in 'generate' command.
-    TR_IR_AUG : True
-    TS_IR_AUG : True # TEST_QUERY='unseen_icassp' will inactivate this.
-    VAL_IR_AUG: True
-
-# Specaug parameters
-SPEC_AUG:
-    SPECAUG_CHAIN : ['cutout', 'horizontal'] # 'cutout', 'horizontal', 'vertical'
-    SPECAUG_PROBS : 1.
-    SPECAUG_N_HOLES : 1
-    SPECAUG_HOLE_FILL : 'zeros' # one of {'min', 'zeros', 'random', [min_mag, max_mag]}
+TEST:
+    # TEST tracks directories
+    DIR:
+        NOISE_ROOT : '../datasets/neural-audio-fp-dataset/music/test-dummy-db-100k-full/fma_full/'
+        CLEAN_QUERY_ROOT : '../datasets/neural-audio-fp-dataset/music/test-query-db-500-30s/db/'
+        AUGMENTED_QUERY_ROOT : '../datasets/neural-audio-fp-dataset/music/test-query-db-500-30s/query/'
+                            # You can provide empty string to AUGMENTED_QUERY_ROOT and set
+                            # TD_AUG.TS_BG_AUG=True and TD_AUG.TS_IR_AUG=True to enable
+                            # real-time augmentation during testing. 
+        # To create the noise files in the DB you can either specify a directory that contains
+        # noise files, and the dataset will read all the .mp4 files in that directory.
+        # Or a text file that contains the paths to the noise files. When NOISE_PATHS_FILE is
+        # provided, NOISE_ROOT is ignored.
+    # Audio segment parameters
+    SEGMENT_HOP : .5 # Hop-size of the segment window in seconds.
+    BATCH_SZ : 384 # Batch size for testing.
+    # Augmentation parameters
+    AUG:
+        TD: # We only apply time-domain augmentation during testing.
+                # If you set TD.BG=True or TD.IR=True, you must provide the 
+                # corresponding augmentation files. Setting them to True will 
+                # not use the tracks in AUGMENTED_QUERY_ROOT for testing. For simulating real life 
+                    # scenarios, you should either augment the queries beforehand.
+            BG : False # If you augment beforehand, set this to FALSE.
+            BG_ROOT : '../datasets/neural-audio-fp-dataset/aug/bg/ts/'
+                # If BG=True, you must provide the background noise files.
+            BG_SNR : [0, 10] # Active in real-time synthesis of test queries.
+            IR : False # If you augment beforehand, set this to False.
+            IR_ROOT : '../datasets/neural-audio-fp-dataset/aug/ir/ts/'
+                    # If IR=True, you must provide the background noise files.
+            IR_MAX_DUR : 0.5 # Maximum duration of the impulse response in seconds.
 
 # Device setup
 DEVICE:
     CPU_N_WORKERS : 8 # 4 for minimal system. 8 is recommended.
     CPU_MAX_QUEUE : 10 # 10 for minimal system. 20 is recommended.
-
