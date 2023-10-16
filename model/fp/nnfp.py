@@ -30,13 +30,13 @@ class ConvLayer(tf.keras.layers.Layer):
     
     Input
     -----
-        x: (B,F,T,1)
+        x: (B,F,T,C)
         
         [Conv1x3]>>[ELU]>>[BN]>>[Conv3x1]>>[ELU]>>[BN]
     
     Output
     ------
-        x: (B,F,T,C) with {F=F/stride, T=T/stride, C=hidden_ch}
+        x: (B,F',T',C') with {F'=F/stride, T'=T/stride, C'=hidden_ch}
     
     """
 
@@ -109,6 +109,7 @@ class DivEncLayer(tf.keras.layers.Layer):
         emb: (B,Q)
     
     """
+    # TODO: unit_dim=32
     def __init__(self, q=128, unit_dim=[32, 1], norm='batch_norm'):
         super(DivEncLayer, self).__init__()
 
@@ -123,7 +124,6 @@ class DivEncLayer(tf.keras.layers.Layer):
 
         self.split_fc_layers = self._construct_layers()
 
-    # TODO: What is this?
     def build(self, input_shape):
         # Prepare output embedding variable for dynamic batch-size 
         self.slice_length = int(input_shape[-1] / self.q)
@@ -139,20 +139,37 @@ class DivEncLayer(tf.keras.layers.Layer):
 
     @tf.function
     def _split_encoding(self, x_slices):
-        """
-        Input: (B,Q,S)
-        Returns: (B,Q)
-        
+        """ Encode each slice with a separate FC layer and concat the output.
+
+        Input
+        -----
+            x_slices: (B,Q,S) with Q=num_slices, S=slice length
+
+        Returns
+        -------
+            encoding: (B,Q)
         """
         out = list()
         for i in range(self.q):
             out.append(self.split_fc_layers[i](x_slices[:, i, :]))
-        return tf.concat(out, axis=1)
+        encoding = tf.concat(out, axis=1) # (B,Q)
+        return encoding
 
-    
-    def call(self, x): # x: (B,1,1,2048)
-        x = tf.reshape(x, shape=[x.shape[0], self.q, -1]) # (B,Q,S); Q=num_slices; S=slice length; (B,128,8 or 16)
-        return self._split_encoding(x)
+    def call(self, x):
+        """Split the input into q slices and pass it through the split_encoding layer.
+
+        Input
+        -----
+            x_slices: (B,C)
+
+        Returns
+        -------
+            encoding: (B,Q)
+        """
+
+        x_slices = tf.reshape(x, shape=[x.shape[0], self.q, -1]) # (B,Q*S) -> (B,Q,S)
+        encoding = self._split_encoding(x_slices) # (B,Q)
+        return encoding
 
 class FingerPrinter(tf.keras.Model):
     """
@@ -209,8 +226,10 @@ class FingerPrinter(tf.keras.Model):
         # Front (sep-)conv layers
         self.n_clayers = len(front_strides)
         self.front_conv = tf.keras.Sequential(name='ConvLayers')
+        # Adjust the last hidden channel to be divisible by emb_sz for div_enc layer
         if ((front_hidden_ch[-1] % emb_sz) != 0):
             front_hidden_ch[-1] = ((front_hidden_ch[-1]//emb_sz) + 1) * emb_sz
+        # Add conv layers
         for i in range(self.n_clayers):
             self.front_conv.add(ConvLayer(hidden_ch=front_hidden_ch[i],
                                           strides=front_strides[i], 
