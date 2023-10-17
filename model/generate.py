@@ -69,7 +69,6 @@ def prevent_overwrite(key, target_path):
         if answer.lower() not in ['y', 'yes']:
             sys.exit()
 
-# TODO: custom source dir
 def get_data_source(cfg: dict, source_root_dir: str="", skip_dummy: bool=False):
     """ Get the data source for fingerprinting."""
 
@@ -87,7 +86,7 @@ def get_data_source(cfg: dict, source_root_dir: str="", skip_dummy: bool=False):
         if skip_dummy:
             tf.print("Excluding \033[33m'dummy_db'\033[0m from source.")
         else:
-            ds['dummy_db'] = dataset.get_test_noise_ds()
+            ds['dummy_db'] = dataset.get_test_dummy_db_ds()
     # TODO: proper print
     tf.print(f'\x1b[1;32mData source: {list(ds.keys())}\x1b[0m')
     return ds
