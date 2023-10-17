@@ -92,12 +92,15 @@ def train(checkpoint_name, config, max_epoch, deterministic):
               help="Custom source root directory. The source must be 16-bit "
               "8 Khz mono WAV. This is only useful when constructing a database "
               "without synthesizing queries.")
+@click.option('--bmat_source', '-s', default="", type=click.STRING, required=False,
+              help="Custom source root directory. The source can be a directory containing 16-bit "
+              "8 Khz mono WAV files or a file containing the paths of the audio files with the same encoding.")
 @click.option('--output_root', '-o', default='', type=click.STRING, 
               help="Root directory where the generated embeddings (uncompressed) " 
               "will be stored. Default is OUTPUT_ROOT_DIR/CHECKPOINT_NAME defined in config.")
 @click.option('--skip_dummy', default=False, is_flag=True, 
               help='Exclude dummy-DB from the default source.')
-def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_root, skip_dummy):
+def generate(config_path, checkpoint_dir, checkpoint_index, source_root, bmat_source, output_root, skip_dummy):
     """ Generate fingerprints from a saved checkpoint.
 
     ex) python run.py generate CONFIG_PATH
@@ -121,17 +124,17 @@ def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_
     from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
     from model.generate import generate_fingerprint
 
-    allow_gpu_memory_growth()
-
     # Load the config file
     cfg = load_config(config_path)
-    # Generate fingerprints
+    allow_gpu_memory_growth()
     generate_fingerprint(cfg, 
                          checkpoint_dir=checkpoint_dir,
                          checkpoint_index=checkpoint_index,
                          source_root_dir=source_root,
+                         bmat_source=bmat_source,
                          output_root_dir=output_root,
-                         skip_dummy=skip_dummy)
+                         skip_dummy=skip_dummy,
+                         )
 
 # Create index
 @cli.command()
@@ -185,12 +188,11 @@ def match(query_bname, query_fp_path, refs_fp_path, index_path, extension):
     references_segments = pd.read_csv(refs_segments_path)
     index = faiss.read_index(index_path, 2) #2 == readonly
     query = np.load(query_fp_path)
-    references_fp, _ = load_memmap_data(
-        os.path.dirname(refs_fp_path),
-        'custom_source',
-        append_extra_length=None,
-        shape_only=False,
-        display=False)
+    references_fp, _ = load_memmap_data(os.path.dirname(refs_fp_path),
+                                    'custom_source',
+                                    append_extra_length=None,
+                                    shape_only=False,
+                                    display=False)
     matcher = Matcher(index, references_segments)
     formatted_matches = matcher.match(query, references_fp)
     print('"Query","Query begin time","Query end time","Reference",'

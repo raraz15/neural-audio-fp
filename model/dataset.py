@@ -1,4 +1,5 @@
 import os
+import sys
 import glob
 
 from model.utils.dev_dataloader_keras import SegmentDevLoader, TrackDevLoader
@@ -364,16 +365,47 @@ class Dataset:
         else:
             raise ValueError("Invalid validation tracks directory.")
 
-    def get_custom_db_ds(self, source: str, isdir):
+    def get_test_query_ds(self):
+        raise NotImplementedError
+
+    def get_test_noise_ds(self):
+        raise NotImplementedError
+
+    def get_custom_db_ds(self, source_root_dir: str):
         """ Construct DB (or query) from custom source files. """
-        if isdir is True:
+
+        fps = sorted(
+            glob.glob(source_root_dir + '/**/*.wav', recursive=True))
+
+        return GenerationLoader(
+            track_paths=fps,
+            segment_duration=self.segment_duration,
+            hop_duration=self.ts_segment_hop,
+            fs=self.fs,
+            n_fft=self.n_fft,
+            stft_hop=self.stft_hop,
+            n_mels=self.n_mels,
+            f_min=self.fmin,
+            f_max=self.fmax,
+            scale_output=self.scale_inputs,
+            bsz=self.ts_batch_sz,
+            )
+
+    def get_custom_bmat_db_ds(self, source: str):
+        """ Construct DB (or query) from custom source files. """
+
+        # Find the track paths from the source
+        if os.path.isdir(source): # If the source is a directory
             fps = sorted(glob.glob(source + '/**/*.wav', recursive=True))
-        else:
+        elif os.path.isfile(source): # If the source is a file
             fps = []
             with open(source, "r") as fin:
                 for l in fin:
                     fps.append(l.split('\n')[0])
             fps = sorted(fps)
+        else:
+            print('ERROR: Unknown source')
+            sys.exit()
 
         ds =  GenerationLoader(
             track_paths=fps,

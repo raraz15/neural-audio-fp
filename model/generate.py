@@ -69,18 +69,21 @@ def prevent_overwrite(key, target_path):
         if answer.lower() not in ['y', 'yes']:
             sys.exit()
 
-# TODO: custom source dir
-def get_data_source(cfg: dict, source_root_dir: str="", skip_dummy: bool=False):
-    """ Get the data source for fingerprinting."""
+def get_data_source(cfg: dict, source_root_dir="", bmat_source="", skip_dummy=False):
+
+    assert not ((source_root_dir == "") and (bmat_source == "")), \
+        "Only one of 'source_root_dir' and 'bmat_source' can be specified."
 
     # Create the dataset
     dataset = Dataset(cfg)
     ds = dict()
 
-    # If source is provided, only use the custom source
-    if source_root_dir:
+    # If source or bmat_source provided, only use the custom source
+    if source_root_dir is not None:
         ds['custom_source'] = dataset.get_custom_db_ds(source_root_dir)
-    else:  # Otherwise use the default sources
+    elif bmat_source is not None:
+        ds['bmat_custom_source'] = dataset.get_custom_bmat_db_ds(bmat_source)
+    else: # Otherwise use the default sources
         # Create the clean and augmented query datasets
         ds['query'], ds['db'] = dataset.get_test_query_ds()
         # Create the dummy dataset if not skipped
@@ -96,6 +99,7 @@ def generate_fingerprint(cfg: dict,
                          checkpoint_dir: str="",
                          checkpoint_index: int=0,
                          source_root_dir: str ="",
+                         bmat_source: str ="",
                          output_root_dir: str="",
                          skip_dummy: bool=False,
                          ):
@@ -161,7 +165,10 @@ def generate_fingerprint(cfg: dict,
 
     # Get data source
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
-    ds = get_data_source(cfg, source_root_dir=source_root_dir, skip_dummy=skip_dummy)
+    ds = get_data_source(cfg, source_root_dir=source_root_dir, bmat_source=bmat_source, skip_dummy=skip_dummy)
+
+    dim = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
+    bsz = cfg['TEST']['BATCH_SZ']
 
     # Generate
     sz_check = dict() # for warning message
@@ -169,6 +176,30 @@ def generate_fingerprint(cfg: dict,
 
         n_items = ds[key].n_samples
         assert n_items > 0, f"Dataset '{key}' is empty."
+
+        # Create a csv file containing the information of the segments if BMAT data is used
+        if key == 'bmat_custom_source':
+
+            if source_root_dir.split('/')[-1].lower() == 'queries':
+                segments_csv = os.path.join(output_dir, 'queries_segments.csv')
+            elif source_root_dir.split('/')[-1].lower() == 'references':
+                segments_csv = os.path.join(output_dir, 'refs_segments.csv')
+            else:
+                raise NameError("Unknown type of audio. "
+                                "It's not query nor reference")
+
+            with open(segments_csv, 'w', newline='', encoding='utf-8') as csvfile:
+                # from model/utils/dataloader_keras.py line 117
+                fieldnames = ['segment_id', 'filename', 'intra_segment_id', 
+                              'offset_min', 'offset_max']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                for ii, seg in enumerate(ds[key].track_paths):
+                    writer.writerow({'segment_id': ii,
+                                    'filename': seg[0],
+                                    'intra_segment_id': seg[1],
+                                    'offset_min': seg[2],
+                                    'offset_max': seg[3]})
 
         # Create memmap, and save shapes
         """
