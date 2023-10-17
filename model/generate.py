@@ -71,7 +71,7 @@ def prevent_overwrite(key, target_path):
 
 def get_data_source(cfg: dict, source_root_dir="", bmat_source="", skip_dummy=False):
 
-    assert not ((source_root_dir == "") and (bmat_source == "")), \
+    assert (bmat_source == "") or ((bmat_source != "") and (source_root_dir == "")), \
         "Only one of 'source_root_dir' and 'bmat_source' can be specified."
 
     # Create the dataset
@@ -152,6 +152,13 @@ def generate_fingerprint(cfg: dict,
                                                             checkpoint_dir, 
                                                             checkpoint_index)
 
+    # Get data source
+    """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
+    ds = get_data_source(cfg, 
+                        source_root_dir=source_root_dir, 
+                        bmat_source=bmat_source, 
+                        skip_dummy=skip_dummy)
+
     # Determine the output_root_dir if not specified
     if output_root_dir == "":
         output_root_dir = os.path.join(log_root_dir, "emb/")
@@ -162,13 +169,6 @@ def generate_fingerprint(cfg: dict,
     # Prevent overwriting the dummy_db as it is time-consuming
     if not skip_dummy:
         prevent_overwrite('dummy_db', os.path.join(output_dir, 'dummy_db.mm'))
-
-    # Get data source
-    """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
-    ds = get_data_source(cfg, source_root_dir=source_root_dir, bmat_source=bmat_source, skip_dummy=skip_dummy)
-
-    dim = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
-    bsz = cfg['TEST']['BATCH_SZ']
 
     # Generate
     sz_check = dict() # for warning message
