@@ -90,7 +90,7 @@ def train(config_path, max_epoch, deterministic):
 @click.option('--skip_dummy', default=False, is_flag=True, 
               help='Exclude dummy-DB from the default source.')
 @click.option('--mixed_precision', default=False, is_flag=True,
-              help='Use mixed precision during inference. The fingerprint ' +
+              help='Use mixed precision during inference. The fingerprint '
               'will be saved in FP32 in both cases.')
 def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_root, skip_dummy, mixed_precision):
     """ Generate fingerprints from a saved checkpoint.

@@ -87,7 +87,6 @@ def get_data_source(cfg: dict, source_root_dir: str="", skip_dummy: bool=False):
             tf.print("Excluding \033[33m'dummy_db'\033[0m from source.")
         else:
             ds['dummy_db'] = dataset.get_test_dummy_db_ds()
-    # TODO: proper print
     tf.print(f'\x1b[1;32mData source: {list(ds.keys())}\x1b[0m')
     return ds
 
@@ -143,17 +142,12 @@ def generate_fingerprint(cfg: dict,
     dim = cfg['MODEL']['ARCHITECTURE']['EMB_SZ']
     bsz = cfg['TEST']['BATCH_SZ']
 
-    # Set mixed precision
+    # Set mixed precision before building the model
     if mixed_precision:
         set_policy(Policy('mixed_float16'))
         print('Mixed precision enabled.')
 
-    # Set mixed precision
-    if mixed_precision:
-        set_policy(Policy('mixed_float16'))
-        print('Mixed precision enabled.')
-
-    # Build the model checkpoint
+    # Build the model
     m_fp = get_fingerprinter(cfg, trainable=False)
 
     # If checkpoint directory is not specified, read it from the config file
@@ -165,30 +159,21 @@ def generate_fingerprint(cfg: dict,
                                                             checkpoint_dir, 
                                                             checkpoint_index)
 
-    # Choose the output directory
-    if not output_root_dir:
-        output_root_dir = log_root_dir + "emb/"
-    # Here the checkpoint_type does not matter because checkpoint_index is specified.
-    output_dir = output_root_dir + f'{checkpoint_name}/{checkpoint_index}/'
-    # Write the precision type of the inference
-    if mixed_precision:
-        output_dir += 'mixed_precision/'
-    else:
-        output_dir += 'float32/'
-    os.makedirs(output_dir, exist_ok=True)
-    if not skip_dummy:
-        prevent_overwrite('dummy_db', output_dir+'dummy_db.mm')
-
     # Get data source
     """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
     ds = get_data_source(cfg, source_root_dir=source_root_dir, skip_dummy=skip_dummy)
 
-    # Determine the output_root_dir if not specified
-    if output_root_dir == "":
+    # Choose the output directory
+    if not output_root_dir:
         output_root_dir = os.path.join(log_root_dir, "emb/")
-    # Create the output directory
-    output_dir = os.path.join(output_root_dir, checkpoint_name, str(checkpoint_index))
+    output_dir = os.path.join(output_root_dir, checkpoint_name, f"{checkpoint_index}/")
+    # Write the precision type of the inference
+    if mixed_precision:
+        output_dir = os.path.join(output_dir, 'mixed_precision/')
+    else:
+        output_dir = os.path.join(output_dir, 'float32/')
     os.makedirs(output_dir, exist_ok=True)
+    tf.print(f'\x1b[1;32mOutput directory: {output_dir}\x1b[0m')
 
     # Prevent overwriting the dummy_db as it is time-consuming
     if not skip_dummy:
