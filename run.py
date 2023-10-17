@@ -8,10 +8,6 @@ import sys
 import click
 import yaml
 
-import numpy as np
-import pandas as pd
-import faiss
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 def load_config(config_filepath: str):
@@ -177,6 +173,11 @@ def match(query_bname, query_fp_path, refs_fp_path, index_path, extension):
         INDEX_PATH: Path where the index will be stored.
         EXTENSION: Refs extension
     """
+
+    import numpy as np
+    import pandas as pd
+    import faiss
+
     from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
     from model.matcher import Matcher
     from eval.eval_faiss import load_memmap_data
