@@ -19,10 +19,6 @@ def load_config(config_filepath: str):
     else:
         sys.exit(f'cli: ERROR! Configuration file {config_filepath} is missing!!')
 
-def update_config(cfg, key1: str, key2: str, val):
-    cfg[key1][key2] = val
-    return cfg
-
 def print_config(cfg):
     os.system("")
     print('\033[36m' + yaml.dump(cfg, indent=4, width=120, sort_keys=False) +
@@ -63,16 +59,19 @@ def train(checkpoint_name, config, max_epoch, deterministic):
 
     from model.trainer import set_seed, set_global_determinism, trainer
 
+    # Training settings
     set_seed()
     if deterministic:
         set_global_determinism()
+
+    # Load the config file
     cfg = load_config(config)
-    if max_epoch:
-        update_config(cfg, 'TRAIN', 'MAX_EPOCH', max_epoch)
-    # Write the model name inside the config file
-    update_config(cfg, 'MODEL', 'NAME', checkpoint_name)
+    # Update the config file
+    cfg['MODEL']['MAX_EPOCH'] = max_epoch
     print_config(cfg)
-    trainer(cfg, checkpoint_name)
+
+    # Train
+    trainer(cfg)
 
 """ Generate fingerprint (after training) """
 @cli.command()

@@ -137,7 +137,7 @@ def mini_search_validation(ds, m_fp, mode='argmin',
         accs_by_scope[k], _ = mini_search_eval(query[k], db[k], scopes, mode, display=True)
     return accs_by_scope, scopes, key_strs
 
-def trainer(cfg, checkpoint_name):
+def trainer(cfg):
 
     # Initialize the datasets
     tf.print('-----------Initializing the datasets-----------')
@@ -176,7 +176,7 @@ def trainer(cfg, checkpoint_name):
 
     # Experiment helper: see utils.experiment_helper.py for details.
     helper = ExperimentHelper(
-        checkpoint_name=checkpoint_name,
+        checkpoint_name=cfg['MODEL']['NAME'],
         optimizer=opt,
         model_to_checkpoint=m_fp,
         cfg=cfg)
