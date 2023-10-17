@@ -70,6 +70,11 @@ def prevent_overwrite(key, target_path):
             sys.exit()
 
 def get_data_source(cfg: dict, source_root_dir="", bmat_source="", skip_dummy=False):
+    """ Get the data source. If source_root_dir and bmat_source are not specified,
+    use the default source specified in the config file. In this case you can use skip_dummy 
+    to skip the generation of dummy_db. If source_root_dir is
+    specified, use the custom source. If bmat_source is specified, use the custom
+    bmat_source. """
 
     assert (bmat_source == "") or ((bmat_source != "") and (source_root_dir == "")), \
         "Only one of 'source_root_dir' and 'bmat_source' can be specified."
@@ -115,9 +120,11 @@ def generate_fingerprint(cfg: dict,
     checkpoint_index : int, optional
         Index of the checkpoint to load from. (default: 0)
         0 means the latest checkpoint. 97 means the 97th epoch.
-    source : str, optional
-        Path to the custom source. (default: "")
+    source_root_dir : str, optional
+        Path to the custom source_root_dir. (default: "")
         If not specified, load from the default source specified in the config file.
+    bmat_source : str, optional
+        Path to the custom bmat_source. (default: "")
     output_root_dir : str, optional
         Root directory for the output. (default: "")
         If not specified, load from the default directory specified in the config file.

@@ -111,6 +111,9 @@ def generate(config_path, checkpoint_dir, checkpoint_index, source_root, bmat_so
     • The default value for the fingerprinting source is [TEST_DUMMY_DB] and 
         [TEST_QUERY_DB] specified in config file. You can change the source
         by specifying the --source option.
+    • To use BMAT data for fingerprinting, specify the --bmat_source option.
+        It can point to a directory containing 16-bit 8 Khz mono WAV files or
+        a file containing the paths of the audio files with the same encoding.
     • The default value for the output root directory is
         cfg['MODEL']['LOG_ROOT_DIR']/emb/cfg['MODEL']['CHECKPOINT_NAME'].
         You can change the output root directory by specifying the --output_root option.
