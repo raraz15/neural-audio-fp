@@ -6,6 +6,7 @@
 import random
 import numpy as np
 import os
+import subprocess
 
 import tensorflow as tf
 from tensorflow.keras.experimental import CosineDecay, CosineDecayRestarts
@@ -151,6 +152,11 @@ def mini_search_validation(ds, m_fp, mode='argmin',
     return accs_by_scope, scopes, key_strs
 
 def trainer(cfg):
+
+    # Get the git sha and add it to the config
+    git_sha = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
+    git_branch = subprocess.check_output(["git", "branch", "--show-current"]).strip().decode()
+    cfg["GIT"] = {'SHA': git_sha, 'BRANCH': git_branch}
 
     # Initialize the datasets
     tf.print('-----------Initializing the datasets-----------')
