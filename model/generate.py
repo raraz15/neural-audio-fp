@@ -74,7 +74,10 @@ def get_data_source(cfg: dict, source_root_dir="", bmat_source="", skip_dummy=Fa
     use the default source specified in the config file. In this case you can use skip_dummy 
     to skip the generation of dummy_db. If source_root_dir is
     specified, use the custom source. If bmat_source is specified, use the custom
-    bmat_source. """
+    bmat_source. 
+
+    Note: Currently default source is not implemented in Dataset. However, this does not 
+    affect the BMAT experiments."""
 
     assert (bmat_source == "") or ((bmat_source != "") and (source_root_dir == "")), \
         "Only one of 'source_root_dir' and 'bmat_source' can be specified."
@@ -85,10 +88,13 @@ def get_data_source(cfg: dict, source_root_dir="", bmat_source="", skip_dummy=Fa
 
     # If source or bmat_source provided, only use the custom source
     if source_root_dir is not None:
+        tf.print("Using custom source")
         ds['custom_source'] = dataset.get_custom_db_ds(source_root_dir)
     elif bmat_source is not None:
+        tf.print("Using custom bmat_source")
         ds['bmat_custom_source'] = dataset.get_custom_bmat_db_ds(bmat_source)
     else: # Otherwise use the default sources
+        tf.print("Using default source.")
         # Create the clean and augmented query datasets
         ds['query'], ds['db'] = dataset.get_test_query_ds()
         # Create the dummy dataset if not skipped
