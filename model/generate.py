@@ -147,6 +147,10 @@ def generate_fingerprint(cfg: dict,
                                                             checkpoint_dir, 
                                                             checkpoint_index)
 
+    # Get data source
+    """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
+    ds = get_data_source(cfg, source_root_dir=source_root_dir, skip_dummy=skip_dummy)
+
     # Determine the output_root_dir if not specified
     if output_root_dir == "":
         output_root_dir = os.path.join(log_root_dir, "emb/")
@@ -157,10 +161,6 @@ def generate_fingerprint(cfg: dict,
     # Prevent overwriting the dummy_db as it is time-consuming
     if not skip_dummy:
         prevent_overwrite('dummy_db', os.path.join(output_dir, 'dummy_db.mm'))
-
-    # Get data source
-    """ ds = {'key1': <Dataset>, 'key2': <Dataset>, ...} """
-    ds = get_data_source(cfg, source_root_dir=source_root_dir, skip_dummy=skip_dummy)
 
     # Generate
     sz_check = dict() # for warning message
