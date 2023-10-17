@@ -14,15 +14,14 @@ import faiss
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
-def load_config(config_filepath, display=True):
-    if display:
-        if os.path.exists(config_filepath):
-            print(f'cli: Configuration from {config_filepath}')
-        else:
-            sys.exit(f'cli: ERROR! Configuration file {config_filepath} is missing!!')
-        with open(config_filepath, 'r', encoding='utf-8') as f:
+def load_config(config_filepath: str):
+    if os.path.exists(config_filepath):
+        print(f'cli: Configuration from {config_filepath}')
+        with open(config_filepath, 'r') as f:
             cfg = yaml.safe_load(f)
-    return cfg
+        return cfg
+    else:
+        sys.exit(f'cli: ERROR! Configuration file {config_filepath} is missing!!')
 
 def update_config(cfg, key1: str, key2: str, val):
     cfg[key1][key2] = val
@@ -82,52 +81,57 @@ def train(checkpoint_name, config, max_epoch, deterministic):
 
 # Generate fingerprint (after training)
 @cli.command()
-@click.argument('checkpoint_name', required=True)
-@click.option('--checkpoint_type', default='custom', type=click.STRING,
-              help="Checkpoint type must be one of {'best', 'custom'}. Default is 'custom'.")
-@click.option('--checkpoint_index', default=None, type=click.INT,
-            help="Checkpoint index. If not specified, the latest checkpoint " +
-            "in the OUTPUT_ROOT_DIR will be loaded.")
-@click.option('--config', '-c', default='default', type=click.STRING,
-              help="Name of the model configuration file located in 'config/'." +
-              " Default is 'default'")
-@click.option('--source', '-s', default=None, type=click.STRING, required=False,
+@click.argument('config_path', required=True)
+@click.option('--checkpoint_dir', default='', type=click.STRING, 
+              help="Directory containing the model checkpoint. If not specified, "
+              "cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] will be used.")
+@click.option('--checkpoint_index', default=0, type=click.INT, 
+            help="Checkpoint index. If not specified, the latest checkpoint " 
+            "in the ./OUTPUT_ROOT_DIR/checkpoint/ will be loaded.")
+@click.option('--source_root', '-s', default='', type=click.STRING, 
               help="Custom source root directory. The source must be 16-bit "
-              "8 Khz mono WAV. This is only useful when constructing a database"
-              " without synthesizing queries.")
-@click.option('--output', '-o', default=None, type=click.STRING,
-              help="Root directory where the generated embeddings (uncompressed)" +
-              " will be stored. Default is OUTPUT_ROOT_DIR/CHECKPOINT_NAME " +
-              "defined in config.")
-@click.option('--skip_dummy', default=False, is_flag=True,
+              "8 Khz mono WAV. This is only useful when constructing a database "
+              "without synthesizing queries.")
+@click.option('--output_root', '-o', default='', type=click.STRING, 
+              help="Root directory where the generated embeddings (uncompressed) " 
+              "will be stored. Default is OUTPUT_ROOT_DIR/CHECKPOINT_NAME defined in config.")
+@click.option('--skip_dummy', default=False, is_flag=True, 
               help='Exclude dummy-DB from the default source.')
-def generate(checkpoint_name, checkpoint_type, checkpoint_index, config, source, output, skip_dummy):
+def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_root, skip_dummy):
     """ Generate fingerprints from a saved checkpoint.
 
-    ex) python run.py generate CHECKPOINT_NAME
+    ex) python run.py generate CONFIG_PATH
 
-    With custom config: \b\n
-        python run.py generate CHECKPOINT_NAME -c CONFIG_NAME
+    With custom source directory: \b\n
+        python run.py generate CONFIG_PATH --source_root SOURCE_DIR
 
-    • If CHECKPOINT_INDEX is custom and CHECKPOINT_INDEX is not specified, 
-        the latest checkpoint in the OUTPUT_ROOT_DIR will be loaded.
+    • If CHECKPOINT_DIR is not specified, 
+        cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] will be used.
+    • If CHECKPOINT_INDEX is not specified, the latest checkpoint in 
+        cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] will be used.
     • The default value for the fingerprinting source is [TEST_DUMMY_DB] and 
-        [TEST_QUERY_DB] specified in config file.
+        [TEST_QUERY_DB] specified in config file. You can change the source
+        by specifying the --source option.
+    • The default value for the output root directory is
+        cfg['MODEL']['LOG_ROOT_DIR']/emb/cfg['MODEL']['CHECKPOINT_NAME'].
+        You can change the output root directory by specifying the --output_root option.
 
     """
+
     from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
     from model.generate import generate_fingerprint
 
-    cfg = load_config(config)
     allow_gpu_memory_growth()
-    if os.path.isdir(source):
-        isdir=True
-    elif os.path.isfile(source):
-        isdir=False
-    else:
-        print('ERROR: Unknown source')
-        sys.exit()
-    generate_fingerprint(cfg, checkpoint_type, checkpoint_name, checkpoint_index, source, output, skip_dummy, isdir)
+
+    # Load the config file
+    cfg = load_config(config_path)
+    # Generate fingerprints
+    generate_fingerprint(cfg, 
+                         checkpoint_dir=checkpoint_dir,
+                         checkpoint_index=checkpoint_index,
+                         source_root_dir=source_root,
+                         output_root_dir=output_root,
+                         skip_dummy=skip_dummy)
 
 # Create index
 @cli.command()
