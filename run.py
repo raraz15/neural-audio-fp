@@ -39,13 +39,11 @@ def cli():
 
 """ Train """
 @cli.command()
-@click.argument('checkpoint_name', required=True)
-@click.option('--config', '-c', default='default', type=click.STRING,
-              help="Name of model configuration located in './config/.'")
+@click.argument('config_path', required=True)
 @click.option('--max_epoch', default=None, type=click.INT, help='Max epoch.')
 @click.option('--deterministic', default=False, is_flag=True,
               help='Set the CUDA operaitions to be deterministic.')
-def train(checkpoint_name, config, max_epoch, deterministic):
+def train(config_path, max_epoch, deterministic):
     """ Train a neural audio fingerprinter.
 
     ex) python run.py train CHECKPOINT_NAME --max_epoch=100
@@ -65,7 +63,7 @@ def train(checkpoint_name, config, max_epoch, deterministic):
         set_global_determinism()
 
     # Load the config file
-    cfg = load_config(config)
+    cfg = load_config(config_path)
     # Update the config file
     cfg['MODEL']['MAX_EPOCH'] = max_epoch
     print_config(cfg)
