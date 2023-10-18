@@ -109,8 +109,9 @@ class DevLoader(Sequence):
             # try to cover the whole set of augmentations.
             i0, i1 = idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz
 
-            # TODO: merge if statements of augmentations
-            if self.bg_mix:
+            # If both augmentations are specified, we apply them in sequence
+            if self.bg_mix and self.ir_mix:
+
                 # Prepare BG for positive samples
                 bg_fnames = [self.bg_fnames[i%self.n_bg_files] for i in range(i0, i1)]
                 bg_batch = self.batch_read_bg(bg_fnames, idx)
@@ -119,12 +120,15 @@ class DevLoader(Sequence):
                                                     bg_batch,
                                                     snr_range=self.bg_snr_range)
 
-            if self.ir_mix:
                 # Prepare IR for positive samples
                 ir_fnames = [self.ir_fnames[i%self.n_ir_files] for i in range(i0, i1)]
                 ir_batch = self.batch_read_ir(ir_fnames)
                 # Apply Room IR, normalize the output
                 Xp_batch = audio_utils.ir_aug_batch(Xp_batch, ir_batch, normalize=True)
+
+            elif (self.bg_mix and not self.ir_mix) or (self.ir_mix and not self.bg_mix):
+
+                raise NotImplementedError("Only both augmentations together are supported!")
 
         # Compute mel spectrograms
         Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch).astype(np.float32)
