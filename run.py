@@ -65,7 +65,8 @@ def train(config_path, max_epoch, deterministic):
     # Load the config file
     cfg = load_config(config_path)
     # Update the config file
-    cfg['MODEL']['MAX_EPOCH'] = max_epoch
+    if max_epoch is not None:
+        cfg['MODEL']['MAX_EPOCH'] = max_epoch
     print_config(cfg)
 
     # Train
