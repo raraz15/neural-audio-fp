@@ -87,27 +87,27 @@ class ExperimentHelper():
             _root_dir = './logs/'
 
         # Set the default directories
-        self._log_dir = _root_dir + f'fit/{checkpoint_name}/'
-        self._checkpoint_save_dir = _root_dir + f'checkpoint/{checkpoint_name}/'
-        self._best_checkpoint_save_dir = _root_dir + f'best_checkpoint/{checkpoint_name}/'
+        self._log_dir = os.path.join(_root_dir, 'fit', f'{checkpoint_name}/')
+        self._checkpoint_save_dir = os.path.join(_root_dir, 'checkpoint', f'{checkpoint_name}/')
+        self._best_checkpoint_save_dir = os.path.join(_root_dir, 'best_checkpoint', f'{checkpoint_name}/')
 
         # Tensorboard writers for train and validation losses
-        self._tr_summary_writer = create_file_writer(self._log_dir + '/train')
-        self._val_summary_writer = create_file_writer(self._log_dir + '/val')
+        self._tr_summary_writer = create_file_writer(os.path.join(self._log_dir, 'train'))
+        self._val_summary_writer = create_file_writer(os.path.join(self._log_dir, 'val'))
 
         # Track the learning rate
-        self._lr_summary_writer = create_file_writer(self._log_dir + '/lr')
+        self._lr_summary_writer = create_file_writer(os.path.join(self._log_dir, 'lr'))
 
         # Tensorboard writers for mini test accuracies if mini test is enabled
         if cfg['TRAIN']['MINI_TEST_IN_TRAIN']:
             self._minitest_summary_writer_dict = dict()
             for key in ['f', 'L2(f)', 'g(f)']:
                 self._minitest_summary_writer_dict[key] = create_file_writer(
-                    self._log_dir + '/mini_test/' + key)
+                    os.path.join(self._log_dir, 'mini_test', key))
             self._minitest_acc = None
 
         # Tensorboard writer for images
-        self._image_writer = create_file_writer(self._log_dir + '/images')
+        self._image_writer = create_file_writer(os.path.join(self._log_dir, 'images'))
 
         # Logging loss and acc metrics
         self._tr_loss = K.metrics.Mean(name='train_loss')

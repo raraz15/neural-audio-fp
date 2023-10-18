@@ -2,6 +2,7 @@
 # Here we define how the audio is converted to the input that the model can use,
 # the model architecture, and the log directory.
 MODEL:
+    NAME : lol # Name of the model. Used for logging.
     # Parameters for audio segment extraction.
     AUDIO :
         SEGMENT_DUR : 1. # Duration of an audio segment the model uses in seconds.
@@ -37,7 +38,7 @@ TRAIN:
     # Audio segment parameters
     AUDIO:
         SEGMENT_HOP_DUR : .5 # Hop-size of the segment window in seconds.
-        SEGMENTS_PER_TRACK: 58
+        SEGMENTS_PER_TRACK : 58
                         # Use this many segments per track for training.
         MAX_OFFSET_DUR : 0.2
                         # Maximum offset duration in seconds. 
@@ -48,15 +49,16 @@ TRAIN:
                         # fingerprint.
     # Hyperparameters
     MAX_EPOCH : 100
-    BATCH_SZ : 384  # Training batch size N must be EVEN number. 
+    BATCH_SZ : 768  # Training batch size N must be EVEN number. 
                     # Half of the batch is used for positive pairs 
                     # and the other half for anchor pairs.
+    MIXED_PRECISION: True
     LOSS:
         LOSS_MODE : 'NTxent' # 'NTxent'(default) or 'Online-Triplet'(now-playing). 
         TAU : 0.05 # **NTXENT ONLY** temperature parameter 0. < TAU < 1. 
     OPTIMIZER : 'Adam' # 'LAMB' or 'Adam'. LAMB for BSZ >= 240
     LR:
-        INITIAL_RATE: 1e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
+        INITIAL_RATE: 2e-4 # Initial learning rate. Usually in the range from 3e-5 to 1e-4 (BSZ < 1280)
         SCHEDULE : 'cos' # ['cos', 'cos-restart', 'None'].
         ALPHA : 1e-6 # Minimum learning rate value for decay as a fraction of INITIAL_RATE.
     # Augmentation parameters
@@ -69,7 +71,7 @@ TRAIN:
                     # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
             IR : True
             IR_ROOT : '../datasets/neural-audio-fp-dataset/aug/ir/tr/'
-            IR_MAX_DUR : 0.5
+            IR_MAX_DUR : 0.05
                     # Maximum duration of the impulse response in seconds.
         # Spectral-domain augmentation parameters
         SPEC:
@@ -121,7 +123,7 @@ TEST:
             IR : False # If you augment beforehand, set this to False.
             IR_ROOT : '../datasets/neural-audio-fp-dataset/aug/ir/ts/'
                     # If IR=True, you must provide the background noise files.
-            IR_MAX_DUR : 0.5 # Maximum duration of the impulse response in seconds.
+            IR_MAX_DUR : 0.05 # Maximum duration of the impulse response in seconds.
 
 # Device setup
 DEVICE:
