@@ -107,9 +107,19 @@ class Dataset:
                 Reduce the number of items in each track to this percentage.
         """
 
+        # Find the wav tracks
         print("Creating the training dataset...")
+        self.tr_source_fps = sorted(
+            glob.glob(self.tr_audio_dir + "**/*.wav", recursive=True))
+        assert len(self.tr_source_fps)>0, "No training tracks found."
+        print(f"{len(self.tr_source_fps):,} tracks found.")
 
+        # Reduce the total number of tracks if requested
         assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
+        if reduce_items_p<100:
+            print(f"Reducing the number of tracks used to {reduce_items_p}%")
+            self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
+            print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
 
         # Find the augmentation files
         if self.tr_use_bg_aug:
@@ -122,18 +132,6 @@ class Dataset:
                                     recursive=True))
             print(f"tr_ir_fps: {len(self.tr_ir_fps):>6,}")
             assert len(self.tr_ir_fps)>0, "No impulse response found."
-
-        # Find the wav tracks 
-        self.tr_source_fps = sorted(
-            glob.glob(self.tr_audio_dir + "**/*.wav", recursive=True))
-        assert len(self.tr_source_fps)>0, "No training tracks found."
-        print(f"{len(self.tr_source_fps):,} tracks found.")
-
-        # Reduce the total number of tracks if requested
-        if reduce_items_p<100:
-            print(f"Reducing the number of tracks used to {reduce_items_p}%")
-            self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
-            print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
 
         return TrackDevLoader(
             track_paths=self.tr_source_fps,
@@ -164,7 +162,7 @@ class Dataset:
                 dir1/
                     track1.wav
                     ...
-                ...        
+                ...
 
         Parameters
         ----------
@@ -173,27 +171,25 @@ class Dataset:
 
         """
 
-        print(f"Creating the validation dataset...")
-
-        assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
-
-        # Find the augmentation files
-        if self.tr_use_bg_aug:
-            print(f"val_bg_fps: {len(self.tr_bg_fps):>6,} (Same as the training set)")
-        if self.tr_use_ir_aug:
-            print(f"val_ir_fps: {len(self.tr_ir_fps):>6,} (Same as the training set)")
-
         # Find the wav tracks
+        print(f"Creating the validation dataset...")
         self.val_source_fps = sorted(
             glob.glob(self.val_audio_dir + '**/*.wav', recursive=True))
         assert len(self.val_source_fps)>0, "No validation tracks found."
         print(f"{len(self.val_source_fps):,} tracks found.")
 
         # Reduce the total number of tracks if requested
+        assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
         if reduce_items_p<100:
             print(f"Reducing the number of tracks used to {reduce_items_p}%")
             self.val_source_fps = self.val_source_fps[:int(len(self.val_source_fps)*reduce_items_p/100)]
             print(f"Reduced to {len(self.val_source_fps):,} tracks.")
+
+        # Find the augmentation files
+        if self.tr_use_bg_aug:
+            print(f"val_bg_fps: {len(self.tr_bg_fps):>6,} (Same as the training set)")
+        if self.tr_use_ir_aug:
+            print(f"val_ir_fps: {len(self.tr_ir_fps):>6,} (Same as the training set)")
 
         return TrackDevLoader(
             track_paths=self.val_source_fps,
