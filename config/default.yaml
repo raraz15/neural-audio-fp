@@ -2,7 +2,7 @@
 # Here we define how the audio is converted to the input that the model can use,
 # the model architecture, and the log directory.
 MODEL:
-    NAME : fma-LAMB # Name of the model. Used for logging.
+    NAME : lol # Name of the model. Used for logging.
     # Parameters for audio segment extraction.
     AUDIO :
         SEGMENT_DUR : 1. # Duration of an audio segment the model uses in seconds.
@@ -49,9 +49,12 @@ TRAIN:
                         # fingerprint.
     # Hyperparameters
     MAX_EPOCH : 100
-    BATCH_SZ : 768  # Training batch size N must be EVEN number. 
-                    # Half of the batch is used for positive pairs 
-                    # and the other half for anchor pairs.
+    TR_BATCH_SZ : 768  # Training batch size. N must be EVEN number. 
+                       # Half of the batch is used for positive pairs 
+                       # and the other half for anchor pairs.
+    VAL_BATCH_SZ : 500 # Validation batch size. N must be EVEN number. 
+                       # We use a different batch size for validation to
+                       # discard less tracks during validation.
     LOSS:
         LOSS_MODE : 'NTxent' # 'NTxent'(default) or 'Online-Triplet'(now-playing). 
         TAU : 0.05 # **NTXENT ONLY** temperature parameter 0. < TAU < 1. 

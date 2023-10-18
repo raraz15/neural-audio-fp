@@ -217,15 +217,13 @@ def trainer(cfg):
 
     # Loss objects
     if cfg['TRAIN']['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
-        n_org = train_ds.n_anchor
-        n_rep = train_ds.n_pos_bsz
         loss_obj_train = NTxentLoss(
-            n_org=n_org,
-            n_rep=n_rep,
+            n_org=train_ds.n_anchor,
+            n_rep=train_ds.n_pos_bsz,
             tau=cfg['TRAIN']['LOSS']['TAU'])
         loss_obj_val = NTxentLoss(
-            n_org=n_org,
-            n_rep=n_rep,
+            n_org=val_ds.n_anchor,
+            n_rep=val_ds.n_pos_bsz,
             tau=cfg['TRAIN']['LOSS']['TAU'])
     else:
         raise NotImplementedError(cfg['TRAIN']['LOSS']['LOSS_MODE'])

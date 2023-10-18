@@ -49,7 +49,7 @@ class Dataset:
 
         self.tr_segments_per_track = cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK']
         self.tr_offset_duration = cfg['TRAIN']['AUDIO']["MAX_OFFSET_DUR"]
-        self.tr_batch_sz = cfg['TRAIN']['BATCH_SZ']
+        self.tr_batch_sz = cfg['TRAIN']['TR_BATCH_SZ']
 
         self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
         self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
@@ -63,6 +63,7 @@ class Dataset:
 
         # Validation Parameters
         self.val_audio_dir = cfg['TRAIN']['DIR']['VAL_ROOT']
+        self.val_batch_sz = cfg['TRAIN']['VAL_BATCH_SZ']
         # We use the same augmentations for train and validation sets
 
         # Test Parameters
@@ -321,7 +322,7 @@ class Dataset:
                 f_max=self.fmax,
                 segments_per_track=self.tr_segments_per_track,
                 scale_output=self.scale_inputs,
-                bsz=self.tr_batch_sz,
+                bsz=self.val_batch_sz,
                 shuffle=False,
                 random_offset_anchor=True,
                 offset_duration=self.tr_offset_duration, # Same as the training set
@@ -355,7 +356,7 @@ class Dataset:
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
                 segments_per_track=self.tr_segments_per_track,
-                bsz=self.tr_batch_sz,
+                bsz=self.val_batch_sz,
                 shuffle=False,
                 random_offset_anchor=False,
                 bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
