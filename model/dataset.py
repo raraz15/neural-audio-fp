@@ -443,8 +443,7 @@ class Dataset:
 
             raise ValueError("Invalid validation tracks directory.")
 
-    # TODO make dummy again
-    def get_test_noise_ds(self):
+    def get_test_dummy_db_ds(self):
         """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.
         Supports both discotube and nafp datasets. The folder structure 
         should be as follows:

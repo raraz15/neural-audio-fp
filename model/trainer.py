@@ -6,6 +6,7 @@
 import random
 import numpy as np
 import os
+import subprocess
 
 import tensorflow as tf
 from tensorflow.keras.experimental import CosineDecay, CosineDecayRestarts
@@ -39,7 +40,7 @@ def set_global_determinism():
     os.environ['TF_DETERMINISTIC_OPS'] = '1'
     print("Global determinism set")
 
-def build_fp(cfg):
+def build_fp(cfg: dict):
     """ Build fingerprinter """
 
     # m_specaug: spec-augmentation layer.
@@ -51,7 +52,7 @@ def build_fp(cfg):
         set_policy(Policy('mixed_float16'))
         print('Mixed precision enabled.')
 
-    # m_fp: fingerprinter g(f(.)).
+    # m_fp: fingerprinter L2(g(f(.))).
     m_fp = get_fingerprinter(cfg, trainable=False)
 
     return m_specaug, m_fp
@@ -107,18 +108,27 @@ def val_step(X, m_fp, loss_obj, helper):
     avg_loss = helper.update_val_loss(loss) # To tensorboard.
     return avg_loss, sim_mtx
 
-# TODO: mixed_precision
 @tf.function
 def test_step(X, m_fp):
     """ Test step used for mini-search-validation """
 
     X = tf.concat(X, axis=0) # (nA+nP, F, T, 1)
     m_fp.trainable = False
-    emb_f = m_fp.front_conv(X)  # (BSZ, Dim)
-    emb_f_postL2 = tf.math.l2_normalize(emb_f, axis=1)
-    emb_gf = m_fp.div_enc(emb_f)
-    emb_gf = tf.math.l2_normalize(emb_gf, axis=1)
-    return emb_f, emb_f_postL2, emb_gf # f(.), L2(f(.)), L2(g(f(.))
+    if m_fp.mixed_precision:
+        act = tf.keras.layers.Activation('linear', dtype='float32')
+        emb_f = m_fp.front_conv(X)  # (BSZ, Dim)
+        emb_f_FP32 = act(emb_f)
+        emb_f_postL2 = tf.math.l2_normalize(emb_f_FP32, axis=1)
+        emb_gf = m_fp.div_enc(emb_f)
+        emb_gf = act(emb_gf)
+        emb_gf = tf.math.l2_normalize(emb_gf, axis=1)
+        return emb_f_FP32, emb_f_postL2, emb_gf # f(.), L2(f(.)), L2(g(f(.))
+    else:
+        emb_f = m_fp.front_conv(X)  # (BSZ, Dim)
+        emb_f_postL2 = tf.math.l2_normalize(emb_f, axis=1)
+        emb_gf = m_fp.div_enc(emb_f)
+        emb_gf = tf.math.l2_normalize(emb_gf, axis=1)
+        return emb_f, emb_f_postL2, emb_gf # f(.), L2(f(.)), L2(g(f(.))
 
 def mini_search_validation(ds, m_fp, mode='argmin',
                            scopes=[1, 3, 5, 9, 11, 19], max_n_samples=3000):
@@ -151,6 +161,11 @@ def mini_search_validation(ds, m_fp, mode='argmin',
     return accs_by_scope, scopes, key_strs
 
 def trainer(cfg):
+
+    # Get the git sha and add it to the config
+    git_sha = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
+    git_branch = subprocess.check_output(["git", "branch", "--show-current"]).strip().decode()
+    cfg["GIT"] = {'SHA': git_sha, 'BRANCH': git_branch}
 
     # Initialize the datasets
     tf.print('-----------Initializing the datasets-----------')
@@ -220,6 +235,8 @@ def trainer(cfg):
     if ep_start != 0:
         assert ep_start <= ep_max, f"When continuing training, MAX_EPOCH={ep_max} "\
         f"must be greater than or equal to where training was left off, which is {ep_start}"
+        tf.print(f"Continuing training from epoch{ep_start}")
+    tf.print('-----------Training starts-----------')
     for ep in range(ep_start, ep_max + 1):
         tf.print(f'EPOCH: {ep}/{ep_max}')
 
