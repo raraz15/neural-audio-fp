@@ -7,6 +7,7 @@ import random
 import numpy as np
 import os
 import subprocess
+from datetime import datetime
 
 import tensorflow as tf
 from tensorflow.keras.experimental import CosineDecay, CosineDecayRestarts
@@ -166,6 +167,8 @@ def trainer(cfg):
     git_sha = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
     git_branch = subprocess.check_output(["git", "branch", "--show-current"]).strip().decode()
     cfg["GIT"] = {'SHA': git_sha, 'BRANCH': git_branch}
+    # Add the current time to the config
+    cfg["TIME"] = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     # Initialize the datasets
     tf.print('-----------Initializing the datasets-----------')
