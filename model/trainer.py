@@ -178,6 +178,7 @@ def trainer(cfg):
     val_ds = dataset.get_val_ds(cfg['TRAIN']['REDUCE_ITEMS_P'])
 
     # Build models.
+    tf.print('-----------Building the model-----------')
     m_specaug, m_fp = build_fp(cfg)
 
     # Learning schedule
@@ -235,10 +236,9 @@ def trainer(cfg):
     # Training loop
     ep_start = helper.epoch
     ep_max = cfg['TRAIN']['MAX_EPOCH']
-    if ep_start != 0:
+    if ep_start != 1:
         assert ep_start <= ep_max, f"When continuing training, MAX_EPOCH={ep_max} "\
         f"must be greater than or equal to where training was left off, which is {ep_start}"
-        tf.print(f"Continuing training from epoch{ep_start}")
     tf.print('-----------Training starts-----------')
     for ep in range(ep_start, ep_max + 1):
         tf.print(f'EPOCH: {ep}/{ep_max}')
