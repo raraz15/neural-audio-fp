@@ -8,6 +8,7 @@ logs/
 
 afp/*
 data/figures/*
+ablation_emb/*
 
 TODO.md
 
