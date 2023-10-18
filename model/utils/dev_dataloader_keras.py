@@ -6,7 +6,6 @@ from model.utils import audio_utils
 
 class DevLoader(Sequence):
 
-    # TODO: remove shuffle and stuff that we do not use
     # TODO: fix both augmentations
     def __init__(
         self, 
@@ -34,7 +33,7 @@ class DevLoader(Sequence):
         # Save the Input parameters
         self.segment_duration = segment_duration
         self.offset_duration = offset_duration
-        self.max_offset_sample = int(self.offset_duration * fs) # TODO: is this correct?
+        self.max_offset_sample = int(self.offset_duration * fs)
         self.fs = fs
 
         # Melspec layer
