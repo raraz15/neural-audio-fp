@@ -10,7 +10,7 @@ np.random.seed(SEED)
 class GenerationLoader(Sequence):
     def __init__(
         self,
-        track_paths,
+        track_paths: list,
         segment_duration=1,
         hop_duration=0.5,
         fs=8000,
@@ -55,6 +55,8 @@ class GenerationLoader(Sequence):
             Generation batch size. The default is 120.
         """
 
+        assert segment_duration > 0, "segment_duration should be > 0"
+        assert hop_duration > 0, "hop_duration should be > 0"
         assert hop_duration <= segment_duration, \
             "hop_duration should be <= segment_duration"
 
@@ -98,6 +100,7 @@ class GenerationLoader(Sequence):
     def __len__(self):
         """ Returns the number of batches."""
 
+        # Ceil is used to make sure that all the samples are used
         return int(np.ceil(self.n_samples/self.bsz))
 
     def __getitem__(self, idx):
