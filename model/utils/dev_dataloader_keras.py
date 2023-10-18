@@ -594,7 +594,9 @@ class TrackDevLoader(DevLoader):
                                 for i, (k, v) in enumerate(self.track_seg_dict.items()) 
                                 if i < self.n_tracks}
         self.track_fnames = list(self.track_seg_dict.keys())
-        self.n_samples = self.n_tracks * self.segments_per_track # TODO
+        print(f"Number of tracks used: {len(self.track_fnames):,}")
+        self.n_samples = self.n_tracks * self.segments_per_track
+        print(f"Number of samples used per epoch: {self.n_samples:,}")
 
         # Save augmentation parameters, read the files, and store them in memory
         self.load_and_store_bg_samples(bg_mix_parameter)
