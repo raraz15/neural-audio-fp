@@ -2,7 +2,8 @@
 # Here we define how the audio is converted to the input that the model can use,
 # the model architecture, and the log directory.
 MODEL:
-    NAME : fma-random_amp-bsz_128 # Name of the model. Used for logging.
+    NAME : fma-random_amp-no_bg_ir_norm-bsz_128 
+         # Name of the model. Used for logging.
     # Parameters for audio segment extraction.
     AUDIO :
         SEGMENT_DUR : 1. # Duration of an audio segment the model uses in seconds.
