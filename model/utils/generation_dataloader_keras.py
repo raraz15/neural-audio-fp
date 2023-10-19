@@ -178,12 +178,6 @@ class GenerationLoader(Sequence):
             # Convolve with IR
             X_batch = audio_utils.ir_aug_batch(X_batch, ir_batch, normalize=True)
 
-        else:
-
-            # TODO: is this important?
-            # Normalize the batch of segments
-            X_batch = audio_utils.max_normalize(X_batch)
-
         # Compute mel spectrograms
         X_batch_mel = self.mel_spec.compute_batch(X_batch)
         # Fix the dimensions and types
