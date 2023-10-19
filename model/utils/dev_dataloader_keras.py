@@ -271,9 +271,8 @@ class DevLoader(Sequence):
                                                                 hop=self.bg_hop)
             self.bg_fnames = list(self.fns_bg_seg_dict.keys())
             # Load all bg clips in full duration
-            # TODO: do not normalize bg clips?
             self.bg_clips = {fn: audio_utils.load_audio(fn, fs=self.fs, 
-                                                        normalize=True) # normalize the bg clips
+                                                        normalize=False)
                              for fn in self.bg_fnames}
             self.n_bg_files = len(self.bg_clips)
 
@@ -317,11 +316,10 @@ class DevLoader(Sequence):
             # Load all ir clips in full duration
             self.ir_clips = {}
             for fn in self.ir_fnames:
-                # TODO: do not normalize IR clips?
                 X = audio_utils.load_audio(fn, 
                                             seg_length_sec=self.segment_duration,
                                             fs=self.fs,
-                                            normalize=True)
+                                            normalize=False)
                 # Truncate IR to max_ir_length
                 if len(X) > self.max_ir_length:
                     X = X[:self.max_ir_length]
