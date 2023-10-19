@@ -168,6 +168,10 @@ class GenerationLoader(Sequence):
                                         bg_noise_batch,
                                         snr_range=self.bg_snr_range)
 
+            # Apply random gain before IR augmentation if specified
+            if self.random_gain_range != [1,1]:
+                X_batch = audio_utils.random_gain_batch(X_batch, self.random_gain_range)
+
             # Get a batch of random IR samples
             ir_batch = []
             for i in np.arange(idx*self.bsz, (idx+1)*self.bsz) % self.n_ir_files:
@@ -212,9 +216,12 @@ class GenerationLoader(Sequence):
                                                     hop=self.segment_duration)
             self.bg_fnames = list(self.fns_bg_seg_dict.keys())
 
+            # Record the random gain range
+            self.random_gain_range = bg_mix_parameter[3]
+
             # Shuffle the bg_fnames
             np.random.shuffle(self.bg_fnames)
-    
+
             # Load all bg clips in full duration
             self.bg_clips = {fn: audio_utils.load_audio(fn, fs=self.fs, 
                                                         normalize=True) 

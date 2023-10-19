@@ -70,7 +70,11 @@ TRAIN:
             BG : True
             BG_ROOT : '../datasets/neural-audio-fp-dataset/aug/bg/tr/'
             BG_SNR : [0, 10]
+            BG_AMP_RANGE : [0.1, 1]
                     # Synthesize replicas using random SNR in the range of [MIN, MAX]. SNR in decibel.
+                    # After the background samples are mixed with the audio segment, the
+                    # amplitude of the mixture is scaled by a random factor in the range of
+                    # [MIN, MAX].
             IR : True
             IR_ROOT : '../datasets/neural-audio-fp-dataset/aug/ir/tr/'
             IR_MAX_DUR : 0.05
@@ -123,6 +127,7 @@ TEST:
             BG_ROOT : '../datasets/neural-audio-fp-dataset/aug/bg/ts/'
                 # If BG=True, you must provide the background noise files.
             BG_SNR : [0, 10] # Active in real-time synthesis of test queries.
+            BG_AMP_RANGE : [0.1, 1] # Active in real-time synthesis of test queries.
             IR : False # If you augment beforehand, set this to False.
             IR_ROOT : '../datasets/neural-audio-fp-dataset/aug/ir/ts/'
                     # If IR=True, you must provide the background noise files.

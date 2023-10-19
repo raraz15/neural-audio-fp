@@ -132,7 +132,7 @@ def max_normalize(x):
     else:
         raise NotImplementedError
 
-def OLA(segments:np.array, overlap_ratio:float):
+def OLA(segments:np.ndarray, overlap_ratio:float):
     """ Overlap and add segments."""
 
     # Check inputs
@@ -174,7 +174,7 @@ def number_of_segments(signal_length:int, L:int, H:int):
     return N_cut
 
 # TODO: cut to segment function with and without remainder
-def cut_to_segments(audio:np.array, L:int, H:int):
+def cut_to_segments(audio:np.ndarray, L:int, H:int):
     """ Cut the audio into consecutive segments of length L with hop size H.
     Discards the remainder segment."""
 
@@ -401,7 +401,7 @@ def load_audio_multi_start(filename=str(),
                            seg_start_sec_list=[],
                            seg_length_sec=float(),
                            fs=8000,
-                           normalize=True) -> np.array:
+                           normalize=True) -> np.ndarray:
     """ Load_audio wrapper for loading audio with multiple start indices each 
     with same duration. 
 
@@ -437,9 +437,31 @@ def npy_to_wav(root_dir=str(), source_fs=int(), target_fs=int()):
         audio = audio.astype(np.int16)  # 16-bit PCM
         wavio.write(fname[:-4] + '.wav', audio, target_fs, sampwidth=2)
 
+#### Audio Augmentation ####
+
+
+def log_scale_random_number_batch(n: int, amp_range: list=[0.1, 1.]):
+    """ Sample n uniformly random independent numbers from a log scale."""
+
+    assert len(amp_range) == 2, 'amp_range should be (min, max)'
+    assert amp_range[0] < amp_range[1], 'amp_range should be (min, max)'
+
+    log_min, log_max = np.log10(amp_range)
+    random_number_log = np.random.rand(n) * (log_max - log_min) + log_min
+
+    return np.power(10, random_number_log)
+
+def random_gain_batch(x_batch: np.ndarray, gain_range: list=[0.1, 1.]):
+
+    # Random gain for each sample in the batch
+    gain = log_scale_random_number_batch(n=x_batch.shape[0], amp_range=gain_range)
+
+    # Apply the gain to each element in the batch independently
+    return x_batch * gain[:, np.newaxis]
+
 #### Background Noise Augmentation ####
 
-def sample_SNR(n, snr_range=(6, 24)):
+def sample_SNR(n: int, snr_range=(6, 24)):
     """ Sample n uniformly random SNRs (dB) from snr_range. 
     
     Parameters

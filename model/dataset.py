@@ -54,6 +54,7 @@ class Dataset:
         self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
         self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
         self.tr_bg_snr = cfg['TRAIN']['AUG']['TD']['BG_SNR']
+        self.tr_bg_amp_range = cfg['TRAIN']['AUG']['TD']['BG_AMP_RANGE']
         self.tr_bg_fps = []
 
         self.tr_ir_root_dir = cfg['TRAIN']['AUG']['TD']['IR_ROOT']
@@ -77,6 +78,7 @@ class Dataset:
         self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
         self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
         self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
+        self.ts_bg_amp_range = cfg['TEST']['AUG']['TD']['BG_AMP_RANGE']
         self.ts_bg_fps = []
 
         self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
@@ -133,6 +135,15 @@ class Dataset:
             print(f"tr_ir_fps: {len(self.tr_ir_fps):>6,}")
             assert len(self.tr_ir_fps)>0, "No impulse response found."
 
+        # Augmentation parameters
+        self.tr_bg_parameters = [self.tr_use_bg_aug, 
+                                self.tr_bg_fps, 
+                                self.tr_bg_snr, 
+                                self.tr_bg_amp_range]
+        self.tr_ir_parameters = [self.tr_use_ir_aug,
+                                self.tr_ir_fps,
+                                self.tr_max_ir_dur]
+
         return TrackDevLoader(
             track_paths=self.tr_source_fps,
             segment_duration=self.segment_duration,
@@ -149,8 +160,8 @@ class Dataset:
             shuffle=True,
             random_offset_anchor=True,
             offset_duration=self.tr_offset_duration,
-            bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-            ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+            bg_mix_parameter=self.tr_bg_parameters,
+            ir_mix_parameter=self.tr_ir_parameters)
 
     def get_val_ds(self, reduce_items_p=100):
         """ Source (music) file paths for validation set. The folder structure
@@ -206,8 +217,8 @@ class Dataset:
             bsz=self.val_batch_sz,
             shuffle=False,
             random_offset_anchor=False,
-            bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-            ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+            bg_mix_parameter=self.tr_bg_parameters,
+            ir_mix_parameter=self.tr_ir_parameters)
 
     def get_test_dummy_db_ds(self):
         """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.
@@ -317,6 +328,15 @@ class Dataset:
             print(f"ts_ir_fps: {len(self.ts_ir_fps):>6,}")
             assert len(self.ts_ir_fps)>0, "No impulse response found."
 
+            # Augmentation parameters
+            self.ts_bg_parameters = [self.ts_use_bg_aug, 
+                                    self.ts_bg_fps, 
+                                    self.ts_bg_snr, 
+                                    self.ts_bg_amp_range]
+            self.ts_ir_parameters = [self.ts_use_ir_aug,
+                                    self.ts_ir_fps,
+                                    self.ts_max_ir_dur]
+
             # Create the augmented query dataset
             # Returns only the augmented segments, not the clean ones
             ds_query = GenerationLoader(
@@ -330,8 +350,8 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
-                bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
-                ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
+                bg_mix_parameter=self.ts_bg_parameters,
+                ir_mix_parameter=self.ts_ir_parameters,
                 bsz=self.ts_batch_sz,
                 )
 

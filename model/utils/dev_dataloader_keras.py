@@ -119,6 +119,10 @@ class DevLoader(Sequence):
                                                     bg_batch,
                                                     snr_range=self.bg_snr_range)
 
+                # Apply random gain before IR augmentation if specified
+                if self.random_gain_range != [1,1]:
+                    Xp_batch = audio_utils.random_gain_batch(Xp_batch, self.random_gain_range)
+
                 # Prepare IR for positive samples
                 ir_fnames = [self.ir_fnames[i%self.n_ir_files] for i in range(i0, i1)]
                 ir_batch = self.batch_read_ir(ir_fnames)
@@ -272,6 +276,9 @@ class DevLoader(Sequence):
                                                         normalize=True) # normalize the bg clips
                              for fn in self.bg_fnames}
             self.n_bg_files = len(self.bg_clips)
+
+            # Record the random gain range
+            self.random_gain_range = bg_mix_parameter[3]
 
             # Check if we have enough bg samples. Ideally, every segment of every bg track 
             # should be used at least once. If not, we warn the user.
