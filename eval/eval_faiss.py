@@ -120,6 +120,35 @@ def eval_faiss(emb_dir,
         emb_dummy_dir = emb_dir
     dummy_db, dummy_db_shape = load_memmap_data(emb_dummy_dir, 'dummy_db')
 
+    """ Determine tests IDs and test sequence length"""
+    # '1 3 5' --> [1, 3, 5]
+    test_seq_len = np.asarray(list(map(int, test_seq_len.split())))
+
+    # Get test_ids
+    print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
+    if test_ids.lower() == 'all':
+        # Will use all segments in query/db set as starting point and 
+        # evaluate the performance for each test_seq_len.
+        test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
+    elif test_ids.isnumeric():
+        # Will use random segments in query/db set as starting point and
+        # evaluate the performance for each test_seq_len. This does not guarantee
+        # getting a sample from each track.
+        test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
+    elif os.path.isfile(test_ids):
+        # If test_ids is a file path load it
+        test_ids = np.load(test_ids)
+    else:
+       raise ValueError(f'Invalid test_ids: {test_ids}')
+
+    # Make sure that test segments are within the query set
+    assert max(test_ids) <= len(query) - max(test_seq_len), \
+        f'test_id must be less than {len(query) - max(test_seq_len)}'
+
+    n_test = len(test_ids)
+    gt_ids  = test_ids + dummy_db_shape[0]
+    print(f'n_test: \033[93m{n_test:n}\033[0m')
+
     """ ----------------------------------------------------------------------
     FAISS index setup
 
@@ -146,12 +175,12 @@ def eval_faiss(emb_dir,
     start_time = time.time()
 
     index.add(dummy_db)
-    print(f'{len(dummy_db)} items from dummy DB')
+    print(f'{len(dummy_db):,} items from dummy DB')
     index.add(db)
-    print(f'{len(db)} items from reference DB')
+    print(f'{len(db):,} items from reference DB')
 
     t = time.time() - start_time
-    print(f'Added total {index.ntotal} items to DB. {t:>4.2f} sec.')
+    print(f'Added total {index.ntotal:,} items to DB. {t:>4.2f} sec.')
 
     del dummy_db
 
@@ -167,6 +196,7 @@ def eval_faiss(emb_dir,
     ---------------------------------------------------------------------- """
 
     # Prepare fake_recon_index
+    print(f'Preparing fake_recon_index...')
     start_time = time.time()
 
     fake_recon_index, index_shape = load_memmap_data(emb_dummy_dir, 
@@ -177,31 +207,7 @@ def eval_faiss(emb_dir,
     fake_recon_index.flush()
 
     t = time.time() - start_time
-    print(f'Created fake_recon_index, total {index_shape[0]} items. {t:>4.2f} sec.')
-
-    # '1 3 5' --> [1, 3, 5]
-    test_seq_len = np.asarray(list(map(int, test_seq_len.split())))
-
-    # Get test_ids
-    print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
-    if test_ids.lower() == 'all':
-        # Will use all segments in query/db set as starting point and 
-        # evaluate the performance for each test_seq_len.
-        test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
-    elif test_ids.isnumeric():
-        # Will use random segments in query/db set as starting point and
-        # evaluate the performance for each test_seq_len. This does not guarantee
-        # getting a sample from each track.
-        test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
-    elif os.path.isfile(test_ids):
-        # If test_ids is a file path load it
-        test_ids = np.load(test_ids)
-    else:
-       raise ValueError(f'Invalid test_ids: {test_ids}')
-
-    n_test = len(test_ids)
-    gt_ids  = test_ids + dummy_db_shape[0]
-    print(f'n_test: \033[93m{n_test:n}\033[0m')
+    print(f'Created fake_recon_index, total {index_shape[0]:,} items. {t:>4.2f} sec.')
 
     """ Segment/sequence-level search & evaluation """
     # Define metric
@@ -219,7 +225,6 @@ def eval_faiss(emb_dir,
     for ti, test_id in enumerate(test_ids):
         gt_id = gt_ids[ti]
         for si, sl in enumerate(test_seq_len):
-            assert test_id <= len(query)
             q = query[test_id:(test_id + sl), :] # shape(q) = (length, dim)
 
             # segment-level top k search for each segment
@@ -280,6 +285,8 @@ def eval_faiss(emb_dir,
     pt.update_table((top1_exact_rate, top1_near_rate, top3_exact_rate, top10_exact_rate))
     pt.close_table() # close table and print summary
     del fake_recon_index, query, db
+    
+    """ Save results """
     np.save(f'{emb_dir}/raw_score.npy',
             np.concatenate((top1_exact, top1_near, top3_exact, top10_exact), axis=1))
     np.save(f'{emb_dir}/test_ids.npy', test_ids)
