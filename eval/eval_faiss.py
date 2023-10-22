@@ -61,7 +61,7 @@ def load_memmap_data(source_dir,
         data = np.memmap(path_data, dtype='float32', mode='r',
                          shape=(data_shape[0], data_shape[1]))
     if display:
-        print(f'Load {data_shape[0]:,} items from \033[32m{path_data}\033[0m.')
+        print(f'Loaded {data_shape[0]:>10,} items from \033[32m{path_data}\033[0m.')
     return data, data_shape
 
 @click.command()
@@ -112,7 +112,7 @@ def eval_faiss(emb_dir,
     'raw_score.npy' and 'test_ids.npy' will be also created in the same directory.
     """
 
-    # Load items from {query, db, dummy_db}
+    """Load items from {query, db, dummy_db}"""
     query, query_shape = load_memmap_data(emb_dir, 'query')
     db, db_shape = load_memmap_data(emb_dir, 'db')
     assert np.all(query_shape == db_shape), 'query and db must have the same shape.'
@@ -145,10 +145,6 @@ def eval_faiss(emb_dir,
     assert max(test_ids) <= len(query) - max(test_seq_len), \
         f'test_id must be less than {len(query) - max(test_seq_len)}'
 
-    n_test = len(test_ids)
-    gt_ids  = test_ids + dummy_db_shape[0]
-    print(f'n_test: \033[93m{n_test:n}\033[0m')
-
     """ ----------------------------------------------------------------------
     FAISS index setup
 
@@ -168,6 +164,10 @@ def eval_faiss(emb_dir,
     • The set of ground truth IDs for q[i] will be (i + len(dummy_db))
     ---------------------------------------------------------------------- """
 
+    n_test = len(test_ids)
+    print(f'n_test: \033[93m{n_test:,}\033[0m')
+    gt_ids  = test_ids + dummy_db_shape[0]
+
     # Create and train FAISS index
     index = get_index(index_type, dummy_db, dummy_db.shape, (not nogpu), max_train)
 
@@ -175,12 +175,12 @@ def eval_faiss(emb_dir,
     start_time = time.time()
 
     index.add(dummy_db)
-    print(f'{len(dummy_db):,} items from dummy DB')
+    print(f'{len(dummy_db):>10,} items from dummy DB.')
     index.add(db)
-    print(f'{len(db):,} items from reference DB')
+    print(f'{len(db):>10,} items from reference DB.')
 
-    t = time.time() - start_time
-    print(f'Added total {index.ntotal:,} items to DB. {t:>4.2f} sec.')
+    print(f'Added total {index.ntotal:>10,} items to DB in ', end='')
+    print(f'{time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))}')
 
     del dummy_db
 
@@ -206,8 +206,8 @@ def eval_faiss(emb_dir,
     fake_recon_index[dummy_db_shape[0]:dummy_db_shape[0] + query_shape[0], :] = db[:, :]
     fake_recon_index.flush()
 
-    t = time.time() - start_time
-    print(f'Created fake_recon_index, total {index_shape[0]:,} items. {t:>4.2f} sec.')
+    print(f'Created fake_recon_index, total {index_shape[0]:>10,} items in ', end='')
+    print(f'{time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))}')
 
     """ Segment/sequence-level search & evaluation """
     # Define metric
@@ -249,7 +249,6 @@ def eval_faiss(emb_dir,
 
             """ Evaluate """
             pred_ids = candidates[np.argsort(-_scores)[:10]]
-            # pred_id = candidates[np.argmax(_scores)] <-- only top1-hit
 
             # top1 hit
             top1_exact[ti, si] = int(gt_id == pred_ids[0])
@@ -280,16 +279,19 @@ def eval_faiss(emb_dir,
     top3_exact_rate = 100. * np.mean(top3_exact, axis=0)
     top10_exact_rate = 100. * np.mean(top10_exact, axis=0)
     # top1_song = 100 * np.mean(top1_song[:ti + 1, :], axis=0)
+    data = np.concatenate((top1_exact, top1_near, top3_exact, top10_exact), axis=1)
 
     pt.update_counter(ti, n_test, avg_search_time * 1000.)
     pt.update_table((top1_exact_rate, top1_near_rate, top3_exact_rate, top10_exact_rate))
     pt.close_table() # close table and print summary
     del fake_recon_index, query, db
-    
+
+    print(f'Finished the segment and sequence level search in ', end='')
+    print(f'{time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))}')
+
     """ Save results """
-    np.save(f'{emb_dir}/raw_score.npy',
-            np.concatenate((top1_exact, top1_near, top3_exact, top10_exact), axis=1))
-    np.save(f'{emb_dir}/test_ids.npy', test_ids)
+    np.save(os.path.join(emb_dir, 'raw_score.npy'), data)
+    np.save(os.path.join(emb_dir, 'test_ids.npy'), test_ids)
     print(f'Saved test_ids and raw score to {emb_dir}.')
 
 if __name__ == "__main__":

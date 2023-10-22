@@ -114,7 +114,8 @@ def get_index(index_type,
     else:
         print('Training index...')
         index.train(train_data) # Actually do nothing for {'l2', 'hnsw'}
-    print('Elapsed time: {:.2f} seconds.'.format(time.time() - start_time))
+    print('Elapsed time: ', end='')
+    print(f'{time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))}.')
 
     # N probe
     index.nprobe = 40
