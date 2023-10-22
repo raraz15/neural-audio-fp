@@ -30,7 +30,8 @@ class Dataset:
 
     """
 
-    def __init__(self, cfg=dict()):
+    def __init__(self, cfg=dict(), is_training=True):
+        """ Initialize the dataset object."""
 
         self.cfg = cfg
 
@@ -44,52 +45,57 @@ class Dataset:
         self.fmax = cfg['MODEL']['INPUT']['F_MAX']
         self.scale_inputs = cfg['MODEL']['INPUT']['SCALE_INPUTS']
 
-        # Train Parameters
-        self.tr_audio_dir = cfg['TRAIN']['DIR']['TRAIN_ROOT']
+        # Only read the related parameters.
+        if is_training:
 
-        self.tr_segments_per_track = cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK']
-        self.tr_offset_duration = cfg['TRAIN']['AUDIO']["MAX_OFFSET_DUR"]
-        self.tr_batch_sz = cfg['TRAIN']['TR_BATCH_SZ']
+            # Train Parameters
+            self.tr_audio_dir = cfg['TRAIN']['DIR']['TRAIN_ROOT']
 
-        self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
-        self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
-        self.tr_bg_snr = cfg['TRAIN']['AUG']['TD']['BG_SNR']
-        self.tr_bg_amp_range = cfg['TRAIN']['AUG']['TD']['BG_AMP_RANGE']
-        self.tr_bg_fps = []
+            self.tr_segments_per_track = cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK']
+            self.tr_offset_duration = cfg['TRAIN']['AUDIO']["MAX_OFFSET_DUR"]
+            self.tr_batch_sz = cfg['TRAIN']['TR_BATCH_SZ']
 
-        self.tr_ir_root_dir = cfg['TRAIN']['AUG']['TD']['IR_ROOT']
-        self.tr_use_ir_aug = cfg['TRAIN']['AUG']['TD']['IR']
-        self.tr_max_ir_dur = cfg['TRAIN']['AUG']['TD']['IR_MAX_DUR']
-        self.tr_ir_fps = []
+            self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
+            self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
+            self.tr_bg_snr = cfg['TRAIN']['AUG']['TD']['BG_SNR']
+            self.tr_bg_amp_range = cfg['TRAIN']['AUG']['TD']['BG_AMP_RANGE']
+            self.tr_bg_fps = []
 
-        # Validation Parameters
-        self.val_audio_dir = cfg['TRAIN']['DIR']['VAL_ROOT']
-        self.val_batch_sz = cfg['TRAIN']['VAL_BATCH_SZ']
-        # We use the same augmentations for train and validation sets
+            self.tr_ir_root_dir = cfg['TRAIN']['AUG']['TD']['IR_ROOT']
+            self.tr_use_ir_aug = cfg['TRAIN']['AUG']['TD']['IR']
+            self.tr_max_ir_dur = cfg['TRAIN']['AUG']['TD']['IR_MAX_DUR']
+            self.tr_ir_fps = []
 
-        # Test Parameters
-        self.ts_noise_tracks_dir = cfg['TEST']['DIR']['NOISE_ROOT']
-        self.ts_clean_query_tracks_dir = cfg['TEST']['DIR']['CLEAN_QUERY_ROOT']
-        self.ts_augmented_query_tracks_dir = cfg['TEST']['DIR']['AUGMENTED_QUERY_ROOT']
+            # Validation Parameters
+            self.val_audio_dir = cfg['TRAIN']['DIR']['VAL_ROOT']
+            self.val_batch_sz = cfg['TRAIN']['VAL_BATCH_SZ']
+            # We use the same augmentations for train and validation sets
 
-        self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP']
-        self.ts_batch_sz = cfg['TEST']['BATCH_SZ']
+        else:
 
-        self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
-        self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
-        self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
-        self.ts_bg_amp_range = cfg['TEST']['AUG']['TD']['BG_AMP_RANGE']
-        self.ts_bg_fps = []
+            # Test Parameters
+            self.ts_noise_tracks_dir = cfg['TEST']['DIR']['NOISE_ROOT']
+            self.ts_clean_query_tracks_dir = cfg['TEST']['DIR']['CLEAN_QUERY_ROOT']
+            self.ts_augmented_query_tracks_dir = cfg['TEST']['DIR']['AUGMENTED_QUERY_ROOT']
 
-        self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
-        self.ts_use_ir_aug = cfg['TEST']['AUG']['TD']['IR']
-        self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
-        self.ts_ir_fps = []
+            self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP']
+            self.ts_batch_sz = cfg['TEST']['BATCH_SZ']
 
-        # Check if the augmented query tracks are provided
-        if self.ts_augmented_query_tracks_dir is not None:
-            assert not (self.ts_use_bg_aug or self.ts_use_ir_aug), \
-                "Augmented query tracks are provided, but augmentation is not enabled."
+            self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
+            self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
+            self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
+            self.ts_bg_amp_range = cfg['TEST']['AUG']['TD']['BG_AMP_RANGE']
+            self.ts_bg_fps = []
+
+            self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
+            self.ts_use_ir_aug = cfg['TEST']['AUG']['TD']['IR']
+            self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
+            self.ts_ir_fps = []
+
+            # Check if the augmented query tracks are provided
+            if self.ts_augmented_query_tracks_dir is not None:
+                assert not (self.ts_use_bg_aug or self.ts_use_ir_aug), \
+                    "Augmented query tracks are provided, but augmentation is not enabled."
 
     def get_train_ds(self, reduce_items_p=100):
         """ Source (music) file paths for training set. The folder structure

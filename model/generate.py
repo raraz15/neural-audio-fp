@@ -73,7 +73,7 @@ def get_data_source(cfg: dict, source_root_dir: str="", skip_dummy: bool=False):
     """ Get the data source for fingerprinting."""
 
     # Create the dataset
-    dataset = Dataset(cfg)
+    dataset = Dataset(cfg, is_training=False)
     ds = dict()
 
     # If source is provided, only use the custom source
