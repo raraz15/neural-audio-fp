@@ -204,12 +204,13 @@ def generate_fingerprint(cfg: dict,
         """
 
         arr_shape = (n_items, dim)
-        arr = np.memmap(f'{output_dir}/{key}.mm',
+        arr = np.memmap(os.path.join(output_dir, f'{key}.mm'),
                         dtype='float32',
                         mode='w+',
                         shape=arr_shape)
         # Save the shape of the memmap
-        np.save(f'{output_dir}/{key}_shape.npy', arr_shape)
+        np.save(os.path.join(output_dir, f'{key}_shape.npy'), 
+                arr_shape)
 
         # Fingerprinting loop
         tf.print(
