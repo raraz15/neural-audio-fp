@@ -9,6 +9,7 @@ import time
 import click
 import curses
 import numpy as np
+import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from eval.utils.get_index_faiss import get_index
 from eval.utils.print_table import PrintTable
@@ -68,7 +69,7 @@ def load_memmap_data(source_dir,
 @click.argument('emb_dir', required=True,type=click.STRING)
 @click.option('--emb_dummy_dir', default=None, type=click.STRING,
               help="Specify a directory containing 'dummy_db.mm' and "
-              "'dummy_db_shape.npy' to use. Default is EMB_DIR.")
+              "'dummy_db_shape.npy' to use. Default is emb_dir.")
 @click.option('--index_type', '-i', default='ivfpq', type=click.STRING,
               help="Index type must be one of {'L2', 'IVF', 'IVFPQ', "
               "'IVFPQ-RR', 'IVFPQ-ONDISK', HNSW'}")
@@ -81,10 +82,10 @@ def load_memmap_data(source_dir,
               "Numbers are separated by spaces. Default is '1 3 5 9 11 19', "
               "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec segment "
               "duration and 0.5 sec hop duration.")
-@click.option('--test_ids', '-t', default='icassp', type=click.STRING,
-              help="One of {'all', 'icassp', 'path/file.npy', (int)}. If 'all', " +
-              "test all IDs from the test. If 'icassp', use the 2,000 " +
-              "sequence starting point IDs of 'eval/test_ids_icassp.npy' " +
+@click.option('--test_ids', '-t', default='./eval/test_ids_icassp2021.npy', type=click.STRING,
+              help="One of {'all', 'path/file.npy', (int)}. If 'all', " +
+              "test all IDs from the test. If 'eval/test_ids_icassp2021.npy', use the 2,000 " +
+              "sequence starting point IDs " +
               "located in ./eval directory. You can also specify the 1-D array "
               "file's location. Any numeric input N (int) > 0 will randomly "
               "select N IDs. Default is 'icassp'.")
@@ -98,7 +99,7 @@ def eval_faiss(emb_dir,
                index_type='ivfpq',
                nogpu=False,
                max_train=1e7,
-               test_ids='all',
+               test_ids='./eval/test_ids_icassp2021.npy',
                test_seq_len='1 3 5 9 11 19',
                k_probe=20,
                display_interval=100):
@@ -119,6 +120,15 @@ def eval_faiss(emb_dir,
     if emb_dummy_dir is None:
         emb_dummy_dir = emb_dir
     dummy_db, dummy_db_shape = load_memmap_data(emb_dummy_dir, 'dummy_db')
+
+    """Load track boundaries adn track names for query and dummy_db."""
+    query_db_boundaries = np.load(os.path.join(emb_dir, 'db-track_boundaries.npy')) # TODO: name change
+    with open(os.path.join(emb_dir, 'db-track_names.txt'), 'r') as in_f:
+        query_db_track_names = in_f.read().splitlines()
+
+    dummy_db_boundaries = np.load(os.path.join(emb_dummy_dir, 'dummy_db-track_boundaries.npy'))
+    with open(os.path.join(emb_dummy_dir, 'dummy_db-track_names.txt'), 'r') as in_f:
+        dummy_db_track_names = in_f.read().splitlines()
 
     """ Determine tests IDs and test sequence length"""
     # '1 3 5' --> [1, 3, 5]
@@ -187,6 +197,10 @@ def eval_faiss(emb_dir,
     # Shift the ground truth IDs by the length of dummy_db as described above.
     gt_ids = test_ids + dummy_db_shape[0]
 
+    db_boundaries = np.concatenate((dummy_db_boundaries, 
+                                    query_db_boundaries + dummy_db_shape[0]), axis=0)
+    db_track_names = dummy_db_track_names + query_db_track_names
+
     """ ----------------------------------------------------------------------
     We need to prepare a merged {dummy_db + db} memmap:
 
@@ -214,23 +228,31 @@ def eval_faiss(emb_dir,
 
     """ Segment/sequence-level search & evaluation """
     # Define metric
+    top1_song = np.zeros((n_test, len(test_seq_len))).astype(np.int)
     top1_exact = np.zeros((n_test, len(test_seq_len))).astype(int) # (n_test, test_seg_len)
     top1_near = np.zeros((n_test, len(test_seq_len))).astype(int)
     top3_exact = np.zeros((n_test, len(test_seq_len))).astype(int)
     top10_exact = np.zeros((n_test, len(test_seq_len))).astype(int)
-    # top1_song = np.zeros((n_test, len(test_seq_len))).astype(np.int)
 
     scr = curses.initscr()
     pt = PrintTable(scr=scr, 
                     test_seq_len=test_seq_len,
-                    row_names=['Top1 exact', 'Top1 near', 'Top3 exact','Top10 exact'])
+                    row_names=['Top1 song', 'Top1 exact', 'Top1 near', 'Top3 exact','Top10 exact'])
     start_time, total_search_time = time.time(), 0
+    analysis = []
 
     # For each idx in the test set, create segment- or sequence-level queries
     for ti, test_id in enumerate(test_ids):
 
-        # Get the ground truth segment and track indices
+        # Ground truth sequence start segment position inside the DB
         gt_id = gt_ids[ti]
+        # Track idx of the ground truth sequence inside the DB
+        # TODO: check if all the constructed sequences are from the same track
+        gt_track_id = np.where((gt_id>=db_boundaries[:,0]) & (gt_id<=db_boundaries[:,1]))[0][0]
+        # Name of the ground truth track
+        gt_track = db_track_names[gt_track_id]
+        # Position of the start segment of the ground truth sequence inside the track
+        gt_track_start_segment = test_id - (db_boundaries[gt_track_id, 0] - dummy_db_shape[0])
 
         # For each test sequence length, make an independent query to the index
         for si, sl in enumerate(test_seq_len):
@@ -259,10 +281,17 @@ def eval_faiss(emb_dir,
                         )
                     )
 
-            """ Evaluate segment-level search and song-level search"""
+            """ Evaluate sequence- and song-level search"""
+            # Positions of the top10 candidates inside the DB
             pred_ids = candidates[np.argsort(-_scores)[:10]]
+            # Position of the predicted track inside the DB
+            pred_track_id = np.where((pred_ids[0]>=db_boundaries[:,0]) & (pred_ids[0]<=db_boundaries[:,1]))[0][0]
+            # Name of the predicted track
+            pred_track = db_track_names[pred_track_id]
+            pred_track_start_segment = pred_ids[0] - db_boundaries[pred_track_id, 0]
 
             # top1 hit
+            top1_song[ti, si] = int(gt_track_id == pred_track_id)
             top1_exact[ti, si] = int(gt_id == pred_ids[0])
             top1_near[ti, si] = int(pred_ids[0] in [gt_id - 1, gt_id, gt_id + 1])
 
@@ -270,9 +299,14 @@ def eval_faiss(emb_dir,
             top3_exact[ti, si] = int(gt_id in pred_ids[:3])
             top10_exact[ti, si] = int(gt_id in pred_ids[:10])
 
+            """ Create a table to analyze the results later."""
+            analysis.append([test_id, sl, gt_track, gt_track_start_segment,
+                             pred_track, pred_track_start_segment, _scores[0]])
+
         # Print summary
         if (ti != 0) & ((ti % display_interval) == 0) or (ti == n_test - 1):
 
+            top1_song_rate = 100 * np.mean(top1_song[:ti + 1, :], axis=0)
             top1_exact_rate = 100. * np.mean(top1_exact[:ti + 1, :], axis=0)
             top1_near_rate = 100. * np.mean(top1_near[:ti + 1, :], axis=0)
             top3_exact_rate = 100. * np.mean(top3_exact[:ti + 1, :], axis=0)
@@ -283,7 +317,7 @@ def eval_faiss(emb_dir,
             avg_search_time = interval_time / (display_interval * len(test_seq_len))
 
             pt.update_counter(ti, n_test, avg_search_time * 1000.)
-            pt.update_table((top1_exact_rate, top1_near_rate, top3_exact_rate, top10_exact_rate))
+            pt.update_table((top1_song_rate, top1_exact_rate, top1_near_rate, top3_exact_rate, top10_exact_rate))
             start_time = time.time() # reset interval stopwatch
 
     pt.close_table() # close table
@@ -292,11 +326,15 @@ def eval_faiss(emb_dir,
     print(f'Finished the segment and sequence level search in ', end='')
     print(f'{time.strftime("%H:%M:%S", time.gmtime(total_search_time))}')
 
-    """ Save results """
-    data = np.concatenate((top1_exact, top1_near, top3_exact, top10_exact), axis=1)
-    np.save(os.path.join(emb_dir, 'raw_score.npy'), data)
-    np.save(os.path.join(emb_dir, 'test_ids.npy'), test_ids)
-    print(f'Saved test_ids and raw score to {emb_dir}.')
+    df = pd.DataFrame(analysis, columns=['test_id', 'seq_len', 'gt_track_path', 'gt_start_segment',
+                                         'pred_track_path', 'pred_start_segment', 'score'])
+    df.to_csv(os.path.join(emb_dir, 'analysis.csv'), index=False)
+
+    # """ Save results """
+    # data = np.concatenate((top1_song, top1_exact, top1_near, top3_exact, top10_exact), axis=1)
+    # np.save(os.path.join(emb_dir, 'raw_score.npy'), data)
+    # np.save(os.path.join(emb_dir, 'test_ids.npy'), test_ids)
+    # print(f'Saved test_ids and raw score to {emb_dir}.')
 
 if __name__ == "__main__":
     curses.wrapper(eval_faiss())

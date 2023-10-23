@@ -190,15 +190,17 @@ class GenerationLoader(Sequence):
 
         return X_batch, X_batch_mel
 
-    def track_segment_boundaries(self):
-        """ Save the boundaries of the tracks segments. This is used to
+    def get_track_information(self):
+        """ Save the segment boundaries and paths of the tracks. This is used to
         determine the track of each segment during evaluation."""
 
         track_boundaries = [[0]]
-        for i,segments in enumerate(self.track_seg_dict.values()):
+        track_paths = []
+        for i,(track_path,segments) in enumerate(self.track_seg_dict.items()):
             track_boundaries[-1].append(track_boundaries[-1][0] + len(segments) - 1)
             if i < len(self.track_seg_dict) - 1:
                 track_boundaries.append([track_boundaries[-1][1] + 1])
+            track_paths.append(os.path.abspath(track_path))
         track_boundaries = np.vstack(track_boundaries)
 
         assert track_boundaries[-1,-1] == self.n_samples - 1, \
@@ -210,7 +212,7 @@ class GenerationLoader(Sequence):
         assert np.all(track_boundaries[1:,0] == track_boundaries[:-1,1] + 1), \
             "Something went wrong with the track boundaries"
 
-        return track_boundaries
+        return track_paths, track_boundaries
 
     def load_and_store_bg_samples(self, bg_mix_parameter):
         """ Load background noise samples in memory and their segmentation

@@ -190,9 +190,12 @@ def generate_fingerprint(cfg: dict,
         n_items = ds[key].n_samples
         assert n_items > 0, f"Dataset '{key}' is empty."
 
-        print(f"Saving the track boundaries to {output_dir}")
+        print(f"Saving track information to {output_dir}")
+        track_names, track_boundaries = ds[key].get_track_information()
         np.save(os.path.join(output_dir, f'{key}-track_boundaries.npy'), 
-                ds[key].track_segment_boundaries())
+                track_boundaries)
+        with open(os.path.join(output_dir, f'{key}-track_names.txt'), 'w') as f:
+            f.write('\n'.join(track_names))
 
         # Create memmap, and save shapes
         """
