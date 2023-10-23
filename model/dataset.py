@@ -399,6 +399,7 @@ class Dataset:
 
         fps = sorted(
             glob.glob(source_root_dir + '/**/*.wav', recursive=True))
+        print(f"{len(fps):,} tracks found.")
 
         return GenerationLoader(
             track_paths=fps,
