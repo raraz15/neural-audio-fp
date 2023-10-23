@@ -146,6 +146,10 @@ def generate_fingerprint(cfg: dict,
     if mixed_precision:
         set_policy(Policy('mixed_float16'))
         print('Mixed precision enabled.')
+        cfg['TRAIN']['MIXED_PRECISION'] = True
+    else:
+        print('Using full precision.')
+        cfg['TRAIN']['MIXED_PRECISION'] = False
 
     # Build the model
     m_fp = get_fingerprinter(cfg, trainable=False)
