@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from tensorflow.keras.utils import Sequence
 
@@ -70,7 +71,7 @@ class GenerationLoader(Sequence):
         self.bsz = bsz
 
         # Create segment information for each track
-        track_seg_dict = audio_utils.get_fns_seg_dict(track_paths,
+        self.track_seg_dict = audio_utils.get_fns_seg_dict(track_paths,
                                                     segment_mode='all',
                                                     fs=self.fs,
                                                     duration=self.segment_duration,
@@ -78,7 +79,7 @@ class GenerationLoader(Sequence):
         # Create a list of track-segment pairs. We connvert it to a list so that
         # each segment can be used during fp-generation.
         self.track_seg_list = [[fname, *seg] 
-                               for fname, segments in track_seg_dict.items() 
+                               for fname, segments in self.track_seg_dict.items() 
                                for seg in segments]
         self.n_samples = len(self.track_seg_list)
         self.indexes = np.arange(self.n_samples)
@@ -188,6 +189,28 @@ class GenerationLoader(Sequence):
         X_batch_mel = np.expand_dims(X_batch_mel, 3).astype(np.float32)
 
         return X_batch, X_batch_mel
+
+    def track_segment_boundaries(self):
+        """ Save the boundaries of the tracks segments. This is used to
+        determine the track of each segment during evaluation."""
+
+        track_boundaries = [[0]]
+        for i,segments in enumerate(self.track_seg_dict.values()):
+            track_boundaries[-1].append(track_boundaries[-1][0] + len(segments) - 1)
+            if i < len(self.track_seg_dict) - 1:
+                track_boundaries.append([track_boundaries[-1][1] + 1])
+        track_boundaries = np.vstack(track_boundaries)
+
+        assert track_boundaries[-1,-1] == self.n_samples - 1, \
+            "Something went wrong with the track boundaries"
+        assert len(track_boundaries) == len(self.track_seg_dict), \
+            "Something went wrong with the track boundaries"
+        assert np.all(track_boundaries[:,0] < track_boundaries[:,1]), \
+            "Something went wrong with the track boundaries"
+        assert np.all(track_boundaries[1:,0] == track_boundaries[:-1,1] + 1), \
+            "Something went wrong with the track boundaries"
+
+        return track_boundaries
 
     def load_and_store_bg_samples(self, bg_mix_parameter):
         """ Load background noise samples in memory and their segmentation

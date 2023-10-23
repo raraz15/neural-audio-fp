@@ -186,6 +186,10 @@ def generate_fingerprint(cfg: dict,
         n_items = ds[key].n_samples
         assert n_items > 0, f"Dataset '{key}' is empty."
 
+        print(f"Saving the track boundaries to {output_dir}")
+        np.save(os.path.join(output_dir, f'{key}-track_boundaries.npy'), 
+                ds[key].track_segment_boundaries())
+
         # Create memmap, and save shapes
         """
         Why use "memmap"?
@@ -238,7 +242,7 @@ def generate_fingerprint(cfg: dict,
         """ End of Parallelism----------------------------------------- """
 
         # Print summary
-        tf.print(f'=== Succesfully stored {len(arr)} {key} fingerprints to {output_dir} ===')
+        tf.print(f'=== Succesfully stored {len(arr):,} {key} fingerprints to {output_dir} ===')
         # Save the number of fingerprints for warning message
         sz_check[key] = len(arr)
 
