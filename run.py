@@ -28,9 +28,9 @@ def print_config(cfg):
 @click.group()
 def cli():
     """
-    train-> generate-> evaluate.
+    train-> generate-> eval/eval_faiss.py
 
-    How to use each command: \b\n
+    How to use train and generate commands: \b\n
         python run.py COMMAND --help
 
     """
@@ -129,46 +129,6 @@ def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_
                          output_root_dir=output_root,
                          skip_dummy=skip_dummy, 
                          mixed_precision=mixed_precision)
-
-""" Search and evalutation """
-@cli.command()
-@click.argument('embedding_dir', required=True)
-@click.option('--index_type', '-i', default='ivfpq', type=click.STRING,
-              help="Index type must be one of {'L2', 'IVF', 'IVFPQ', "
-              "'IVFPQ-RR', 'IVFPQ-ONDISK', HNSW'}")
-@click.option('--test_seq_len', default='1 3 5 9 11 19', type=click.STRING,
-              help="A set of different number of segments to test. "
-              "Numbers are separated by spaces. Default is '1 3 5 9 11 19', "
-              "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec "
-              "segment duration and 0.5 sec hop duration.")
-@click.option('--test_ids', '-t', default='./eval/test_ids_icassp2021.npy', type=click.STRING,
-              help="One of {'all', 'equally_spaced', 'path/file.npy', (int)}. "
-              "If 'all', test all IDs from the test. You can also specify a 1-D array "
-              "file's location that contains the start indices to the the evaluation. "
-              "Any numeric input N (int) > 0 will perform search test at random position "
-              "(ID) N times. 'equally_spaced' will use boundary information to get an "
-              "equal number of samples from each track. Default is 'path/file.npy'.")
-@click.option('--nogpu', default=False, is_flag=True,
-              help='Use this flag to use CPU only.')
-def evaluate(embedding_dir, index_type, test_seq_len, test_ids, nogpu):
-    """ Search and evalutation.
-
-        ex) python run.py evaluate logs/emb/CHECKPOINT_NAME/CHECKPOINT_INDEX
-
-    With options: \b\n
-
-        ex) python run.py evaluate logs/emb/CHECKPOINT_NAME/CHECKPOINT_INDEX -i ivfpq -t 3000 --nogpu
-
-    """
-
-    from eval.eval_faiss import eval_faiss
-
-    if nogpu:
-        eval_faiss([embedding_dir, "--index_type", index_type, "--test_seq_len",
-                    test_seq_len, "--test_ids", test_ids, "--nogpu"])
-    else:
-        eval_faiss([embedding_dir, "--index_type", index_type, "--test_seq_len",
-                    test_seq_len, "--test_ids", test_ids])
 
 if __name__ == '__main__':
     cli()
