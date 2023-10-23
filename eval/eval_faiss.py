@@ -145,6 +145,9 @@ def eval_faiss(emb_dir,
     assert max(test_ids) <= len(query) - max(test_seq_len), \
         f'test_id must be less than {len(query) - max(test_seq_len)}'
 
+    n_test = len(test_ids)
+    print(f'n_test: \033[93m{n_test:,}\033[0m')
+
     """ ----------------------------------------------------------------------
     FAISS index setup
 
@@ -164,14 +167,11 @@ def eval_faiss(emb_dir,
     • The set of ground truth IDs for q[i] will be (i + len(dummy_db))
     ---------------------------------------------------------------------- """
 
-    n_test = len(test_ids)
-    print(f'n_test: \033[93m{n_test:,}\033[0m')
-    gt_ids  = test_ids + dummy_db_shape[0]
-
     # Create and train FAISS index
     index = get_index(index_type, dummy_db, dummy_db.shape, (not nogpu), max_train)
 
     # Add items to index
+    print(f'Adding items to the index...')
     start_time = time.time()
 
     index.add(dummy_db)
@@ -179,10 +179,13 @@ def eval_faiss(emb_dir,
     index.add(db)
     print(f'{len(db):>10,} items from reference DB.')
 
-    print(f'Added total {index.ntotal:>10,} items to DB in ', end='')
+    print(f'Total of {index.ntotal:>10,} items to DB in ', end='')
     print(f'{time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))}')
 
     del dummy_db
+
+    # Shift the ground truth IDs by the length of dummy_db as described above.
+    gt_ids = test_ids + dummy_db_shape[0]
 
     """ ----------------------------------------------------------------------
     We need to prepare a merged {dummy_db + db} memmap:
@@ -221,10 +224,19 @@ def eval_faiss(emb_dir,
     pt = PrintTable(scr=scr, 
                     test_seq_len=test_seq_len,
                     row_names=['Top1 exact', 'Top1 near', 'Top3 exact','Top10 exact'])
-    start_time = time.time()
+    start_time, total_search_time = time.time(), 0
+
+    # For each idx in the test set, create segment- or sequence-level queries
     for ti, test_id in enumerate(test_ids):
+
+        # Get the ground truth segment and track indices
         gt_id = gt_ids[ti]
+
+        # For each test sequence length, make an independent query to the index
         for si, sl in enumerate(test_seq_len):
+
+            # Create the query vector. if sl=1, query is a single vector.
+            # Otherwise its a sequence of vectors.
             q = query[test_id:(test_id + sl), :] # shape(q) = (length, dim)
 
             # segment-level top k search for each segment
@@ -247,49 +259,41 @@ def eval_faiss(emb_dir,
                         )
                     )
 
-            """ Evaluate """
+            """ Evaluate segment-level search and song-level search"""
             pred_ids = candidates[np.argsort(-_scores)[:10]]
 
             # top1 hit
             top1_exact[ti, si] = int(gt_id == pred_ids[0])
             top1_near[ti, si] = int(pred_ids[0] in [gt_id - 1, gt_id, gt_id + 1])
-            # top1_song = need song info here...
 
             # top3, top10 hit
             top3_exact[ti, si] = int(gt_id in pred_ids[:3])
             top10_exact[ti, si] = int(gt_id in pred_ids[:10])
 
-        if (ti != 0) & ((ti % display_interval) == 0):
-            avg_search_time = (time.time() - start_time) / display_interval \
-                / len(test_seq_len)
+        # Print summary
+        if (ti != 0) & ((ti % display_interval) == 0) or (ti == n_test - 1):
+
             top1_exact_rate = 100. * np.mean(top1_exact[:ti + 1, :], axis=0)
             top1_near_rate = 100. * np.mean(top1_near[:ti + 1, :], axis=0)
             top3_exact_rate = 100. * np.mean(top3_exact[:ti + 1, :], axis=0)
             top10_exact_rate = 100. * np.mean(top10_exact[:ti + 1, :], axis=0)
-            # top1_song = 100 * np.mean(tp_song[:ti + 1, :], axis=0)
+
+            interval_time = time.time() - start_time
+            total_search_time += interval_time
+            avg_search_time = interval_time / (display_interval * len(test_seq_len))
 
             pt.update_counter(ti, n_test, avg_search_time * 1000.)
-            pt.update_table((top1_exact_rate, top1_near_rate, top3_exact_rate,
-                             top10_exact_rate))
-            start_time = time.time() # reset stopwatch
+            pt.update_table((top1_exact_rate, top1_near_rate, top3_exact_rate, top10_exact_rate))
+            start_time = time.time() # reset interval stopwatch
 
-    # Summary
-    top1_exact_rate = 100. * np.mean(top1_exact, axis=0)
-    top1_near_rate = 100. * np.mean(top1_near, axis=0)
-    top3_exact_rate = 100. * np.mean(top3_exact, axis=0)
-    top10_exact_rate = 100. * np.mean(top10_exact, axis=0)
-    # top1_song = 100 * np.mean(top1_song[:ti + 1, :], axis=0)
-    data = np.concatenate((top1_exact, top1_near, top3_exact, top10_exact), axis=1)
-
-    pt.update_counter(ti, n_test, avg_search_time * 1000.)
-    pt.update_table((top1_exact_rate, top1_near_rate, top3_exact_rate, top10_exact_rate))
-    pt.close_table() # close table and print summary
+    pt.close_table() # close table
     del fake_recon_index, query, db
 
     print(f'Finished the segment and sequence level search in ', end='')
-    print(f'{time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))}')
+    print(f'{time.strftime("%H:%M:%S", time.gmtime(total_search_time))}')
 
     """ Save results """
+    data = np.concatenate((top1_exact, top1_near, top3_exact, top10_exact), axis=1)
     np.save(os.path.join(emb_dir, 'raw_score.npy'), data)
     np.save(os.path.join(emb_dir, 'test_ids.npy'), test_ids)
     print(f'Saved test_ids and raw score to {emb_dir}.')
