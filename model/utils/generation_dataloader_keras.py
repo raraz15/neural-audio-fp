@@ -148,7 +148,6 @@ class GenerationLoader(Sequence):
         # Apply augmentations if specified
         if self.bg_mix and self.ir_mix:
 
-            # TODO: simplify?
             # Get a batch of random background noise samples
             bg_noise_batch = []
             for i in np.arange(idx*self.bsz, (idx+1)*self.bsz) % self.n_bg_files:

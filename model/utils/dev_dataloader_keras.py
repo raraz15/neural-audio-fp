@@ -6,7 +6,6 @@ from model.utils import audio_utils
 
 class DevLoader(Sequence):
 
-    # TODO: fix both augmentations
     def __init__(
         self, 
         segment_duration=1, 

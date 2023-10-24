@@ -125,7 +125,7 @@ def eval_faiss(emb_dir,
     dummy_db, dummy_db_shape = load_memmap_data(emb_dummy_dir, 'dummy_db')
 
     """Load track boundaries adn track names for query and dummy_db."""
-    query_db_boundaries = np.load(os.path.join(emb_dir, 'db-track_boundaries.npy')) # TODO: name change
+    query_db_boundaries = np.load(os.path.join(emb_dir, 'db-track_boundaries.npy'))
     with open(os.path.join(emb_dir, 'db-track_names.txt'), 'r') as in_f:
         query_db_track_names = in_f.read().splitlines()
     dummy_db_boundaries = np.load(os.path.join(emb_dummy_dir, 'dummy_db-track_boundaries.npy'))
@@ -155,6 +155,7 @@ def eval_faiss(emb_dir,
         for s,e in query_db_boundaries:
             # Cut the query into equal length segments
             # If the last segment is shorter than test_seq_len, ignore it
+            # 9 corresponds to sampling the query chunk every 5 seconds
             test_ids.append(np.arange(s, e+1-test_seq_len[-1], 9)) # end is inclusive
         test_ids = np.concatenate(test_ids)
     elif os.path.isfile(test_ids):
@@ -259,7 +260,6 @@ def eval_faiss(emb_dir,
         # Ground truth sequence start segment position inside the DB
         gt_id = gt_ids[ti]
         # Track idx of the ground truth sequence inside the DB
-        # TODO: check if all the constructed sequences are from the same track
         gt_track_id = np.where((gt_id>=db_boundaries[:,0]) & (gt_id<=db_boundaries[:,1]))[0][0]
         # Name of the ground truth track
         gt_track = db_track_names[gt_track_id]

@@ -144,7 +144,6 @@ class ExperimentHelper():
             )
 
         self.load_checkpoint()
-        # TODO: can this overwrite the loaded checkpoint?
         if self._cfg_use_tensorboard:
             self.write_lr()
 
