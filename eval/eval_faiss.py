@@ -65,7 +65,6 @@ def load_memmap_data(source_dir,
         print(f'Loaded {data_shape[0]:>10,} items from \033[32m{path_data}\033[0m.')
     return data, data_shape
 
-# TODO: save_dir
 @click.command()
 @click.argument('emb_dir', required=True,type=click.STRING)
 @click.option('--emb_dummy_dir', default=None, type=click.STRING,
@@ -95,6 +94,8 @@ def load_memmap_data(source_dir,
 @click.option('--display_interval', '-dp', default=100, type=click.INT,
               help="Display interval. Default is 100, which updates the table"
               " every 100 queries.")
+@click.option('--output_dir', '-o', default="", type=click.STRING,
+              help="Output directory. Default is the same as emb_dir.")
 def eval_faiss(emb_dir,
                emb_dummy_dir=None,
                index_type='ivfpq',
@@ -103,7 +104,8 @@ def eval_faiss(emb_dir,
                test_ids='equally_spaced',
                test_seq_len='1 3 5 9 11 19',
                k_probe=20,
-               display_interval=100):
+               display_interval=100,
+               output_dir=""):
     """
     Segment/sequence-wise audio search experiment and evaluation: implementation 
     based on FAISS.
@@ -336,15 +338,22 @@ def eval_faiss(emb_dir,
     print(f'Finished the segment and sequence level search in ', end='')
     print(f'{time.strftime("%H:%M:%S", time.gmtime(total_search_time))}')
 
+    """ Save results """
+    # If no output_dir is specified, save the results in emb_dir
+    if output_dir == "":
+        output_dir = emb_dir
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Save the matching results
     df = pd.DataFrame(analysis, columns=['test_id', 'seq_len', 'gt_track_path', 'gt_start_segment',
                                          'pred_track_path', 'pred_start_segment', 'score'])
-    df.to_csv(os.path.join(emb_dir, 'analysis.csv'), index=False)
+    df.to_csv(os.path.join(output_dir, 'analysis.csv'), index=False)
 
-    # """ Save results """
-    # data = np.concatenate((top1_song, top1_exact, top1_near, top3_exact, top10_exact), axis=1)
-    # np.save(os.path.join(emb_dir, 'raw_score.npy'), data)
-    # np.save(os.path.join(emb_dir, 'test_ids.npy'), test_ids)
-    # print(f'Saved test_ids and raw score to {emb_dir}.')
+    # Save the raw score and test_ids
+    data = np.concatenate((top1_song, top1_exact, top1_near, top3_exact, top10_exact), axis=1)
+    np.save(os.path.join(output_dir, 'raw_score.npy'), data)
+    np.save(os.path.join(output_dir, 'test_ids.npy'), test_ids)
+    print(f'Saved test_ids and raw score to {output_dir}.')
 
 if __name__ == "__main__":
     curses.wrapper(eval_faiss())
