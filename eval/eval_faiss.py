@@ -65,6 +65,7 @@ def load_memmap_data(source_dir,
         print(f'Loaded {data_shape[0]:>10,} items from \033[32m{path_data}\033[0m.')
     return data, data_shape
 
+# TODO: save_dir
 @click.command()
 @click.argument('emb_dir', required=True,type=click.STRING)
 @click.option('--emb_dummy_dir', default=None, type=click.STRING,
@@ -82,13 +83,13 @@ def load_memmap_data(source_dir,
               "Numbers are separated by spaces. Default is '1 3 5 9 11 19', "
               "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec segment "
               "duration and 0.5 sec hop duration.")
-@click.option('--test_ids', '-t', default='./eval/test_ids_icassp2021.npy', type=click.STRING,
-              help="One of {'all', 'path/file.npy', (int)}. If 'all', " +
-              "test all IDs from the test. If 'eval/test_ids_icassp2021.npy', use the 2,000 " +
-              "sequence starting point IDs " +
-              "located in ./eval directory. You can also specify the 1-D array "
-              "file's location. Any numeric input N (int) > 0 will randomly "
-              "select N IDs. Default is 'icassp'.")
+@click.option('--test_ids', '-t', default='equally_spaced', type=click.STRING,
+              help="One of {'all', 'equally_spaced', 'icassp', 'path/file.npy', int}. If 'all', "
+              "test all IDs from the test. If 'icassp', use the 2,000 "
+              "sequence starting point IDs located in the path. You can also specify "
+              "another 1-D ndarray file's location. Any numeric input N (int) > 0 will randomly "
+              "select N IDs. 'equally_spaced' will use boundary information to get an "
+              "equal number of samples from each track. Default is 'equally_spaced'.")
 @click.option('--k_probe', '-k', default=20, type=click.INT,
               help="Top k search for each segment. Default is 20")
 @click.option('--display_interval', '-dp', default=100, type=click.INT,
@@ -99,7 +100,7 @@ def eval_faiss(emb_dir,
                index_type='ivfpq',
                nogpu=False,
                max_train=1e7,
-               test_ids='./eval/test_ids_icassp2021.npy',
+               test_ids='equally_spaced',
                test_seq_len='1 3 5 9 11 19',
                k_probe=20,
                display_interval=100):
@@ -125,7 +126,6 @@ def eval_faiss(emb_dir,
     query_db_boundaries = np.load(os.path.join(emb_dir, 'db-track_boundaries.npy')) # TODO: name change
     with open(os.path.join(emb_dir, 'db-track_names.txt'), 'r') as in_f:
         query_db_track_names = in_f.read().splitlines()
-
     dummy_db_boundaries = np.load(os.path.join(emb_dummy_dir, 'dummy_db-track_boundaries.npy'))
     with open(os.path.join(emb_dummy_dir, 'dummy_db-track_names.txt'), 'r') as in_f:
         dummy_db_track_names = in_f.read().splitlines()
@@ -145,6 +145,16 @@ def eval_faiss(emb_dir,
         # evaluate the performance for each test_seq_len. This does not guarantee
         # getting a sample from each track.
         test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
+    elif test_ids.lower() == "icassp":
+        # Will use the 2,000 sequence starting point IDs located in the path.
+        test_ids = np.load('eval/test_ids_icassp2021.npy')
+    elif test_ids.lower() == 'equally_spaced':
+        test_ids = []
+        for s,e in query_db_boundaries:
+            # Cut the query into equal length segments
+            # If the last segment is shorter than test_seq_len, ignore it
+            test_ids.append(np.arange(s, e+1-test_seq_len[-1], 9)) # end is inclusive
+        test_ids = np.concatenate(test_ids)
     elif os.path.isfile(test_ids):
         # If test_ids is a file path load it
         test_ids = np.load(test_ids)
