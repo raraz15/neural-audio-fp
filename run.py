@@ -44,14 +44,14 @@ def cli():
 @click.option('--deterministic', default=False, is_flag=True,
               help='Set the CUDA operaitions to be deterministic.')
 def train(config_path, max_epoch, deterministic):
-    """ Train a neural audio fingerprinter.
+    """ Train a neural audio fingerprinter. \b\n
 
-    ex) python run.py train CHECKPOINT_NAME --max_epoch=100
+    python run.py train config_path\b
 
-        # with custom config file
-        python run.py train CHECKPOINT_NAME --max_epoch=100 -c CONFIG_NAME
+    with custom max_epoch: \b
+        python run.py train CHECKPOINT_NAME  CONFIG_NAME \b\n
 
-    NOTE: If './LOG_ROOT_DIR/checkpoint/CHECKPOINT_NAME already exists, 
+    Note: If './LOG_ROOT_DIR/checkpoint/CHECKPOINT_NAME already exists, \b
     the training will resume from the latest checkpoint in the directory.
     """
 
@@ -96,22 +96,23 @@ def train(config_path, max_epoch, deterministic):
 def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_root, skip_dummy, mixed_precision):
     """ Generate fingerprints from a saved checkpoint.
 
-    ex) python run.py generate CONFIG_PATH
+        python run.py generate CONFIG_PATH
 
     With custom source directory: \b\n
         python run.py generate CONFIG_PATH --source_root SOURCE_DIR
 
-    • If CHECKPOINT_DIR is not specified, 
-        cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] will be used.
-    • If CHECKPOINT_INDEX is not specified, the latest checkpoint in 
-        cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] will be used.
-    • The default value for the fingerprinting source is [TEST_DUMMY_DB] and 
-        [TEST_QUERY_DB] specified in config file. You can change the source
-        by specifying the --source option.
-    • The default value for the output root directory is
-        cfg['MODEL']['LOG_ROOT_DIR']/emb/cfg['MODEL']['CHECKPOINT_NAME'].
-        You can change the output root directory by specifying the --output_root option.
-
+    • If CHECKPOINT_DIR is not specified \b
+    cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] \b
+    will be used.\b\n
+    • If CHECKPOINT_INDEX is not specified, the latest checkpoint in \b
+    cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] \b
+    will be used.\b\n
+    • The default value for the fingerprinting source is [TEST_DUMMY_DB] and \b
+    [TEST_QUERY_DB] specified in config file. You can change the source \b
+    by specifying the --source option.\b\n
+    • The default value for the output root directory is \b
+    cfg['MODEL']['LOG_ROOT_DIR']/emb/cfg['MODEL']['CHECKPOINT_NAME'].\b
+    You can change the output root directory by specifying the --output_root option.
     """
 
     from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
