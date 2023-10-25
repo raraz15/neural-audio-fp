@@ -2,7 +2,7 @@
 # Here we define how the audio is converted to the input that the model can use,
 # the model architecture, and the log directory.
 MODEL:
-    NAME : fma-random_amp-no_bg_ir_norm-bsz_128 
+    NAME : fma-random_amp-no_bg_ir_norm-bsz_768
          # Name of the model. Used for logging.
     # Parameters for audio segment extraction.
     AUDIO :
@@ -50,7 +50,7 @@ TRAIN:
                         # fingerprint.
     # Hyperparameters
     MAX_EPOCH : 100
-    TR_BATCH_SZ : 128  # Training batch size. N must be EVEN number. 
+    TR_BATCH_SZ : 768  # Training batch size. N must be EVEN number. 
                        # Half of the batch is used for positive pairs 
                        # and the other half for anchor pairs.
     VAL_BATCH_SZ : 500 # Validation batch size. N must be EVEN number. 
