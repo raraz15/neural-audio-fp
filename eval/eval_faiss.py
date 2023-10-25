@@ -138,6 +138,7 @@ def eval_faiss(emb_dir,
 
     # Get test_ids
     print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
+    _test_ids = test_ids.lower() # for saving the eval results
     if test_ids.lower() == 'all':
         # Will use all segments in query/db set as starting point and 
         # evaluate the performance for each test_seq_len.
@@ -166,10 +167,19 @@ def eval_faiss(emb_dir,
 
     # Make sure that test segments are within the query set
     assert max(test_ids) <= len(query) - max(test_seq_len), \
-        f'test_id must be less than {len(query) - max(test_seq_len)}'
+        f'each test_id must be less than {len(query) - max(test_seq_len)}'
 
     n_test = len(test_ids)
     print(f'n_test: \033[93m{n_test:,}\033[0m')
+
+    # If no output_dir is specified, save the results in emb_dir
+    if output_dir == "":
+        output_dir = emb_dir
+    else:
+        structure = os.sep.join(emb_dir.split(os.sep)[2:]) # we expect emb_dir to be logs/emb/...
+        output_dir = os.path.join(output_dir, _test_ids, structure)
+    print(f'Output directory: \033[93m{output_dir}\033[0m')
+    os.makedirs(output_dir, exist_ok=True)
 
     """ ----------------------------------------------------------------------
     FAISS index setup
@@ -339,10 +349,6 @@ def eval_faiss(emb_dir,
     print(f'{time.strftime("%H:%M:%S", time.gmtime(total_search_time))}')
 
     """ Save results """
-    # If no output_dir is specified, save the results in emb_dir
-    if output_dir == "":
-        output_dir = emb_dir
-    os.makedirs(output_dir, exist_ok=True)
 
     # Save the matching results
     df = pd.DataFrame(analysis, columns=['test_id', 'seq_len', 'gt_track_path', 'gt_start_segment',
