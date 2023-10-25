@@ -2,7 +2,7 @@
 # Here we define how the audio is converted to the input that the model can use,
 # the model architecture, and the log directory.
 MODEL:
-    NAME : fma-random_amp-no_bg_ir_norm-bsz_768
+    NAME : fma-random_amp-no_bg_ir_norm-bsz_768-Offset_250msec
          # Name of the model. Used for logging.
     # Parameters for audio segment extraction.
     AUDIO :
@@ -41,7 +41,7 @@ TRAIN:
         SEGMENT_HOP_DUR : .5 # Hop-size of the segment window in seconds.
         SEGMENTS_PER_TRACK : 58
                         # Use this many segments per track for training.
-        MAX_OFFSET_DUR : 0.2
+        MAX_OFFSET_DUR : 0.25
                         # Maximum offset duration in seconds. 
                         # We randomly offset the audio segment by a random 
                         # amount in the range of [0, MAX_OFFSET_DUR] seconds.
