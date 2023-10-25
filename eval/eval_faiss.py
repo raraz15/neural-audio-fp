@@ -131,6 +131,7 @@ def eval_faiss(emb_dir,
     dummy_db_boundaries = np.load(os.path.join(emb_dummy_dir, 'dummy_db-track_boundaries.npy'))
     with open(os.path.join(emb_dummy_dir, 'dummy_db-track_names.txt'), 'r') as in_f:
         dummy_db_track_names = in_f.read().splitlines()
+    print("Loaded track boundaries and names.")
 
     """ Determine tests IDs and test sequence length"""
     # '1 3 5' --> [1, 3, 5]
@@ -151,6 +152,8 @@ def eval_faiss(emb_dir,
     elif test_ids.lower() == "icassp":
         # Will use the 2,000 sequence starting point IDs located in the path.
         test_ids = np.load('eval/test_ids_icassp2021.npy')
+        test_seq_len = np.asarray([1, 3, 5]) # because there are mistakes in the paper
+        print("ICASSP 2021 test set reduced!")
     elif test_ids.lower() == 'equally_spaced':
         test_ids = []
         for s,e in query_db_boundaries:
@@ -174,10 +177,10 @@ def eval_faiss(emb_dir,
 
     # If no output_dir is specified, save the results in emb_dir
     if output_dir == "":
-        output_dir = emb_dir
+        output_dir = os.path.join(emb_dir, _test_ids)
     else:
         structure = os.sep.join(emb_dir.split(os.sep)[2:]) # we expect emb_dir to be logs/emb/...
-        output_dir = os.path.join(output_dir, _test_ids, structure)
+        output_dir = os.path.join(output_dir, structure, _test_ids)
     print(f'Output directory: \033[93m{output_dir}\033[0m')
     os.makedirs(output_dir, exist_ok=True)
 
