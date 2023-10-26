@@ -126,15 +126,15 @@ def eval_faiss(emb_dir,
 
     """Load track boundaries and track paths for query, db, and dummy_db."""
     query_track_boundaries = np.load(os.path.join(emb_dir, 'query-track_boundaries.npy'))
-    with open(os.path.join(emb_dir, 'query-track_names.txt'), 'r') as in_f:
+    with open(os.path.join(emb_dir, 'query-track_paths.txt'), 'r') as in_f:
         query_track_paths = in_f.read().splitlines()
     db_track_boundaries = np.load(os.path.join(emb_dir, 'db-track_boundaries.npy'))
-    with open(os.path.join(emb_dir, 'db-track_names.txt'), 'r') as in_f:
+    with open(os.path.join(emb_dir, 'db-track_paths.txt'), 'r') as in_f:
         db_track_paths = in_f.read().splitlines()
     assert np.all(query_track_boundaries == db_track_boundaries), \
         'query and db must have the same track boundaries.'
     dummy_db_track_boundaries = np.load(os.path.join(emb_dummy_dir, 'dummy_db-track_boundaries.npy'))
-    with open(os.path.join(emb_dummy_dir, 'dummy_db-track_names.txt'), 'r') as in_f:
+    with open(os.path.join(emb_dummy_dir, 'dummy_db-track_paths.txt'), 'r') as in_f:
         dummy_db_track_paths = in_f.read().splitlines()
     print("Loaded track boundaries and paths.")
 
