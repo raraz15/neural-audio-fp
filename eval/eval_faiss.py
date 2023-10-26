@@ -226,8 +226,6 @@ def eval_faiss(emb_dir,
 
     del dummy_db
 
-    # Shift the ground truth IDs by the length of dummy_db as described above.
-    gt_ids = test_ids + dummy_db_shape[0]
     # Merge the track boundaries and track paths of dummy_db and db
     total_db_track_boundaries = np.concatenate(
         (dummy_db_track_boundaries, db_track_boundaries + dummy_db_shape[0]), 
@@ -277,24 +275,30 @@ def eval_faiss(emb_dir,
     # For each idx in the test set, create segment- or sequence-level queries
     for ti, test_id in enumerate(test_ids):
 
-        # Ground truth sequence start segment position inside the DB
-        gt_id = gt_ids[ti]
-        # Track idx of the ground truth sequence inside the DB
-        gt_track_id = np.where((gt_id>=total_db_track_boundaries[:,0]) & (gt_id<=total_db_track_boundaries[:,1]))[0][0]
+        # Ground truth sequence start position inside the index (dummy_db + db)
+        gt_id = test_id + dummy_db_shape[0]
+
+        # Track idx of the ground truth sequence inside the total DB
+        gt_track_id = np.where((gt_id>=total_db_track_boundaries[:,0]) & 
+                               (gt_id<=total_db_track_boundaries[:,1]))[0][0]
         # Name of the ground truth track
         gt_track_path = total_db_track_paths[gt_track_id]
         # Position of the start segment of the ground truth sequence inside the track
-        gt_track_start_segment = test_id - (total_db_track_boundaries[gt_track_id, 0] - dummy_db_shape[0])
+        gt_start_segment = test_id - (total_db_track_boundaries[gt_track_id, 0] - dummy_db_shape[0])
 
-        # Corresponding query track. We assume that each test_id will correspond to only
+        # Corresponding information for the query track. We assume that each test_id will correspond to only
         # a single track. This was not true for the ICASSP 2021 test set.
-        query_track_id = np.where((test_id>=query_track_boundaries[:,0]) & (test_id<=query_track_boundaries[:,1]))[0][0]
-        query_track_path = query_track_paths[query_track_id]
-        query_track_start_segment = test_id - query_track_boundaries[query_track_id, 0]
-        assert query_track_id == gt_track_id - dummy_db_shape[0], \
-            f'query_track_id ({query_track_id}) != gt_track_id ({gt_track_id})'
-        assert query_track_start_segment == gt_track_start_segment, \
-            f'query_track_start_segment ({query_track_start_segment}) != gt_track_start_segment ({gt_track_start_segment})'
+        q_track_id = np.where((test_id>=query_track_boundaries[:,0]) & 
+                              (test_id<=query_track_boundaries[:,1])
+                              )[0][0]
+        assert q_track_id == gt_track_id - len(dummy_db_track_paths), \
+            f'q_track_id ({q_track_id}) does not match gt_track_id ({gt_track_id - len(dummy_db_track_paths)})'
+        q_track_path = query_track_paths[q_track_id]
+        assert os.path.basename(q_track_path) == os.path.basename(gt_track_path), \
+            f'q_track_path ({q_track_path}) != gt_track_path ({gt_track_path})'
+        q_start_segment = test_id - query_track_boundaries[q_track_id, 0]
+        assert q_start_segment == gt_start_segment, \
+            f'q_start_segment ({q_start_segment}) != gt_start_segment ({gt_start_segment})'
 
         # For each test sequence length, make an independent query to the index
         for si, sl in enumerate(test_seq_len):
@@ -327,13 +331,15 @@ def eval_faiss(emb_dir,
             # Positions of the top10 candidates inside the DB
             pred_ids = candidates[np.argsort(-_scores)[:10]]
             # Position of the predicted track inside the DB
-            pred_track_id = np.where((pred_ids[0]>=total_db_track_boundaries[:,0]) & (pred_ids[0]<=total_db_track_boundaries[:,1]))[0][0]
+            p_track_id = np.where((pred_ids[0]>=total_db_track_boundaries[:,0]) & 
+                                  (pred_ids[0]<=total_db_track_boundaries[:,1])
+                                  )[0][0]
             # Path of the predicted track
-            pred_track_path = total_db_track_paths[pred_track_id]
-            pred_track_start_segment = pred_ids[0] - total_db_track_boundaries[pred_track_id, 0]
+            p_track_path = total_db_track_paths[p_track_id]
+            p_start_segment = pred_ids[0] - total_db_track_boundaries[p_track_id, 0]
 
             # top1 hit
-            top1_song[ti, si] = int(gt_track_id == pred_track_id)
+            top1_song[ti, si] = int(gt_track_id == p_track_id)
             top1_exact[ti, si] = int(gt_id == pred_ids[0])
             top1_near[ti, si] = int(pred_ids[0] in [gt_id - 1, gt_id, gt_id + 1])
 
@@ -342,9 +348,10 @@ def eval_faiss(emb_dir,
             top10_exact[ti, si] = int(gt_id in pred_ids[:10])
 
             """ Create a table to analyze the results later."""
-            analysis.append([test_id, sl, gt_track_path, gt_track_start_segment, 
-                            query_track_path, query_track_start_segment, 
-                            pred_track_path, pred_track_start_segment, 
+            analysis.append([test_id, sl, 
+                            gt_track_path, gt_start_segment, 
+                            q_track_path, q_start_segment, 
+                            p_track_path, p_start_segment, 
                             _scores[0]])
 
         # Print summary
@@ -361,7 +368,8 @@ def eval_faiss(emb_dir,
             avg_search_time = interval_time / (display_interval * len(test_seq_len))
 
             pt.update_counter(ti, n_test, avg_search_time * 1000.)
-            pt.update_table((top1_song_rate, top1_exact_rate, top1_near_rate, top3_exact_rate, top10_exact_rate))
+            pt.update_table((top1_song_rate, top1_exact_rate, top1_near_rate, 
+                             top3_exact_rate, top10_exact_rate))
             start_time = time.time() # reset interval stopwatch
 
     pt.close_table() # close table
@@ -376,6 +384,8 @@ def eval_faiss(emb_dir,
     df = pd.DataFrame(analysis, columns=['test_id', 'seq_len', 'gt_track_path', 'gt_start_segment', 
                                          'query_track_path', 'query_start_segment',
                                          'pred_track_path', 'pred_start_segment', 'score'])
+    # check_df = df[df['seq_len'] == 1]
+    # assert top1_exact_rate[0] ==  check_df[check_df['gt_start_segment'] == check_df['pred_start_segment']] / check_df.shape[0]
     df.to_csv(os.path.join(output_dir, 'analysis.csv'), index=False)
 
     # Save the raw score and test_ids
