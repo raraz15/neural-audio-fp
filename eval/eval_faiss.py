@@ -156,10 +156,10 @@ def eval_faiss(emb_dir,
         test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
     elif test_ids.lower() == "icassp":
         # Will use the 2,000 sequence starting point IDs located in the path.
-        # TODO: only reduce if necessary
         test_ids = np.load('eval/test_ids_icassp2021.npy')
-        test_seq_len = np.asarray([1, 3, 5]) # because there are mistakes in the paper
-        print("ICASSP 2021 test set reduced!")
+        if test_seq_len == np.array([1, 3, 5, 9, 11, 19]):
+            test_seq_len = np.asarray([1, 3, 5]) # Ensure no track leakage
+            print("ICASSP 2021 test set reduced to '1, 3, 5'!")
     elif test_ids.lower() == 'equally_spaced':
         test_ids = []
         for s,e in query_track_boundaries:
