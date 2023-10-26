@@ -124,14 +124,19 @@ def eval_faiss(emb_dir,
         emb_dummy_dir = emb_dir
     dummy_db, dummy_db_shape = load_memmap_data(emb_dummy_dir, 'dummy_db')
 
-    """Load track boundaries adn track names for query and dummy_db."""
-    query_db_boundaries = np.load(os.path.join(emb_dir, 'db-track_boundaries.npy'))
+    """Load track boundaries and track paths for query, db, and dummy_db."""
+    query_track_boundaries = np.load(os.path.join(emb_dir, 'query-track_boundaries.npy'))
+    with open(os.path.join(emb_dir, 'query-track_names.txt'), 'r') as in_f:
+        query_track_paths = in_f.read().splitlines()
+    db_track_boundaries = np.load(os.path.join(emb_dir, 'db-track_boundaries.npy'))
     with open(os.path.join(emb_dir, 'db-track_names.txt'), 'r') as in_f:
-        query_db_track_names = in_f.read().splitlines()
-    dummy_db_boundaries = np.load(os.path.join(emb_dummy_dir, 'dummy_db-track_boundaries.npy'))
+        db_track_paths = in_f.read().splitlines()
+    assert np.all(query_track_boundaries == db_track_boundaries), \
+        'query and db must have the same track boundaries.'
+    dummy_db_track_boundaries = np.load(os.path.join(emb_dummy_dir, 'dummy_db-track_boundaries.npy'))
     with open(os.path.join(emb_dummy_dir, 'dummy_db-track_names.txt'), 'r') as in_f:
-        dummy_db_track_names = in_f.read().splitlines()
-    print("Loaded track boundaries and names.")
+        dummy_db_track_paths = in_f.read().splitlines()
+    print("Loaded track boundaries and paths.")
 
     """ Determine tests IDs and test sequence length"""
     # '1 3 5' --> [1, 3, 5]
@@ -151,12 +156,13 @@ def eval_faiss(emb_dir,
         test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
     elif test_ids.lower() == "icassp":
         # Will use the 2,000 sequence starting point IDs located in the path.
+        # TODO: only reduce if necessary
         test_ids = np.load('eval/test_ids_icassp2021.npy')
         test_seq_len = np.asarray([1, 3, 5]) # because there are mistakes in the paper
         print("ICASSP 2021 test set reduced!")
     elif test_ids.lower() == 'equally_spaced':
         test_ids = []
-        for s,e in query_db_boundaries:
+        for s,e in query_track_boundaries:
             # Cut the query into equal length segments
             # If the last segment is shorter than test_seq_len, ignore it
             # 9 corresponds to sampling the query chunk every 5 seconds
@@ -222,10 +228,11 @@ def eval_faiss(emb_dir,
 
     # Shift the ground truth IDs by the length of dummy_db as described above.
     gt_ids = test_ids + dummy_db_shape[0]
-
-    db_boundaries = np.concatenate((dummy_db_boundaries, 
-                                    query_db_boundaries + dummy_db_shape[0]), axis=0)
-    db_track_names = dummy_db_track_names + query_db_track_names
+    # Merge the track boundaries and track paths of dummy_db and db
+    total_db_track_boundaries = np.concatenate(
+        (dummy_db_track_boundaries, db_track_boundaries + dummy_db_shape[0]), 
+        axis=0)
+    total_db_track_paths = dummy_db_track_paths + db_track_paths
 
     """ ----------------------------------------------------------------------
     We need to prepare a merged {dummy_db + db} memmap:
@@ -273,11 +280,21 @@ def eval_faiss(emb_dir,
         # Ground truth sequence start segment position inside the DB
         gt_id = gt_ids[ti]
         # Track idx of the ground truth sequence inside the DB
-        gt_track_id = np.where((gt_id>=db_boundaries[:,0]) & (gt_id<=db_boundaries[:,1]))[0][0]
+        gt_track_id = np.where((gt_id>=total_db_track_boundaries[:,0]) & (gt_id<=total_db_track_boundaries[:,1]))[0][0]
         # Name of the ground truth track
-        gt_track = db_track_names[gt_track_id]
+        gt_track_path = total_db_track_paths[gt_track_id]
         # Position of the start segment of the ground truth sequence inside the track
-        gt_track_start_segment = test_id - (db_boundaries[gt_track_id, 0] - dummy_db_shape[0])
+        gt_track_start_segment = test_id - (total_db_track_boundaries[gt_track_id, 0] - dummy_db_shape[0])
+
+        # Corresponding query track. We assume that each test_id will correspond to only
+        # a single track. This was not true for the ICASSP 2021 test set.
+        query_track_id = np.where((test_id>=query_track_boundaries[:,0]) & (test_id<=query_track_boundaries[:,1]))[0][0]
+        query_track_path = query_track_paths[query_track_id]
+        query_track_start_segment = test_id - query_track_boundaries[query_track_id, 0]
+        assert query_track_id == gt_track_id - dummy_db_shape[0], \
+            f'query_track_id ({query_track_id}) != gt_track_id ({gt_track_id})'
+        assert query_track_start_segment == gt_track_start_segment, \
+            f'query_track_start_segment ({query_track_start_segment}) != gt_track_start_segment ({gt_track_start_segment})'
 
         # For each test sequence length, make an independent query to the index
         for si, sl in enumerate(test_seq_len):
@@ -310,10 +327,10 @@ def eval_faiss(emb_dir,
             # Positions of the top10 candidates inside the DB
             pred_ids = candidates[np.argsort(-_scores)[:10]]
             # Position of the predicted track inside the DB
-            pred_track_id = np.where((pred_ids[0]>=db_boundaries[:,0]) & (pred_ids[0]<=db_boundaries[:,1]))[0][0]
-            # Name of the predicted track
-            pred_track = db_track_names[pred_track_id]
-            pred_track_start_segment = pred_ids[0] - db_boundaries[pred_track_id, 0]
+            pred_track_id = np.where((pred_ids[0]>=total_db_track_boundaries[:,0]) & (pred_ids[0]<=total_db_track_boundaries[:,1]))[0][0]
+            # Path of the predicted track
+            pred_track_path = total_db_track_paths[pred_track_id]
+            pred_track_start_segment = pred_ids[0] - total_db_track_boundaries[pred_track_id, 0]
 
             # top1 hit
             top1_song[ti, si] = int(gt_track_id == pred_track_id)
@@ -325,8 +342,10 @@ def eval_faiss(emb_dir,
             top10_exact[ti, si] = int(gt_id in pred_ids[:10])
 
             """ Create a table to analyze the results later."""
-            analysis.append([test_id, sl, gt_track, gt_track_start_segment,
-                             pred_track, pred_track_start_segment, _scores[0]])
+            analysis.append([test_id, sl, gt_track_path, gt_track_start_segment, 
+                            query_track_path, query_track_start_segment, 
+                            pred_track_path, pred_track_start_segment, 
+                            _scores[0]])
 
         # Print summary
         if (ti != 0) & ((ti % display_interval) == 0) or (ti == n_test - 1):
@@ -354,7 +373,8 @@ def eval_faiss(emb_dir,
     """ Save results """
 
     # Save the matching results
-    df = pd.DataFrame(analysis, columns=['test_id', 'seq_len', 'gt_track_path', 'gt_start_segment',
+    df = pd.DataFrame(analysis, columns=['test_id', 'seq_len', 'gt_track_path', 'gt_start_segment', 
+                                         'query_track_path', 'query_start_segment',
                                          'pred_track_path', 'pred_start_segment', 'score'])
     df.to_csv(os.path.join(output_dir, 'analysis.csv'), index=False)
 
