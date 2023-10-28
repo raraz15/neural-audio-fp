@@ -151,7 +151,7 @@ class Dataset:
                 for track_name in main_dir.iterdir()
             }
 
-            assert self.tr_source_fps, "No validation tracks found."
+            assert self.tr_source_fps, "No tracks found."
             total_segments = sum(len(segments) for segments in self.tr_source_fps.values())
             assert total_segments > 0, "No segments found."
 
@@ -170,7 +170,7 @@ class Dataset:
                 total_segments = sum([len(v) for v in self.tr_source_fps.values()])
                 print(f"Reduced to {total_segments:,} segments.")
 
-            # Find the augmentation files after the music is loaded for nice print
+            # Find the augmentation files
             self._read_train_augmentations()
 
             return SegmentLoader(
@@ -206,7 +206,7 @@ class Dataset:
                 self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
                 print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
 
-            # Find the augmentation files after the music is loaded
+            # Find the augmentation files
             self._read_train_augmentations()
 
             return ChunkLoader(
@@ -276,7 +276,7 @@ class Dataset:
 
         print(f"Creating the validation dataset...")
 
-        # Determine the input audio type
+        # Determine the input audio type (train and validation sets are the same)
         if self.tr_audio_type.lower() == "segment":
 
             # Find the tracks and their segments
@@ -287,7 +287,7 @@ class Dataset:
                 for track_name in main_dir.iterdir()
             }
 
-            assert self.val_source_fps, "No validation tracks found."
+            assert self.val_source_fps, "No tracks found."
             total_segments = sum(len(segments) for segments in self.val_source_fps.values())
             assert total_segments > 0, "No segments found."
 
@@ -304,6 +304,7 @@ class Dataset:
                 total_segments = sum([len(v) for v in self.val_source_fps.values()])
                 print(f"Reduced to {total_segments:,} segments.")
 
+            # Find the augmentation files
             self._get_val_augmentations()
 
              # Most of the parameters are same as the training set
@@ -340,6 +341,7 @@ class Dataset:
                 self.val_source_fps = self.val_source_fps[:int(len(self.val_source_fps)*reduce_items_p/100)]
                 print(f"Reduced to {len(self.val_source_fps):,} tracks.")
 
+            # Find the augmentation files
             self._get_val_augmentations()
 
             return ChunkLoader(
