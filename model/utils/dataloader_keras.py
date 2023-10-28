@@ -6,15 +6,13 @@ from model.utils import audio_utils
 
 class DataLoader(Sequence):
 
-    # TODO: remove shuffle and stuff that we do not use
-    # TODO: fix both augmentations
     def __init__(
         self, 
         segment_duration=1, 
         fs=8000, 
         n_fft=1024, 
         stft_hop=256, 
-        n_mels=256, 
+        n_mels=256, # TODO: talk with Perfe
         f_min=300, 
         f_max=4000, 
         scale_output=True, 
@@ -34,7 +32,7 @@ class DataLoader(Sequence):
         # Save the Input parameters
         self.segment_duration = segment_duration
         self.offset_duration = offset_duration
-        self.max_offset_sample = int(self.offset_duration * fs) # TODO: is this correct?
+        self.max_offset_sample = int(self.offset_duration * fs)
         self.fs = fs
 
         # Melspec layer
@@ -109,8 +107,9 @@ class DataLoader(Sequence):
             # try to cover the whole set of augmentations.
             i0, i1 = idx*self.n_pos_bsz, (idx+1)*self.n_pos_bsz
 
-            # TODO: merge if statements of augmentations
-            if self.bg_mix:
+            # If both augmentations are specified, we apply them in sequence
+            if self.bg_mix and self.ir_mix:
+
                 # Prepare BG for positive samples
                 bg_fnames = [self.bg_fnames[i%self.n_bg_files] for i in range(i0, i1)]
                 bg_batch = self.batch_read_bg(bg_fnames, idx)
@@ -119,12 +118,19 @@ class DataLoader(Sequence):
                                                     bg_batch,
                                                     snr_range=self.bg_snr_range)
 
-            if self.ir_mix:
+                # Apply random gain before IR augmentation if specified
+                if self.random_gain_range != [1,1]:
+                    Xp_batch = audio_utils.random_gain_batch(Xp_batch, self.random_gain_range)
+
                 # Prepare IR for positive samples
                 ir_fnames = [self.ir_fnames[i%self.n_ir_files] for i in range(i0, i1)]
                 ir_batch = self.batch_read_ir(ir_fnames)
                 # Apply Room IR, normalize the output
                 Xp_batch = audio_utils.ir_aug_batch(Xp_batch, ir_batch, normalize=True)
+
+            elif (self.bg_mix and not self.ir_mix) or (self.ir_mix and not self.bg_mix):
+
+                raise NotImplementedError("Only both augmentations together are supported!")
 
         # Compute mel spectrograms
         Xa_batch_mel = self.mel_spec.compute_batch(Xa_batch).astype(np.float32)
@@ -264,11 +270,13 @@ class DataLoader(Sequence):
                                                                 hop=self.bg_hop)
             self.bg_fnames = list(self.fns_bg_seg_dict.keys())
             # Load all bg clips in full duration
-            # TODO: do not normalize bg clips?
             self.bg_clips = {fn: audio_utils.load_audio(fn, fs=self.fs, 
-                                                        normalize=True) # normalize the bg clips
+                                                        normalize=False)
                              for fn in self.bg_fnames}
             self.n_bg_files = len(self.bg_clips)
+
+            # Record the random gain range
+            self.random_gain_range = bg_mix_parameter[3]
 
             # Check if we have enough bg samples. Ideally, every segment of every bg track 
             # should be used at least once. If not, we warn the user.
@@ -300,18 +308,17 @@ class DataLoader(Sequence):
             print("Loading Impulse Response samples in memory...")
             self.max_ir_length = int(ir_mix_parameter[2] * self.fs)
             self.fns_ir_seg_dict = audio_utils.get_fns_seg_dict(ir_mix_parameter[1], 
-                                                    segment_mode='first', # TODO: all?
+                                                    segment_mode='first', 
                                                     fs=self.fs, 
                                                     duration=self.segment_duration)
             self.ir_fnames = list(self.fns_ir_seg_dict.keys())
             # Load all ir clips in full duration
             self.ir_clips = {}
             for fn in self.ir_fnames:
-                # TODO: do not normalize IR clips?
                 X = audio_utils.load_audio(fn, 
                                             seg_length_sec=self.segment_duration,
                                             fs=self.fs,
-                                            normalize=True)
+                                            normalize=False)
                 # Truncate IR to max_ir_length
                 if len(X) > self.max_ir_length:
                     X = X[:self.max_ir_length]
@@ -410,8 +417,10 @@ class SegmentLoader(DataLoader):
         self.track_seg_dict = {k: v 
                                 for i, (k, v) in enumerate(self.track_seg_dict.items()) 
                                 if i < self.n_tracks}
-        self.n_samples = self.n_tracks * self.segments_per_track
         self.track_fnames = list(self.track_seg_dict.keys())
+        print(f"Number of tracks used: {len(self.track_fnames):,}")
+        self.n_samples = self.n_tracks * self.segments_per_track
+        print(f"Number of samples used per epoch: {self.n_samples:,}")
 
         # Save augmentation parameters, read the files, and store them in memory
         self.load_and_store_bg_samples(bg_mix_parameter)
@@ -591,7 +600,9 @@ class ChunkLoader(DataLoader):
                                 for i, (k, v) in enumerate(self.track_seg_dict.items()) 
                                 if i < self.n_tracks}
         self.track_fnames = list(self.track_seg_dict.keys())
-        self.n_samples = self.n_tracks * self.segments_per_track # TODO
+        print(f"Number of tracks used: {len(self.track_fnames):,}")
+        self.n_samples = self.n_tracks * self.segments_per_track
+        print(f"Number of samples used per epoch: {self.n_samples:,}")
 
         # Save augmentation parameters, read the files, and store them in memory
         self.load_and_store_bg_samples(bg_mix_parameter)
