@@ -4,7 +4,7 @@ from tensorflow.keras.utils import Sequence
 from model.fp.melspec.melspectrogram import Melspec_layer_essentia
 from model.utils import audio_utils
 
-class DevLoader(Sequence):
+class DataLoader(Sequence):
 
     # TODO: remove shuffle and stuff that we do not use
     # TODO: fix both augmentations
@@ -331,7 +331,7 @@ class DevLoader(Sequence):
                     " Impulse Response segments won't be used."
                     "\nIncrease tracks or decrease segments_per_track to avoid this warning.")
 
-class SegmentDevLoader(DevLoader):
+class SegmentLoader(DataLoader):
 
     def __init__(
         self, 
@@ -525,7 +525,7 @@ class SegmentDevLoader(DevLoader):
 
         return Xa_batch, Xp_batch
 
-class TrackDevLoader(DevLoader):
+class ChunkLoader(DataLoader):
 
     def __init__(
         self, 
