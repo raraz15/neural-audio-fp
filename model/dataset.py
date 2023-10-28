@@ -1,6 +1,5 @@
-import os
-from pathlib import Path
 import glob
+from pathlib import Path
 
 from model.utils.dataloader_keras import SegmentLoader, ChunkLoader
 from model.utils.generation_dataloader_keras import GenerationLoader
@@ -96,7 +95,7 @@ class Dataset:
             # Check if the augmented query tracks are provided
             if self.ts_augmented_query_tracks_dir is not None:
                 assert not (self.ts_use_bg_aug or self.ts_use_ir_aug), \
-                    "Augmented query tracks are provided, but augmentation is not enabled."
+                    "Augmented query tracks are provided, so augmentation should not be enabled."
 
     def get_train_ds(self, reduce_items_p=100):
         """ Source (music) file paths for training set. 
@@ -357,7 +356,7 @@ class Dataset:
                 segments_per_track=self.cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK'],
                 bsz=self.tr_batch_sz,
                 shuffle=False,
-                random_offset_anchor=False, # TODO: make it True
+                random_offset_anchor=True,
                 bg_mix_parameter=self.tr_bg_parameters,
                 ir_mix_parameter=self.tr_ir_parameters)
 
