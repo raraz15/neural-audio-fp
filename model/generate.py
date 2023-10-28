@@ -73,7 +73,7 @@ def get_data_source(cfg: dict, source_root_dir: str="", skip_dummy: bool=False):
     """ Get the data source for fingerprinting."""
 
     # Create the dataset
-    dataset = Dataset(cfg)
+    dataset = Dataset(cfg, is_training=False)
     ds = dict()
 
     # If source is provided, only use the custom source
@@ -146,6 +146,10 @@ def generate_fingerprint(cfg: dict,
     if mixed_precision:
         set_policy(Policy('mixed_float16'))
         print('Mixed precision enabled.')
+        cfg['TRAIN']['MIXED_PRECISION'] = True
+    else:
+        print('Using full precision.')
+        cfg['TRAIN']['MIXED_PRECISION'] = False
 
     # Build the model
     m_fp = get_fingerprinter(cfg, trainable=False)
@@ -186,6 +190,13 @@ def generate_fingerprint(cfg: dict,
         n_items = ds[key].n_samples
         assert n_items > 0, f"Dataset '{key}' is empty."
 
+        print(f"Saving track information to {output_dir}")
+        track_paths, track_boundaries = ds[key].get_track_information()
+        np.save(os.path.join(output_dir, f'{key}-track_boundaries.npy'), 
+                track_boundaries)
+        with open(os.path.join(output_dir, f'{key}-track_paths.txt'), 'w') as f:
+            f.write('\n'.join(track_paths))
+
         # Create memmap, and save shapes
         """
         Why use "memmap"?
@@ -204,12 +215,13 @@ def generate_fingerprint(cfg: dict,
         """
 
         arr_shape = (n_items, dim)
-        arr = np.memmap(f'{output_dir}/{key}.mm',
+        arr = np.memmap(os.path.join(output_dir, f'{key}.mm'),
                         dtype='float32',
                         mode='w+',
                         shape=arr_shape)
         # Save the shape of the memmap
-        np.save(f'{output_dir}/{key}_shape.npy', arr_shape)
+        np.save(os.path.join(output_dir, f'{key}_shape.npy'), 
+                arr_shape)
 
         # Fingerprinting loop
         tf.print(
@@ -237,7 +249,7 @@ def generate_fingerprint(cfg: dict,
         """ End of Parallelism----------------------------------------- """
 
         # Print summary
-        tf.print(f'=== Succesfully stored {len(arr)} {key} fingerprints to {output_dir} ===')
+        tf.print(f'=== Succesfully stored {len(arr):,} {key} fingerprints to {output_dir} ===')
         # Save the number of fingerprints for warning message
         sz_check[key] = len(arr)
 

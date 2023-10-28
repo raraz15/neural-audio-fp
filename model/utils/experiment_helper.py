@@ -41,7 +41,7 @@ class ExperimentHelper():
             checkpoint_name,
             optimizer,
             model_to_checkpoint,
-            best_loss="val_loss",
+            best_loss=None,
             max_to_keep=5,
             cfg=dict()):
         """
@@ -64,8 +64,8 @@ class ExperimentHelper():
 
         """
 
-        assert best_loss in ["val_loss", "tr_loss"], \
-            "best_loss must be either 'val_loss' or 'tr_loss'"
+        assert best_loss in ["val_loss", "tr_loss", None], \
+            "best_loss must be either 'val_loss' or 'tr_loss' or None"
 
         # Save the config file
         self.cfg = cfg
@@ -89,7 +89,8 @@ class ExperimentHelper():
         # Set the default directories
         self._log_dir = os.path.join(_root_dir, 'fit', f'{checkpoint_name}/')
         self._checkpoint_save_dir = os.path.join(_root_dir, 'checkpoint', f'{checkpoint_name}/')
-        self._best_checkpoint_save_dir = os.path.join(_root_dir, 'best_checkpoint', f'{checkpoint_name}/')
+        if self.best_loss_track is not None:
+            self._best_checkpoint_save_dir = os.path.join(_root_dir, 'best_checkpoint', f'{checkpoint_name}/')
 
         # Tensorboard writers for train and validation losses
         self._tr_summary_writer = create_file_writer(os.path.join(self._log_dir, 'train'))
@@ -131,20 +132,20 @@ class ExperimentHelper():
             step_counter=self.optimizer.iterations,
             )
 
-        # Best Loss Setup checkpoint and checkpoint manager
-        self._best_checkpoint = tf.train.Checkpoint(
-            optimizer=optimizer,
-            model=model_to_checkpoint
-            )
-        self.c_manager_best = tf.train.CheckpointManager(
-            checkpoint=self._best_checkpoint,
-            directory=self._best_checkpoint_save_dir,
-            max_to_keep=3, # Keep top 3 best models
-            step_counter=self.optimizer.iterations,
-            )
+        # Best Loss Setup checkpoint and checkpoint manager if specified
+        if self.best_loss_track is not None:
+            self._best_checkpoint = tf.train.Checkpoint(
+                optimizer=optimizer,
+                model=model_to_checkpoint
+                )
+            self.c_manager_best = tf.train.CheckpointManager(
+                checkpoint=self._best_checkpoint,
+                directory=self._best_checkpoint_save_dir,
+                max_to_keep=3, # Keep top 3 best models
+                step_counter=self.optimizer.iterations,
+                )
 
         self.load_checkpoint()
-        # TODO: can this overwrite the loaded checkpoint?
         if self._cfg_use_tensorboard:
             self.write_lr()
 
@@ -159,7 +160,7 @@ class ExperimentHelper():
         if avg_tr_loss < self.best_tr_loss[1]:
             self.best_tr_loss = (self.epoch, avg_tr_loss)
             # Save the model if the best loss is updated
-            if self.best_loss_track=="tr_loss":
+            if (self.best_loss_track is not None) and self.best_loss_track=="tr_loss":
                 self.c_manager_best.save()
 
         # Update the best validation loss
@@ -167,7 +168,7 @@ class ExperimentHelper():
         if avg_val_loss < self.best_val_loss[1]:
             self.best_val_loss = (self.epoch, avg_val_loss)
             # Save the model if the best loss is updated
-            if self.best_loss_track=="val_loss":
+            if (self.best_loss_track is not None) and  self.best_loss_track=="val_loss":
                 self.c_manager_best.save()
 
         # Reset loss metrics

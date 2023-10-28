@@ -9,6 +9,7 @@ import time
 import click
 import curses
 import numpy as np
+import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from eval.utils.get_index_faiss import get_index
 from eval.utils.print_table import PrintTable
@@ -61,14 +62,14 @@ def load_memmap_data(source_dir,
         data = np.memmap(path_data, dtype='float32', mode='r',
                          shape=(data_shape[0], data_shape[1]))
     if display:
-        print(f'Load {data_shape[0]:,} items from \033[32m{path_data}\033[0m.')
+        print(f'Loaded {data_shape[0]:>10,} items from \033[32m{path_data}\033[0m.')
     return data, data_shape
 
 @click.command()
 @click.argument('emb_dir', required=True,type=click.STRING)
 @click.option('--emb_dummy_dir', default=None, type=click.STRING,
               help="Specify a directory containing 'dummy_db.mm' and "
-              "'dummy_db_shape.npy' to use. Default is EMB_DIR.")
+              "'dummy_db_shape.npy' to use. Default is emb_dir.")
 @click.option('--index_type', '-i', default='ivfpq', type=click.STRING,
               help="Index type must be one of {'L2', 'IVF', 'IVFPQ', "
               "'IVFPQ-RR', 'IVFPQ-ONDISK', HNSW'}")
@@ -82,26 +83,29 @@ def load_memmap_data(source_dir,
               "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec segment "
               "duration and 0.5 sec hop duration.")
 @click.option('--test_ids', '-t', default='equally_spaced', type=click.STRING,
-              help="One of {'all', 'equally_spaced', 'path/file.npy', (int)}. "
-              "If 'all', test all IDs from the test. You can also specify a 1-D array "
-              "file's location that contains the start indices to the the evaluation. "
-              "Any numeric input N (int) > 0 will perform search test at random position "
-              "(ID) N times. 'equally_spaced' will use boundary information to get an "
+              help="One of {'all', 'equally_spaced', 'icassp', 'path/file.npy', int}. If 'all', "
+              "test all IDs from the test. If 'icassp', use the 2,000 "
+              "sequence starting point IDs located in the path. You can also specify "
+              "another 1-D ndarray file's location. Any numeric input N (int) > 0 will randomly "
+              "select N IDs. 'equally_spaced' will use boundary information to get an "
               "equal number of samples from each track. Default is 'equally_spaced'.")
 @click.option('--k_probe', '-k', default=20, type=click.INT,
               help="Top k search for each segment. Default is 20")
 @click.option('--display_interval', '-dp', default=100, type=click.INT,
               help="Display interval. Default is 100, which updates the table"
               " every 100 queries.")
+@click.option('--output_dir', '-o', default="", type=click.STRING,
+              help="Output directory. Default is the same as emb_dir.")
 def eval_faiss(emb_dir,
                emb_dummy_dir=None,
                index_type='ivfpq',
                nogpu=False,
                max_train=1e7,
-               test_ids='all',
+               test_ids='equally_spaced',
                test_seq_len='1 3 5 9 11 19',
                k_probe=20,
-               display_interval=100):
+               display_interval=100,
+               output_dir=""):
     """
     Segment/sequence-wise audio search experiment and evaluation: implementation 
     based on FAISS.
@@ -112,13 +116,79 @@ def eval_faiss(emb_dir,
     'raw_score.npy' and 'test_ids.npy' will be also created in the same directory.
     """
 
-    # Load items from {query, db, dummy_db}
+    """Load items from {query, db, dummy_db}"""
     query, query_shape = load_memmap_data(emb_dir, 'query')
     db, db_shape = load_memmap_data(emb_dir, 'db')
     assert np.all(query_shape == db_shape), 'query and db must have the same shape.'
     if emb_dummy_dir is None:
         emb_dummy_dir = emb_dir
     dummy_db, dummy_db_shape = load_memmap_data(emb_dummy_dir, 'dummy_db')
+
+    """Load track boundaries and track paths for query, db, and dummy_db."""
+    query_track_boundaries = np.load(os.path.join(emb_dir, 'query-track_boundaries.npy'))
+    with open(os.path.join(emb_dir, 'query-track_paths.txt'), 'r') as in_f:
+        query_track_paths = in_f.read().splitlines()
+    db_track_boundaries = np.load(os.path.join(emb_dir, 'db-track_boundaries.npy'))
+    with open(os.path.join(emb_dir, 'db-track_paths.txt'), 'r') as in_f:
+        db_track_paths = in_f.read().splitlines()
+    assert np.all(query_track_boundaries == db_track_boundaries), \
+        'query and db must have the same track boundaries.'
+    dummy_db_track_boundaries = np.load(os.path.join(emb_dummy_dir, 'dummy_db-track_boundaries.npy'))
+    with open(os.path.join(emb_dummy_dir, 'dummy_db-track_paths.txt'), 'r') as in_f:
+        dummy_db_track_paths = in_f.read().splitlines()
+    print("Loaded track boundaries and paths.")
+
+    """ Determine tests IDs and test sequence length"""
+    # '1 3 5' --> [1, 3, 5]
+    test_seq_len = np.asarray(list(map(int, test_seq_len.split())))
+
+    # Get test_ids
+    print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
+    _test_ids = test_ids.lower() # for saving the eval results
+    if test_ids.lower() == 'all':
+        # Will use all segments in query/db set as starting point and 
+        # evaluate the performance for each test_seq_len.
+        test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
+    elif test_ids.isnumeric():
+        # Will use random segments in query/db set as starting point and
+        # evaluate the performance for each test_seq_len. This does not guarantee
+        # getting a sample from each track.
+        test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
+    elif test_ids.lower() == "icassp":
+        # Will use the 2,000 sequence starting point IDs located in the path.
+        test_ids = np.load('eval/test_ids_icassp2021.npy')
+        if test_seq_len == np.array([1, 3, 5, 9, 11, 19]):
+            test_seq_len = np.asarray([1, 3, 5]) # Ensure no track leakage
+            print("ICASSP 2021 test set reduced to '1, 3, 5'!")
+    elif test_ids.lower() == 'equally_spaced':
+        test_ids = []
+        for s,e in query_track_boundaries:
+            # Cut the query into equal length segments
+            # If the last segment is shorter than test_seq_len, ignore it
+            # 9 corresponds to sampling the query chunk every 5 seconds
+            test_ids.append(np.arange(s, e+1-test_seq_len[-1], 9)) # end is inclusive
+        test_ids = np.concatenate(test_ids)
+    elif os.path.isfile(test_ids):
+        # If test_ids is a file path load it
+        test_ids = np.load(test_ids)
+    else:
+       raise ValueError(f'Invalid test_ids: {test_ids}')
+
+    # Make sure that test segments are within the query set
+    assert max(test_ids) <= len(query) - max(test_seq_len), \
+        f'each test_id must be less than {len(query) - max(test_seq_len)}'
+
+    n_test = len(test_ids)
+    print(f'n_test: \033[93m{n_test:,}\033[0m')
+
+    # If no output_dir is specified, save the results in emb_dir
+    if output_dir == "":
+        output_dir = os.path.join(emb_dir, _test_ids)
+    else:
+        structure = os.sep.join(emb_dir.split(os.sep)[2:]) # we expect emb_dir to be logs/emb/...
+        output_dir = os.path.join(output_dir, structure, _test_ids)
+    print(f'Output directory: \033[93m{output_dir}\033[0m')
+    os.makedirs(output_dir, exist_ok=True)
 
     """ ----------------------------------------------------------------------
     FAISS index setup
@@ -143,17 +213,24 @@ def eval_faiss(emb_dir,
     index = get_index(index_type, dummy_db, dummy_db.shape, (not nogpu), max_train)
 
     # Add items to index
+    print(f'Adding items to the index...')
     start_time = time.time()
 
     index.add(dummy_db)
-    print(f'{len(dummy_db)} items from dummy DB')
+    print(f'{len(dummy_db):>10,} items from dummy DB.')
     index.add(db)
-    print(f'{len(db)} items from reference DB')
+    print(f'{len(db):>10,} items from reference DB.')
 
-    t = time.time() - start_time
-    print(f'Added total {index.ntotal} items to DB. {t:>4.2f} sec.')
+    print(f'Total of {index.ntotal:>10,} items to DB in ', end='')
+    print(f'{time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))}')
 
     del dummy_db
+
+    # Merge the track boundaries and track paths of dummy_db and db
+    total_db_track_boundaries = np.concatenate(
+        (dummy_db_track_boundaries, db_track_boundaries + dummy_db_shape[0]), 
+        axis=0)
+    total_db_track_paths = dummy_db_track_paths + db_track_paths
 
     """ ----------------------------------------------------------------------
     We need to prepare a merged {dummy_db + db} memmap:
@@ -167,6 +244,7 @@ def eval_faiss(emb_dir,
     ---------------------------------------------------------------------- """
 
     # Prepare fake_recon_index
+    print(f'Preparing fake_recon_index...')
     start_time = time.time()
 
     fake_recon_index, index_shape = load_memmap_data(emb_dummy_dir, 
@@ -176,60 +254,57 @@ def eval_faiss(emb_dir,
     fake_recon_index[dummy_db_shape[0]:dummy_db_shape[0] + query_shape[0], :] = db[:, :]
     fake_recon_index.flush()
 
-    t = time.time() - start_time
-    print(f'Created fake_recon_index, total {index_shape[0]} items. {t:>4.2f} sec.')
-
-    # '1 3 5' --> [1, 3, 5]
-    test_seq_len = np.asarray(list(map(int, test_seq_len.split())))
-
-    # Get test_ids
-    print(f'test_id: \033[93m{test_ids}\033[0m,  ', end='')
-    if test_ids.lower() == 'all':
-        # Will use all segments in query/db set as starting point and 
-        # evaluate the performance for each test_seq_len.
-        test_ids = np.arange(0, len(query) - max(test_seq_len), 1)
-    elif test_ids.isnumeric():
-        # Will use random segments in query/db set as starting point and
-        # evaluate the performance for each test_seq_len. This does not guarantee
-        # getting a sample from each track.
-        test_ids = np.random.permutation(len(query) - max(test_seq_len))[:int(test_ids)]
-    elif test_ids.lower() == "equally_spaced":
-        # Get an equal number of samples from each track
-        # Read the boundary of each query in the memmap
-        query_boundaries = np.load(f'{emb_dir}/query_boundaries.npy')
-        test_ids = []
-        for s,e in zip(query_boundaries[:-1], query_boundaries[1:]):
-            # Cut the query into segments of test_seq_len
-            # If the last segment is shorter than test_seq_len, ignore it
-            test_ids.append(np.arange(s,e,test_seq_len[-1])[:-1])
-        test_ids = np.concatenate(test_ids)
-    elif os.path.isfile(test_ids):
-        # If test_ids is a file path load it
-        test_ids = np.load(test_ids)
-    else:
-       raise ValueError(f'Invalid test_ids: {test_ids}')
-
-    n_test = len(test_ids)
-    gt_ids  = test_ids + dummy_db_shape[0]
-    print(f'n_test: \033[93m{n_test:n}\033[0m')
+    print(f'Created fake_recon_index, total {index_shape[0]:>10,} items in ', end='')
+    print(f'{time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))}')
 
     """ Segment/sequence-level search & evaluation """
     # Define metric
+    top1_song = np.zeros((n_test, len(test_seq_len))).astype(np.int)
     top1_exact = np.zeros((n_test, len(test_seq_len))).astype(int) # (n_test, test_seg_len)
     top1_near = np.zeros((n_test, len(test_seq_len))).astype(int)
     top3_exact = np.zeros((n_test, len(test_seq_len))).astype(int)
     top10_exact = np.zeros((n_test, len(test_seq_len))).astype(int)
-    # top1_song = np.zeros((n_test, len(test_seq_len))).astype(np.int)
 
     scr = curses.initscr()
     pt = PrintTable(scr=scr, 
                     test_seq_len=test_seq_len,
-                    row_names=['Top1 exact', 'Top1 near', 'Top3 exact','Top10 exact'])
-    start_time = time.time()
+                    row_names=['Top1 song', 'Top1 exact', 'Top1 near', 'Top3 exact','Top10 exact'])
+    start_time, total_search_time = time.time(), 0
+    analysis = []
+
+    # For each idx in the test set, create segment- or sequence-level queries
     for ti, test_id in enumerate(test_ids):
-        gt_id = gt_ids[ti]
+
+        # Ground truth sequence start position inside the index (dummy_db + db)
+        gt_id = test_id + dummy_db_shape[0]
+
+        # Track idx of the ground truth sequence inside the total DB
+        gt_track_id = np.where((gt_id>=total_db_track_boundaries[:,0]) & 
+                               (gt_id<=total_db_track_boundaries[:,1]))[0][0]
+        # Name of the ground truth track
+        gt_track_path = total_db_track_paths[gt_track_id]
+        # Position of the start segment of the ground truth sequence inside the track
+        gt_start_segment = test_id - (total_db_track_boundaries[gt_track_id, 0] - dummy_db_shape[0])
+
+        # Corresponding information for the query track. We assume that each test_id will correspond to only
+        # a single track. This was not true for the ICASSP 2021 test set.
+        q_track_id = np.where((test_id>=query_track_boundaries[:,0]) & 
+                              (test_id<=query_track_boundaries[:,1])
+                              )[0][0]
+        assert q_track_id == gt_track_id - len(dummy_db_track_paths), \
+            f'q_track_id ({q_track_id}) does not match gt_track_id ({gt_track_id - len(dummy_db_track_paths)})'
+        q_track_path = query_track_paths[q_track_id]
+        assert os.path.basename(q_track_path) == os.path.basename(gt_track_path), \
+            f'q_track_path ({q_track_path}) != gt_track_path ({gt_track_path})'
+        q_start_segment = test_id - query_track_boundaries[q_track_id, 0]
+        assert q_start_segment == gt_start_segment, \
+            f'q_start_segment ({q_start_segment}) != gt_start_segment ({gt_start_segment})'
+
+        # For each test sequence length, make an independent query to the index
         for si, sl in enumerate(test_seq_len):
-            assert test_id <= len(query)
+
+            # Create the query vector. if sl=1, query is a single vector.
+            # Otherwise its a sequence of vectors.
             q = query[test_id:(test_id + sl), :] # shape(q) = (length, dim)
 
             # segment-level top k search for each segment
@@ -252,48 +327,72 @@ def eval_faiss(emb_dir,
                         )
                     )
 
-            """ Evaluate """
+            """ Evaluate sequence- and song-level search"""
+            # Positions of the top10 candidates inside the DB
             pred_ids = candidates[np.argsort(-_scores)[:10]]
-            # pred_id = candidates[np.argmax(_scores)] <-- only top1-hit
+            # Position of the predicted track inside the DB
+            p_track_id = np.where((pred_ids[0]>=total_db_track_boundaries[:,0]) & 
+                                  (pred_ids[0]<=total_db_track_boundaries[:,1])
+                                  )[0][0]
+            # Path of the predicted track
+            p_track_path = total_db_track_paths[p_track_id]
+            p_start_segment = pred_ids[0] - total_db_track_boundaries[p_track_id, 0]
 
             # top1 hit
+            top1_song[ti, si] = int(gt_track_id == p_track_id)
             top1_exact[ti, si] = int(gt_id == pred_ids[0])
             top1_near[ti, si] = int(pred_ids[0] in [gt_id - 1, gt_id, gt_id + 1])
-            # top1_song = need song info here...
 
             # top3, top10 hit
             top3_exact[ti, si] = int(gt_id in pred_ids[:3])
             top10_exact[ti, si] = int(gt_id in pred_ids[:10])
 
-        if (ti != 0) & ((ti % display_interval) == 0):
-            avg_search_time = (time.time() - start_time) / display_interval \
-                / len(test_seq_len)
+            """ Create a table to analyze the results later."""
+            analysis.append([test_id, sl, 
+                            gt_track_path, gt_start_segment, 
+                            q_track_path, q_start_segment, 
+                            p_track_path, p_start_segment, 
+                            _scores[0]])
+
+        # Print summary
+        if (ti != 0) & ((ti % display_interval) == 0) or (ti == n_test - 1):
+
+            top1_song_rate = 100 * np.mean(top1_song[:ti + 1, :], axis=0)
             top1_exact_rate = 100. * np.mean(top1_exact[:ti + 1, :], axis=0)
             top1_near_rate = 100. * np.mean(top1_near[:ti + 1, :], axis=0)
             top3_exact_rate = 100. * np.mean(top3_exact[:ti + 1, :], axis=0)
             top10_exact_rate = 100. * np.mean(top10_exact[:ti + 1, :], axis=0)
-            # top1_song = 100 * np.mean(tp_song[:ti + 1, :], axis=0)
+
+            interval_time = time.time() - start_time
+            total_search_time += interval_time
+            avg_search_time = interval_time / (display_interval * len(test_seq_len))
 
             pt.update_counter(ti, n_test, avg_search_time * 1000.)
-            pt.update_table((top1_exact_rate, top1_near_rate, top3_exact_rate,
-                             top10_exact_rate))
-            start_time = time.time() # reset stopwatch
+            pt.update_table((top1_song_rate, top1_exact_rate, top1_near_rate, 
+                             top3_exact_rate, top10_exact_rate))
+            start_time = time.time() # reset interval stopwatch
 
-    # Summary
-    top1_exact_rate = 100. * np.mean(top1_exact, axis=0)
-    top1_near_rate = 100. * np.mean(top1_near, axis=0)
-    top3_exact_rate = 100. * np.mean(top3_exact, axis=0)
-    top10_exact_rate = 100. * np.mean(top10_exact, axis=0)
-    # top1_song = 100 * np.mean(top1_song[:ti + 1, :], axis=0)
-
-    pt.update_counter(ti, n_test, avg_search_time * 1000.)
-    pt.update_table((top1_exact_rate, top1_near_rate, top3_exact_rate, top10_exact_rate))
-    pt.close_table() # close table and print summary
+    pt.close_table() # close table
     del fake_recon_index, query, db
-    np.save(f'{emb_dir}/raw_score.npy',
-            np.concatenate((top1_exact, top1_near, top3_exact, top10_exact), axis=1))
-    np.save(f'{emb_dir}/test_ids.npy', test_ids)
-    print(f'Saved test_ids and raw score to {emb_dir}.')
+
+    print(f'Finished the segment and sequence level search in ', end='')
+    print(f'{time.strftime("%H:%M:%S", time.gmtime(total_search_time))}')
+
+    """ Save results """
+
+    # Save the matching results
+    df = pd.DataFrame(analysis, columns=['test_id', 'seq_len', 'gt_track_path', 'gt_start_segment', 
+                                         'query_track_path', 'query_start_segment',
+                                         'pred_track_path', 'pred_start_segment', 'score'])
+    # check_df = df[df['seq_len'] == 1]
+    # assert top1_exact_rate[0] ==  check_df[check_df['gt_start_segment'] == check_df['pred_start_segment']] / check_df.shape[0]
+    df.to_csv(os.path.join(output_dir, 'analysis.csv'), index=False)
+
+    # Save the raw score and test_ids
+    data = np.concatenate((top1_song, top1_exact, top1_near, top3_exact, top10_exact), axis=1)
+    np.save(os.path.join(output_dir, 'raw_score.npy'), data)
+    np.save(os.path.join(output_dir, 'test_ids.npy'), test_ids)
+    print(f'Saved test_ids and raw score to {output_dir}.')
 
 if __name__ == "__main__":
     curses.wrapper(eval_faiss())

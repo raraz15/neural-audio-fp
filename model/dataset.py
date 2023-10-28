@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import glob
 
-from model.utils.dev_dataloader_keras import SegmentDevLoader, TrackDevLoader
+from model.utils.dev_dataloader_keras import TrackDevLoader
 from model.utils.generation_dataloader_keras import GenerationLoader
 
 class Dataset:
@@ -31,7 +31,8 @@ class Dataset:
 
     """
 
-    def __init__(self, cfg=dict()):
+    def __init__(self, cfg=dict(), is_training=True):
+        """ Initialize the dataset object."""
 
         self.cfg = cfg
 
@@ -45,75 +46,60 @@ class Dataset:
         self.fmax = cfg['MODEL']['INPUT']['F_MAX']
         self.scale_inputs = cfg['MODEL']['INPUT']['SCALE_INPUTS']
 
-        # Train Parameters
-        self.tr_audio_dir = cfg['TRAIN']['DIR']['TRAIN_ROOT']
+        # Only read the related parameters.
+        if is_training:
 
-        self.tr_audio_type = cfg['TRAIN']['AUDIO']['TYPE']
-        self.tr_offset_duration = cfg['TRAIN']['AUDIO']["MAX_OFFSET_DUR"]
-        self.tr_batch_sz = cfg['TRAIN']['BATCH_SZ']
+            # Train Parameters
+            self.tr_audio_dir = cfg['TRAIN']['DIR']['TRAIN_ROOT']
 
-        self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
-        self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
-        self.tr_bg_snr = cfg['TRAIN']['AUG']['TD']['BG_SNR']
-        self.tr_bg_fps = []
+            self.tr_audio_type = cfg['TRAIN']['AUDIO']['TYPE']
+            self.tr_offset_duration = cfg['TRAIN']['AUDIO']["MAX_OFFSET_DUR"]
+            self.tr_batch_sz = cfg['TRAIN']['TR_BATCH_SZ']
 
-        self.tr_ir_root_dir = cfg['TRAIN']['AUG']['TD']['IR_ROOT']
-        self.tr_use_ir_aug = cfg['TRAIN']['AUG']['TD']['IR']
-        self.tr_max_ir_dur = cfg['TRAIN']['AUG']['TD']['IR_MAX_DUR']
-        self.tr_ir_fps = []
+            self.tr_bg_root_dir = cfg['TRAIN']['AUG']['TD']['BG_ROOT']
+            self.tr_use_bg_aug = cfg['TRAIN']['AUG']['TD']['BG']
+            self.tr_bg_snr = cfg['TRAIN']['AUG']['TD']['BG_SNR']
+            self.tr_bg_amp_range = cfg['TRAIN']['AUG']['TD']['BG_AMP_RANGE']
+            self.tr_bg_fps = []
 
-        # Validation Parameters
-        self.val_audio_dir = cfg['TRAIN']['DIR']['VAL_ROOT']
-        # We use the same augmentations for train and validation sets
+            self.tr_ir_root_dir = cfg['TRAIN']['AUG']['TD']['IR_ROOT']
+            self.tr_use_ir_aug = cfg['TRAIN']['AUG']['TD']['IR']
+            self.tr_max_ir_dur = cfg['TRAIN']['AUG']['TD']['IR_MAX_DUR']
+            self.tr_ir_fps = []
 
-        # Test Parameters
-        self.ts_noise_tracks_dir = cfg['TEST']['DIR']['NOISE_ROOT']
-        self.ts_clean_query_tracks_dir = cfg['TEST']['DIR']['CLEAN_QUERY_ROOT']
-        self.ts_augmented_query_tracks_dir = cfg['TEST']['DIR']['AUGMENTED_QUERY_ROOT']
+            # Validation Parameters
+            self.val_audio_dir = cfg['TRAIN']['DIR']['VAL_ROOT']
+            self.val_batch_sz = cfg['TRAIN']['VAL_BATCH_SZ']
+            # We use the same augmentations for train and validation sets
 
-        self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP']
-        self.ts_batch_sz = cfg['TEST']['BATCH_SZ']
+        else:
 
-        self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
-        self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
-        self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
-        self.ts_bg_fps = []
+            # Test Parameters
+            self.ts_noise_tracks_dir = cfg['TEST']['DIR']['NOISE_ROOT']
+            self.ts_clean_query_tracks_dir = cfg['TEST']['DIR']['CLEAN_QUERY_ROOT']
+            self.ts_augmented_query_tracks_dir = cfg['TEST']['DIR']['AUGMENTED_QUERY_ROOT']
 
-        self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
-        self.ts_use_ir_aug = cfg['TEST']['AUG']['TD']['IR']
-        self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
-        self.ts_ir_fps = []
+            self.ts_segment_hop = cfg['TEST']['SEGMENT_HOP']
+            self.ts_batch_sz = cfg['TEST']['BATCH_SZ']
 
-        # Check if the augmented query tracks are provided
-        if self.ts_augmented_query_tracks_dir is not None:
-            assert not (self.ts_use_bg_aug or self.ts_use_ir_aug), \
-                "Augmented query tracks are provided, but augmentation is not enabled."
+            self.ts_bg_root_dir = cfg['TEST']['AUG']['TD']['BG_ROOT']
+            self.ts_use_bg_aug = cfg['TEST']['AUG']['TD']['BG']
+            self.ts_bg_snr = cfg['TEST']['AUG']['TD']['BG_SNR']
+            self.ts_bg_amp_range = cfg['TEST']['AUG']['TD']['BG_AMP_RANGE']
+            self.ts_bg_fps = []
+
+            self.ts_ir_root_dir = cfg['TEST']['AUG']['TD']['IR_ROOT']
+            self.ts_use_ir_aug = cfg['TEST']['AUG']['TD']['IR']
+            self.ts_max_ir_dur = cfg['TEST']['AUG']['TD']['IR_MAX_DUR']
+            self.ts_ir_fps = []
+
+            # Check if the augmented query tracks are provided
+            if self.ts_augmented_query_tracks_dir is not None:
+                assert not (self.ts_use_bg_aug or self.ts_use_ir_aug), \
+                    "Augmented query tracks are provided, but augmentation is not enabled."
 
     def get_train_ds(self, reduce_items_p=100):
-        """ Source (music) file paths for training set. 
-
-        When segmented tracks are used for training the folder structure
-        should be as follows:
-            self.tr_audio_dir/
-                dir0/
-                    track1/
-                        segment1.wav
-                        ...
-                    track2/
-                        segment1.wav
-                        ...
-                    ...
-                dir1/
-                    track1/
-                        segment1.wav
-                        ...
-                    track2/
-                        segment1.wav
-                        ...
-                    ...
-                ...
-
-        If full length tracks are used for training the folder structure
+        """ Source (music) file paths for training set. The folder structure
         should be as follows:
             self.tr_audio_dir/
                 dir0/
@@ -130,9 +116,19 @@ class Dataset:
                 Reduce the number of items in each track to this percentage.
         """
 
+        # Find the wav tracks
         print("Creating the training dataset...")
+        self.tr_source_fps = sorted(
+            glob.glob(self.tr_audio_dir + "**/*.wav", recursive=True))
+        assert len(self.tr_source_fps)>0, "No training tracks found."
+        print(f"{len(self.tr_source_fps):,} tracks found.")
 
+        # Reduce the total number of tracks if requested
         assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
+        if reduce_items_p<100:
+            print(f"Reducing the number of tracks used to {reduce_items_p}%")
+            self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
+            print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
 
         if self.tr_audio_type.lower() == "segment":
 
@@ -226,39 +222,16 @@ class Dataset:
             raise ValueError("Invalid audio type. We accept 'segment' or 'chunk'.")
 
     def get_val_ds(self, reduce_items_p=100):
-        """ Source (music) file paths for validation set. 
-
-        When segmented tracks are used for training the folder structure
+        """ Source (music) file paths for validation set. The folder structure
         should be as follows:
             self.val_audio_dir/
                 dir0/
-                    track1/
-                        segment1.wav
-                        ...
-                    track2/
-                        segment1.wav
-                        ...
+                    track1.wav
                     ...
                 dir1/
-                    track1/
-                        segment1.wav
-                        ...
-                    track2/
-                        segment1.wav
-                        ...
+                    track1.wav
                     ...
                 ...
-
-        If full length tracks are used for training the folder structure
-        should be as follows:
-            self.val_audio_dir/
-                dir0/
-                    track1.wav
-                    ...
-                dir1/
-                    track1.wav
-                    ...
-                ...        
 
         Parameters
         ----------
@@ -267,9 +240,19 @@ class Dataset:
 
         """
 
+        # Find the wav tracks
         print(f"Creating the validation dataset...")
+        self.val_source_fps = sorted(
+            glob.glob(self.val_audio_dir + '**/*.wav', recursive=True))
+        assert len(self.val_source_fps)>0, "No validation tracks found."
+        print(f"{len(self.val_source_fps):,} tracks found.")
 
+        # Reduce the total number of tracks if requested
         assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
+        if reduce_items_p<100:
+            print(f"Reducing the number of tracks used to {reduce_items_p}%")
+            self.val_source_fps = self.val_source_fps[:int(len(self.val_source_fps)*reduce_items_p/100)]
+            print(f"Reduced to {len(self.val_source_fps):,} tracks.")
 
         if self.tr_audio_type.lower() == "segment":
 
@@ -465,6 +448,15 @@ class Dataset:
             print(f"ts_ir_fps: {len(self.ts_ir_fps):>6,}")
             assert len(self.ts_ir_fps)>0, "No impulse response found."
 
+            # Augmentation parameters
+            self.ts_bg_parameters = [self.ts_use_bg_aug, 
+                                    self.ts_bg_fps, 
+                                    self.ts_bg_snr, 
+                                    self.ts_bg_amp_range]
+            self.ts_ir_parameters = [self.ts_use_ir_aug,
+                                    self.ts_ir_fps,
+                                    self.ts_max_ir_dur]
+
             # Create the augmented query dataset
             # Returns only the augmented segments, not the clean ones
             ds_query = GenerationLoader(
@@ -478,8 +470,8 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
-                bg_mix_parameter=[self.ts_use_bg_aug, self.ts_bg_fps, self.ts_bg_snr],
-                ir_mix_parameter=[self.ts_use_ir_aug, self.ts_ir_fps, self.ts_max_ir_dur],
+                bg_mix_parameter=self.ts_bg_parameters,
+                ir_mix_parameter=self.ts_ir_parameters,
                 bsz=self.ts_batch_sz,
                 )
 
@@ -521,6 +513,7 @@ class Dataset:
 
         fps = sorted(
             glob.glob(source_root_dir + '/**/*.wav', recursive=True))
+        print(f"{len(fps):,} tracks found.")
 
         return GenerationLoader(
             track_paths=fps,

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from tensorflow.keras.utils import Sequence
 
@@ -10,7 +11,7 @@ np.random.seed(SEED)
 class GenerationLoader(Sequence):
     def __init__(
         self,
-        track_paths,
+        track_paths: list,
         segment_duration=1,
         hop_duration=0.5,
         fs=8000,
@@ -55,6 +56,8 @@ class GenerationLoader(Sequence):
             Generation batch size. The default is 120.
         """
 
+        assert segment_duration > 0, "segment_duration should be > 0"
+        assert hop_duration > 0, "hop_duration should be > 0"
         assert hop_duration <= segment_duration, \
             "hop_duration should be <= segment_duration"
 
@@ -68,7 +71,7 @@ class GenerationLoader(Sequence):
         self.bsz = bsz
 
         # Create segment information for each track
-        track_seg_dict = audio_utils.get_fns_seg_dict(track_paths,
+        self.track_seg_dict = audio_utils.get_fns_seg_dict(track_paths,
                                                     segment_mode='all',
                                                     fs=self.fs,
                                                     duration=self.segment_duration,
@@ -76,7 +79,7 @@ class GenerationLoader(Sequence):
         # Create a list of track-segment pairs. We connvert it to a list so that
         # each segment can be used during fp-generation.
         self.track_seg_list = [[fname, *seg] 
-                               for fname, segments in track_seg_dict.items() 
+                               for fname, segments in self.track_seg_dict.items() 
                                for seg in segments]
         self.n_samples = len(self.track_seg_list)
         self.indexes = np.arange(self.n_samples)
@@ -98,6 +101,7 @@ class GenerationLoader(Sequence):
     def __len__(self):
         """ Returns the number of batches."""
 
+        # Ceil is used to make sure that all the samples are used
         return int(np.ceil(self.n_samples/self.bsz))
 
     def __getitem__(self, idx):
@@ -144,7 +148,6 @@ class GenerationLoader(Sequence):
         # Apply augmentations if specified
         if self.bg_mix and self.ir_mix:
 
-            # TODO: simplify?
             # Get a batch of random background noise samples
             bg_noise_batch = []
             for i in np.arange(idx*self.bsz, (idx+1)*self.bsz) % self.n_bg_files:
@@ -165,6 +168,10 @@ class GenerationLoader(Sequence):
                                         bg_noise_batch,
                                         snr_range=self.bg_snr_range)
 
+            # Apply random gain before IR augmentation if specified
+            if self.random_gain_range != [1,1]:
+                X_batch = audio_utils.random_gain_batch(X_batch, self.random_gain_range)
+
             # Get a batch of random IR samples
             ir_batch = []
             for i in np.arange(idx*self.bsz, (idx+1)*self.bsz) % self.n_ir_files:
@@ -175,18 +182,36 @@ class GenerationLoader(Sequence):
             # Convolve with IR
             X_batch = audio_utils.ir_aug_batch(X_batch, ir_batch, normalize=True)
 
-        else:
-
-            # TODO: is this important?
-            # Normalize the batch of segments
-            X_batch = audio_utils.max_normalize(X_batch)
-
         # Compute mel spectrograms
         X_batch_mel = self.mel_spec.compute_batch(X_batch)
         # Fix the dimensions and types
         X_batch_mel = np.expand_dims(X_batch_mel, 3).astype(np.float32)
 
         return X_batch, X_batch_mel
+
+    def get_track_information(self):
+        """ Save the segment boundaries and paths of the tracks. This is used to
+        determine the track of each segment during evaluation."""
+
+        track_boundaries = [[0]]
+        track_paths = []
+        for i,(track_path,segments) in enumerate(self.track_seg_dict.items()):
+            track_boundaries[-1].append(track_boundaries[-1][0] + len(segments) - 1)
+            if i < len(self.track_seg_dict) - 1:
+                track_boundaries.append([track_boundaries[-1][1] + 1])
+            track_paths.append(os.path.abspath(track_path))
+        track_boundaries = np.vstack(track_boundaries)
+
+        assert track_boundaries[-1,-1] == self.n_samples - 1, \
+            "Something went wrong with the track boundaries"
+        assert len(track_boundaries) == len(self.track_seg_dict), \
+            "Something went wrong with the track boundaries"
+        assert np.all(track_boundaries[:,0] < track_boundaries[:,1]), \
+            "Something went wrong with the track boundaries"
+        assert np.all(track_boundaries[1:,0] == track_boundaries[:-1,1] + 1), \
+            "Something went wrong with the track boundaries"
+
+        return track_paths, track_boundaries
 
     def load_and_store_bg_samples(self, bg_mix_parameter):
         """ Load background noise samples in memory and their segmentation
@@ -215,9 +240,12 @@ class GenerationLoader(Sequence):
                                                     hop=self.segment_duration)
             self.bg_fnames = list(self.fns_bg_seg_dict.keys())
 
+            # Record the random gain range
+            self.random_gain_range = bg_mix_parameter[3]
+
             # Shuffle the bg_fnames
             np.random.shuffle(self.bg_fnames)
-    
+
             # Load all bg clips in full duration
             self.bg_clips = {fn: audio_utils.load_audio(fn, fs=self.fs, 
                                                         normalize=True) 

@@ -7,6 +7,7 @@ import random
 import numpy as np
 import os
 import subprocess
+from datetime import datetime
 
 import tensorflow as tf
 from tensorflow.keras.experimental import CosineDecay, CosineDecayRestarts
@@ -166,6 +167,8 @@ def trainer(cfg):
     git_sha = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
     git_branch = subprocess.check_output(["git", "branch", "--show-current"]).strip().decode()
     cfg["GIT"] = {'SHA': git_sha, 'BRANCH': git_branch}
+    # Add the current time to the config
+    cfg["TIME"] = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     # Initialize the datasets
     tf.print('-----------Initializing the datasets-----------')
@@ -175,6 +178,7 @@ def trainer(cfg):
     val_ds = dataset.get_val_ds(cfg['TRAIN']['REDUCE_ITEMS_P'])
 
     # Build models.
+    tf.print('-----------Building the model-----------')
     m_specaug, m_fp = build_fp(cfg)
 
     # Learning schedule
@@ -213,15 +217,13 @@ def trainer(cfg):
 
     # Loss objects
     if cfg['TRAIN']['LOSS']['LOSS_MODE'].upper() == 'NTXENT': # Default
-        n_org = train_ds.n_anchor
-        n_rep = train_ds.n_pos_bsz
         loss_obj_train = NTxentLoss(
-            n_org=n_org,
-            n_rep=n_rep,
+            n_org=train_ds.n_anchor,
+            n_rep=train_ds.n_pos_bsz,
             tau=cfg['TRAIN']['LOSS']['TAU'])
         loss_obj_val = NTxentLoss(
-            n_org=n_org,
-            n_rep=n_rep,
+            n_org=val_ds.n_anchor,
+            n_rep=val_ds.n_pos_bsz,
             tau=cfg['TRAIN']['LOSS']['TAU'])
     else:
         raise NotImplementedError(cfg['TRAIN']['LOSS']['LOSS_MODE'])
@@ -232,10 +234,9 @@ def trainer(cfg):
     # Training loop
     ep_start = helper.epoch
     ep_max = cfg['TRAIN']['MAX_EPOCH']
-    if ep_start != 0:
+    if ep_start != 1:
         assert ep_start <= ep_max, f"When continuing training, MAX_EPOCH={ep_max} "\
         f"must be greater than or equal to where training was left off, which is {ep_start}"
-        tf.print(f"Continuing training from epoch{ep_start}")
     tf.print('-----------Training starts-----------')
     for ep in range(ep_start, ep_max + 1):
         tf.print(f'EPOCH: {ep}/{ep_max}')

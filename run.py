@@ -28,9 +28,9 @@ def print_config(cfg):
 @click.group()
 def cli():
     """
-    train-> generate-> evaluate.
+    train-> generate-> eval/eval_faiss.py
 
-    How to use each command: \b\n
+    How to use train and generate commands: \b\n
         python run.py COMMAND --help
 
     """
@@ -44,14 +44,14 @@ def cli():
 @click.option('--deterministic', default=False, is_flag=True,
               help='Set the CUDA operaitions to be deterministic.')
 def train(config_path, max_epoch, deterministic):
-    """ Train a neural audio fingerprinter.
+    """ Train a neural audio fingerprinter. \b\n
 
-    ex) python run.py train CHECKPOINT_NAME --max_epoch=100
+    python run.py train config_path\b
 
-        # with custom config file
-        python run.py train CHECKPOINT_NAME --max_epoch=100 -c CONFIG_NAME
+    with custom max_epoch: \b
+        python run.py train CHECKPOINT_NAME  CONFIG_NAME \b\n
 
-    NOTE: If './LOG_ROOT_DIR/checkpoint/CHECKPOINT_NAME already exists, 
+    Note: If './LOG_ROOT_DIR/checkpoint/CHECKPOINT_NAME already exists, \b
     the training will resume from the latest checkpoint in the directory.
     """
 
@@ -65,7 +65,8 @@ def train(config_path, max_epoch, deterministic):
     # Load the config file
     cfg = load_config(config_path)
     # Update the config file
-    cfg['MODEL']['MAX_EPOCH'] = max_epoch
+    if max_epoch is not None:
+        cfg['MODEL']['MAX_EPOCH'] = max_epoch
     print_config(cfg)
 
     # Train
@@ -95,22 +96,23 @@ def train(config_path, max_epoch, deterministic):
 def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_root, skip_dummy, mixed_precision):
     """ Generate fingerprints from a saved checkpoint.
 
-    ex) python run.py generate CONFIG_PATH
+        python run.py generate CONFIG_PATH
 
     With custom source directory: \b\n
         python run.py generate CONFIG_PATH --source_root SOURCE_DIR
 
-    • If CHECKPOINT_DIR is not specified, 
-        cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] will be used.
-    • If CHECKPOINT_INDEX is not specified, the latest checkpoint in 
-        cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] will be used.
-    • The default value for the fingerprinting source is [TEST_DUMMY_DB] and 
-        [TEST_QUERY_DB] specified in config file. You can change the source
-        by specifying the --source option.
-    • The default value for the output root directory is
-        cfg['MODEL']['LOG_ROOT_DIR']/emb/cfg['MODEL']['CHECKPOINT_NAME'].
-        You can change the output root directory by specifying the --output_root option.
-
+    • If CHECKPOINT_DIR is not specified \b
+    cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] \b
+    will be used.\b\n
+    • If CHECKPOINT_INDEX is not specified, the latest checkpoint in \b
+    cfg['MODEL']['LOG_ROOT_DIR']/checkpoint/cfg['MODEL']['CHECKPOINT_NAME'] \b
+    will be used.\b\n
+    • The default value for the fingerprinting source is [TEST_DUMMY_DB] and \b
+    [TEST_QUERY_DB] specified in config file. You can change the source \b
+    by specifying the --source option.\b\n
+    • The default value for the output root directory is \b
+    cfg['MODEL']['LOG_ROOT_DIR']/emb/cfg['MODEL']['CHECKPOINT_NAME'].\b
+    You can change the output root directory by specifying the --output_root option.
     """
 
     from model.utils.config_gpu_memory_lim import allow_gpu_memory_growth
@@ -128,46 +130,6 @@ def generate(config_path, checkpoint_dir, checkpoint_index, source_root, output_
                          output_root_dir=output_root,
                          skip_dummy=skip_dummy, 
                          mixed_precision=mixed_precision)
-
-""" Search and evalutation """
-@cli.command()
-@click.argument('embedding_dir', required=True)
-@click.option('--index_type', '-i', default='ivfpq', type=click.STRING,
-              help="Index type must be one of {'L2', 'IVF', 'IVFPQ', "
-              "'IVFPQ-RR', 'IVFPQ-ONDISK', HNSW'}")
-@click.option('--test_seq_len', default='1 3 5 9 11 19', type=click.STRING,
-              help="A set of different number of segments to test. "
-              "Numbers are separated by spaces. Default is '1 3 5 9 11 19', "
-              "which corresponds to '1s, 2s, 3s, 5s, 6s, 10s' with 1 sec "
-              "segment duration and 0.5 sec hop duration.")
-@click.option('--test_ids', '-t', default='./eval/test_ids_icassp2021.npy', type=click.STRING,
-              help="One of {'all', 'equally_spaced', 'path/file.npy', (int)}. "
-              "If 'all', test all IDs from the test. You can also specify a 1-D array "
-              "file's location that contains the start indices to the the evaluation. "
-              "Any numeric input N (int) > 0 will perform search test at random position "
-              "(ID) N times. 'equally_spaced' will use boundary information to get an "
-              "equal number of samples from each track. Default is 'path/file.npy'.")
-@click.option('--nogpu', default=False, is_flag=True,
-              help='Use this flag to use CPU only.')
-def evaluate(embedding_dir, index_type, test_seq_len, test_ids, nogpu):
-    """ Search and evalutation.
-
-        ex) python run.py evaluate logs/emb/CHECKPOINT_NAME/CHECKPOINT_INDEX
-
-    With options: \b\n
-
-        ex) python run.py evaluate logs/emb/CHECKPOINT_NAME/CHECKPOINT_INDEX -i ivfpq -t 3000 --nogpu
-
-    """
-
-    from eval.eval_faiss import eval_faiss
-
-    if nogpu:
-        eval_faiss([embedding_dir, "--index_type", index_type, "--test_seq_len",
-                    test_seq_len, "--test_ids", test_ids, "--nogpu"])
-    else:
-        eval_faiss([embedding_dir, "--index_type", index_type, "--test_seq_len",
-                    test_seq_len, "--test_ids", test_ids])
 
 if __name__ == '__main__':
     cli()
