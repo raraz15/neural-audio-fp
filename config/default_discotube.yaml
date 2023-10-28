@@ -36,6 +36,10 @@ TRAIN:
         VAL_ROOT : '../datasets/discotube_2023-188000/dev_chunk/val/'
     # Audio segment parameters
     AUDIO:
+        TYPE : chunk   # 'segment' or 'chunk'
+                       # 'segment' expects already segmented audio files.
+                       # 'chunk' expects audio files that are longer than
+                       # SEGMENT_DUR and segments them on the fly.
         # INPUT_AUDIO_DUR : 2.
         #                 # Extracted audio segment duration in seconds. We use 
         #                 # Should MODEL['AUDIO']['SEGMENT_DUR'] seconds of audio

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import glob
 
 from model.utils.dev_dataloader_keras import SegmentDevLoader, TrackDevLoader
@@ -47,7 +48,7 @@ class Dataset:
         # Train Parameters
         self.tr_audio_dir = cfg['TRAIN']['DIR']['TRAIN_ROOT']
 
-        self.tr_segments_per_track = cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK']
+        self.tr_audio_type = cfg['TRAIN']['AUDIO']['TYPE']
         self.tr_offset_duration = cfg['TRAIN']['AUDIO']["MAX_OFFSET_DUR"]
         self.tr_batch_sz = cfg['TRAIN']['BATCH_SZ']
 
@@ -133,108 +134,60 @@ class Dataset:
 
         assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
 
-        # Find the augmentation files
-        if self.tr_use_bg_aug:
-            self.tr_bg_fps = sorted(glob.glob(self.tr_bg_root_dir + "**/*.wav", 
-                                    recursive=True))
-            print(f"tr_bg_fps: {len(self.tr_bg_fps):>6,}")
-            assert len(self.tr_bg_fps)>0, "No background noise found."
-        if self.tr_use_ir_aug:
-            self.tr_ir_fps = sorted(glob.glob(self.tr_ir_root_dir + "**/*.wav", 
-                                    recursive=True))
-            print(f"tr_ir_fps: {len(self.tr_ir_fps):>6,}")
-            assert len(self.tr_ir_fps)>0, "No impulse response found."
+        if self.tr_audio_type.lower() == "segment":
 
-        # Determine the dataset
-        if ("discotube" in self.tr_audio_dir.lower()):
+            # Find the tracks and their segments
+            tr_audio_path = Path(self.tr_audio_dir)
+            self.tr_source_fps = {
+                track_name.name: sorted(track_name.glob('*.wav'))
+                for main_dir in tr_audio_path.iterdir()
+                for track_name in main_dir.iterdir()
+            }
 
-            if "/dev/" in self.tr_audio_dir.lower():
+            assert self.tr_source_fps, "No validation tracks found."
+            total_segments = sum(len(segments) for segments in self.tr_source_fps.values())
+            assert total_segments > 0, "No segments found."
 
-                # Find the tracks and their segments
-                self.tr_source_fps = {}
-                main_dirs = os.listdir(self.tr_audio_dir)
-                for main_dir in main_dirs:
-                    track_names = os.listdir(os.path.join(self.tr_audio_dir, main_dir))
-                    for track_name in track_names:
-                        track_dir = os.path.join(self.tr_audio_dir, main_dir, track_name)
-                        segment_paths = sorted(glob.glob(track_dir + '/*.wav', recursive=True))
-                        self.tr_source_fps[track_name] = segment_paths
-                assert len(self.tr_source_fps)>0, "No training tracks found."
+            print(f"{len(self.tr_source_fps):,} tracks found.")
+            print(f"{total_segments:,} segments found.")
+
+            # Reduce the number of items in each track if requested
+            if reduce_items_p<100:
+                print(f"Reducing the number of tracks used to {reduce_items_p}%")
+                self.tr_source_fps = {
+                    k: v
+                    for i,(k,v) in enumerate(self.tr_source_fps.items())
+                    if i < int(len(self.tr_source_fps)*reduce_items_p/100)
+                }
+                print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
                 total_segments = sum([len(v) for v in self.tr_source_fps.values()])
-                assert total_segments>0, "No segments found."
-                print(f"{len(self.tr_source_fps):,} tracks found.")
-                print(f"{total_segments:,} segments found.")
+                print(f"Reduced to {total_segments:,} segments.")
 
-                # Reduce the number of items in each track if requested
-                if reduce_items_p<100:
-                    print(f"Reducing the number of tracks used to {reduce_items_p}%")
-                    self.tr_source_fps = {k: v
-                                        for i,(k,v) in enumerate(self.tr_source_fps.items())
-                                        if i < int(len(self.tr_source_fps)*reduce_items_p/100)}
-                    print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
-                    total_segments = sum([len(v) for v in self.tr_source_fps.values()])
-                    print(f"Reduced to {total_segments:,} segments.")
+            # Find the augmentation files after the music is loaded for nice print
+            self._read_train_augmentations()
 
-                return SegmentDevLoader(
-                    segment_dict=self.tr_source_fps,
-                    segment_duration=self.segment_duration,
-                    full_segment_duration=self.cfg['TRAIN']['AUDIO']['INPUT_AUDIO_DUR'],
-                    fs=self.fs,
-                    n_fft=self.n_fft,
-                    stft_hop=self.stft_hop,
-                    n_mels=self.n_mels,
-                    f_min=self.fmin,
-                    f_max=self.fmax,
-                    scale_output=self.scale_inputs,
-                    segments_per_track=self.tr_segments_per_track,
-                    bsz=self.tr_batch_sz,
-                    shuffle=True,
-                    random_offset_anchor=True,
-                    offset_duration=self.tr_offset_duration,
-                    bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-                    ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+            return SegmentDevLoader(
+                segment_dict=self.tr_source_fps,
+                segment_duration=self.segment_duration,
+                full_segment_duration=self.cfg['TRAIN']['AUDIO']['INPUT_AUDIO_DUR'],
+                fs=self.fs,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax,
+                scale_output=self.scale_inputs,
+                segments_per_track=self.cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK'],
+                bsz=self.tr_batch_sz,
+                shuffle=True,
+                random_offset_anchor=True,
+                offset_duration=self.tr_offset_duration,
+                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
+                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
 
-            elif "/dev_chunk/" in self.tr_audio_dir.lower():
+        elif self.tr_audio_type.lower() == "chunk":
 
-                # Find the wav tracks 
-                self.tr_source_fps = sorted(
-                    glob.glob(self.tr_audio_dir + "**/*.wav", recursive=True))
-                assert len(self.tr_source_fps)>0, "No training tracks found."
-                print(f"{len(self.tr_source_fps):,} tracks found.")
-
-                # Reduce the total number of tracks if requested
-                if reduce_items_p<100:
-                    print(f"Reducing the number of tracks used to {reduce_items_p}%")
-                    self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
-                    print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
-
-                return TrackDevLoader(
-                    track_paths=self.tr_source_fps,
-                    segment_duration=self.segment_duration,
-                    hop_duration=self.cfg['TRAIN']['AUDIO']['SEGMENT_HOP_DUR'],
-                    fs=self.fs,
-                    n_fft=self.n_fft,
-                    stft_hop=self.stft_hop,
-                    n_mels=self.n_mels,
-                    f_min=self.fmin,
-                    f_max=self.fmax,
-                    scale_output=self.scale_inputs,
-                    segments_per_track=self.tr_segments_per_track,
-                    bsz=self.tr_batch_sz,
-                    shuffle=True,
-                    random_offset_anchor=True,
-                    offset_duration=self.tr_offset_duration,
-                    bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-                    ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
-
-            else:
-
-                raise ValueError("Invalid discotube directory.")
-
-        # If the training tracks are from the NAFP FMA dataset
-        elif "music" in self.tr_audio_dir.lower():
-
-            # Find the wav tracks 
+            # Find the wav tracks
             self.tr_source_fps = sorted(
                 glob.glob(self.tr_audio_dir + "**/*.wav", recursive=True))
             assert len(self.tr_source_fps)>0, "No training tracks found."
@@ -245,6 +198,9 @@ class Dataset:
                 print(f"Reducing the number of tracks used to {reduce_items_p}%")
                 self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
                 print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
+
+            # Find the augmentation files after the music is loaded
+            self._read_train_augmentations()
 
             return TrackDevLoader(
                 track_paths=self.tr_source_fps,
@@ -257,7 +213,7 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
-                segments_per_track=self.tr_segments_per_track,
+                segments_per_track=self.cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK'],
                 bsz=self.tr_batch_sz,
                 shuffle=True,
                 random_offset_anchor=True,
@@ -267,7 +223,7 @@ class Dataset:
 
         else:
 
-            raise ValueError("Invalid training tracks directory.")
+            raise ValueError("Invalid audio type. We accept 'segment' or 'chunk'.")
 
     def get_val_ds(self, reduce_items_p=100):
         """ Source (music) file paths for validation set. 
@@ -315,99 +271,55 @@ class Dataset:
 
         assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
 
-        # Find the augmentation files
-        if self.tr_use_bg_aug:
-            print(f"val_bg_fps: {len(self.tr_bg_fps):>6,} (Same as the training set)")
-        if self.tr_use_ir_aug:
-            print(f"val_ir_fps: {len(self.tr_ir_fps):>6,} (Same as the training set)")
+        if self.tr_audio_type.lower() == "segment":
 
-        # Determine the dataset
-        if "discotube" in self.val_audio_dir.lower():
+            # Find the tracks and their segments
+            val_audio_path = Path(self.val_audio_dir)
+            self.val_source_fps = {
+                track_name.name: sorted(track_name.glob('*.wav'))
+                for main_dir in val_audio_path.iterdir()
+                for track_name in main_dir.iterdir()
+            }
 
-            if "/dev/" in self.val_audio_dir.lower():
+            assert self.val_source_fps, "No validation tracks found."
+            total_segments = sum(len(segments) for segments in self.val_source_fps.values())
+            assert total_segments > 0, "No segments found."
 
-                # Find the tracks and their segments
-                self.val_source_fps = {}
-                main_dirs = os.listdir(self.val_audio_dir)
-                for main_dir in main_dirs:
-                    track_names = os.listdir(os.path.join(self.val_audio_dir, main_dir))
-                    for track_name in track_names:
-                        track_dir = os.path.join(self.val_audio_dir, main_dir, track_name)
-                        segment_paths = sorted(glob.glob(track_dir + '/*.wav', recursive=True))
-                        self.val_source_fps[track_name] = segment_paths
-                assert len(self.val_source_fps)>0, "No validation tracks found."
+            print(f"{len(self.val_source_fps):,} tracks found.")
+            print(f"{total_segments:,} segments found.")
+
+            # Reduce the number of items in each track if requested
+            if reduce_items_p<100:
+                print(f"Reducing the number of tracks used to {reduce_items_p}%")
+                self.val_source_fps = {k: v
+                                    for i,(k,v) in enumerate(self.val_source_fps.items())
+                                    if i < int(len(self.val_source_fps)*reduce_items_p/100)}
+                print(f"Reduced to {len(self.val_source_fps):,} tracks.")
                 total_segments = sum([len(v) for v in self.val_source_fps.values()])
-                assert total_segments>0, "No segments found."
-                print(f"{len(self.val_source_fps):,} tracks found.")
-                print(f"{total_segments:,} segments found.")
+                print(f"Reduced to {total_segments:,} segments.")
 
-                # Reduce the number of items in each track if requested
-                if reduce_items_p<100:
-                    print(f"Reducing the number of tracks used to {reduce_items_p}%")
-                    self.val_source_fps = {k: v
-                                        for i,(k,v) in enumerate(self.val_source_fps.items())
-                                        if i < int(len(self.val_source_fps)*reduce_items_p/100)}
-                    print(f"Reduced to {len(self.val_source_fps):,} tracks.")
-                    total_segments = sum([len(v) for v in self.val_source_fps.values()])
-                    print(f"Reduced to {total_segments:,} segments.")
+            self._get_val_augmentations()
 
-                return SegmentDevLoader(
-                    segment_dict=self.val_source_fps,
-                    segment_duration=self.segment_duration,
-                    full_segment_duration=self.cfg['TRAIN']['AUDIO']['INPUT_AUDIO_DUR'],
-                    fs=self.fs,
-                    n_fft=self.n_fft,
-                    stft_hop=self.stft_hop,
-                    n_mels=self.n_mels,
-                    f_min=self.fmin,
-                    f_max=self.fmax,
-                    segments_per_track=self.tr_segments_per_track,
-                    scale_output=self.scale_inputs,
-                    bsz=self.tr_batch_sz,
-                    shuffle=False,
-                    random_offset_anchor=True,
-                    offset_duration=self.tr_offset_duration, # Same as the training set
-                    bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-                    ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+            return SegmentDevLoader(
+                segment_dict=self.val_source_fps,
+                segment_duration=self.segment_duration,
+                full_segment_duration=self.cfg['TRAIN']['AUDIO']['INPUT_AUDIO_DUR'],
+                fs=self.fs,
+                n_fft=self.n_fft,
+                stft_hop=self.stft_hop,
+                n_mels=self.n_mels,
+                f_min=self.fmin,
+                f_max=self.fmax,
+                segments_per_track=self.cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK'],
+                scale_output=self.scale_inputs,
+                bsz=self.tr_batch_sz,
+                shuffle=False,
+                random_offset_anchor=True,
+                offset_duration=self.tr_offset_duration, # Same as the training set
+                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
+                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
 
-            elif "/dev_chunk/" in self.val_audio_dir.lower():
-
-                # Find the wav tracks
-                self.val_source_fps = sorted(
-                    glob.glob(self.val_audio_dir + '**/*.wav', recursive=True))
-                assert len(self.val_source_fps)>0, "No validation tracks found."
-                print(f"{len(self.val_source_fps):,} tracks found.")
-
-                # Reduce the total number of tracks if requested
-                if reduce_items_p<100:
-                    print(f"Reducing the number of tracks used to {reduce_items_p}%")
-                    self.val_source_fps = self.val_source_fps[:int(len(self.val_source_fps)*reduce_items_p/100)]
-                    print(f"Reduced to {len(self.val_source_fps):,} tracks.")
-
-                return TrackDevLoader(
-                    track_paths=self.val_source_fps,
-                    segment_duration=self.segment_duration,
-                    hop_duration=self.cfg['TRAIN']['AUDIO']['SEGMENT_HOP_DUR'],
-                    fs=self.fs,
-                    n_fft=self.n_fft,
-                    stft_hop=self.stft_hop,
-                    n_mels=self.n_mels,
-                    f_min=self.fmin,
-                    f_max=self.fmax,
-                    scale_output=self.scale_inputs,
-                    segments_per_track=self.tr_segments_per_track,
-                    bsz=self.tr_batch_sz,
-                    shuffle=False,
-                    random_offset_anchor=False,
-                    bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-                    ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
-
-            else:
-
-                raise ValueError("Invalid discotube directory.")
-
-        # If the validation tracks are from the NAFP FMA dataset
-        elif "music" in self.val_audio_dir.lower():
+        elif self.tr_audio_type.lower() == "chunk":
 
             # Find the wav tracks
             self.val_source_fps = sorted(
@@ -421,6 +333,8 @@ class Dataset:
                 self.val_source_fps = self.val_source_fps[:int(len(self.val_source_fps)*reduce_items_p/100)]
                 print(f"Reduced to {len(self.val_source_fps):,} tracks.")
 
+            self._get_val_augmentations()
+
             return TrackDevLoader(
                 track_paths=self.val_source_fps,
                 segment_duration=self.segment_duration,
@@ -432,7 +346,7 @@ class Dataset:
                 f_min=self.fmin,
                 f_max=self.fmax,
                 scale_output=self.scale_inputs,
-                segments_per_track=self.tr_segments_per_track,
+                segments_per_track=self.cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK'],
                 bsz=self.tr_batch_sz,
                 shuffle=False,
                 random_offset_anchor=False,
@@ -441,7 +355,7 @@ class Dataset:
 
         else:
 
-            raise ValueError("Invalid validation tracks directory.")
+            raise ValueError("Invalid audio type. We accept 'segment' or 'chunk'.")
 
     def get_test_dummy_db_ds(self):
         """ Test-dummy-DB without augmentation. Adds noise tracks to the DB.
@@ -621,3 +535,25 @@ class Dataset:
             scale_output=self.scale_inputs,
             bsz=self.ts_batch_sz,
             )
+
+    def _read_train_augmentations(self):
+
+        # Find the augmentation files
+        if self.tr_use_bg_aug:
+            self.tr_bg_fps = sorted(glob.glob(self.tr_bg_root_dir + "**/*.wav", 
+                                    recursive=True))
+            print(f"tr_bg_fps: {len(self.tr_bg_fps):>6,}")
+            assert len(self.tr_bg_fps)>0, "No background noise found."
+        if self.tr_use_ir_aug:
+            self.tr_ir_fps = sorted(glob.glob(self.tr_ir_root_dir + "**/*.wav", 
+                                    recursive=True))
+            print(f"tr_ir_fps: {len(self.tr_ir_fps):>6,}")
+            assert len(self.tr_ir_fps)>0, "No impulse response found."
+
+    def _get_val_augmentations(self):
+
+        # Find the augmentation files
+        if self.tr_use_bg_aug:
+            print(f"val_bg_fps: {len(self.tr_bg_fps):>6,} (Same as the training set)")
+        if self.tr_use_ir_aug:
+            print(f"val_ir_fps: {len(self.tr_ir_fps):>6,} (Same as the training set)")
