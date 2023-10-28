@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import glob
 
-from model.utils.dev_dataloader_keras import TrackDevLoader
+from model.utils.dataloader_keras import SegmentLoader, ChunkLoader
 from model.utils.generation_dataloader_keras import GenerationLoader
 
 class Dataset:
@@ -99,7 +99,30 @@ class Dataset:
                     "Augmented query tracks are provided, but augmentation is not enabled."
 
     def get_train_ds(self, reduce_items_p=100):
-        """ Source (music) file paths for training set. The folder structure
+        """ Source (music) file paths for training set. 
+
+        When segmented tracks are used for training the folder structure
+        should be as follows:
+            self.tr_audio_dir/
+                dir0/
+                    track1/
+                        segment1.wav
+                        ...
+                    track2/
+                        segment1.wav
+                        ...
+                    ...
+                dir1/
+                    track1/
+                        segment1.wav
+                        ...
+                    track2/
+                        segment1.wav
+                        ...
+                    ...
+                ...
+
+        If full length tracks are used for training the folder structure
         should be as follows:
             self.tr_audio_dir/
                 dir0/
@@ -116,20 +139,9 @@ class Dataset:
                 Reduce the number of items in each track to this percentage.
         """
 
-        # Find the wav tracks
         print("Creating the training dataset...")
-        self.tr_source_fps = sorted(
-            glob.glob(self.tr_audio_dir + "**/*.wav", recursive=True))
-        assert len(self.tr_source_fps)>0, "No training tracks found."
-        print(f"{len(self.tr_source_fps):,} tracks found.")
 
-        # Reduce the total number of tracks if requested
-        assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
-        if reduce_items_p<100:
-            print(f"Reducing the number of tracks used to {reduce_items_p}%")
-            self.tr_source_fps = self.tr_source_fps[:int(len(self.tr_source_fps)*reduce_items_p/100)]
-            print(f"Reduced to {len(self.tr_source_fps):,} tracks.")
-
+        # Determine the input audio type
         if self.tr_audio_type.lower() == "segment":
 
             # Find the tracks and their segments
@@ -162,7 +174,7 @@ class Dataset:
             # Find the augmentation files after the music is loaded for nice print
             self._read_train_augmentations()
 
-            return SegmentDevLoader(
+            return SegmentLoader(
                 segment_dict=self.tr_source_fps,
                 segment_duration=self.segment_duration,
                 full_segment_duration=self.cfg['TRAIN']['AUDIO']['INPUT_AUDIO_DUR'],
@@ -178,8 +190,8 @@ class Dataset:
                 shuffle=True,
                 random_offset_anchor=True,
                 offset_duration=self.tr_offset_duration,
-                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+                bg_mix_parameter=self.tr_bg_parameters,
+                ir_mix_parameter=self.tr_ir_parameters)
 
         elif self.tr_audio_type.lower() == "chunk":
 
@@ -198,7 +210,7 @@ class Dataset:
             # Find the augmentation files after the music is loaded
             self._read_train_augmentations()
 
-            return TrackDevLoader(
+            return ChunkLoader(
                 track_paths=self.tr_source_fps,
                 segment_duration=self.segment_duration,
                 hop_duration=self.cfg['TRAIN']['AUDIO']['SEGMENT_HOP_DUR'],
@@ -214,15 +226,38 @@ class Dataset:
                 shuffle=True,
                 random_offset_anchor=True,
                 offset_duration=self.tr_offset_duration,
-                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+                bg_mix_parameter=self.tr_bg_parameters,
+                ir_mix_parameter=self.tr_ir_parameters)
 
         else:
 
             raise ValueError("Invalid audio type. We accept 'segment' or 'chunk'.")
 
     def get_val_ds(self, reduce_items_p=100):
-        """ Source (music) file paths for validation set. The folder structure
+        """ Source (music) file paths for validation set. 
+
+        When segmented tracks are used for training the folder structure
+        should be as follows:
+            self.val_audio_dir/
+                dir0/
+                    track1/
+                        segment1.wav
+                        ...
+                    track2/
+                        segment1.wav
+                        ...
+                    ...
+                dir1/
+                    track1/
+                        segment1.wav
+                        ...
+                    track2/
+                        segment1.wav
+                        ...
+                    ...
+                ...
+
+        If full length tracks are used for training the folder structure
         should be as follows:
             self.val_audio_dir/
                 dir0/
@@ -231,7 +266,7 @@ class Dataset:
                 dir1/
                     track1.wav
                     ...
-                ...
+                ...        
 
         Parameters
         ----------
@@ -240,20 +275,9 @@ class Dataset:
 
         """
 
-        # Find the wav tracks
         print(f"Creating the validation dataset...")
-        self.val_source_fps = sorted(
-            glob.glob(self.val_audio_dir + '**/*.wav', recursive=True))
-        assert len(self.val_source_fps)>0, "No validation tracks found."
-        print(f"{len(self.val_source_fps):,} tracks found.")
 
-        # Reduce the total number of tracks if requested
-        assert reduce_items_p>0 and reduce_items_p<=100, "reduce_items_p should be in (0, 100]"
-        if reduce_items_p<100:
-            print(f"Reducing the number of tracks used to {reduce_items_p}%")
-            self.val_source_fps = self.val_source_fps[:int(len(self.val_source_fps)*reduce_items_p/100)]
-            print(f"Reduced to {len(self.val_source_fps):,} tracks.")
-
+        # Determine the input audio type
         if self.tr_audio_type.lower() == "segment":
 
             # Find the tracks and their segments
@@ -283,7 +307,8 @@ class Dataset:
 
             self._get_val_augmentations()
 
-            return SegmentDevLoader(
+             # Most of the parameters are same as the training set
+            return SegmentLoader(
                 segment_dict=self.val_source_fps,
                 segment_duration=self.segment_duration,
                 full_segment_duration=self.cfg['TRAIN']['AUDIO']['INPUT_AUDIO_DUR'],
@@ -298,9 +323,9 @@ class Dataset:
                 bsz=self.tr_batch_sz,
                 shuffle=False,
                 random_offset_anchor=True,
-                offset_duration=self.tr_offset_duration, # Same as the training set
-                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+                offset_duration=self.tr_offset_duration,
+                bg_mix_parameter=self.tr_bg_parameters,
+                ir_mix_parameter=self.tr_ir_parameters)
 
         elif self.tr_audio_type.lower() == "chunk":
 
@@ -318,7 +343,7 @@ class Dataset:
 
             self._get_val_augmentations()
 
-            return TrackDevLoader(
+            return ChunkLoader(
                 track_paths=self.val_source_fps,
                 segment_duration=self.segment_duration,
                 hop_duration=self.cfg['TRAIN']['AUDIO']['SEGMENT_HOP_DUR'],
@@ -332,9 +357,9 @@ class Dataset:
                 segments_per_track=self.cfg['TRAIN']['AUDIO']['SEGMENTS_PER_TRACK'],
                 bsz=self.tr_batch_sz,
                 shuffle=False,
-                random_offset_anchor=False,
-                bg_mix_parameter=[self.tr_use_bg_aug, self.tr_bg_fps, self.tr_bg_snr],
-                ir_mix_parameter=[self.tr_use_ir_aug, self.tr_ir_fps, self.tr_max_ir_dur])
+                random_offset_anchor=False, # TODO: make it True
+                bg_mix_parameter=self.tr_bg_parameters,
+                ir_mix_parameter=self.tr_ir_parameters)
 
         else:
 
@@ -542,6 +567,15 @@ class Dataset:
                                     recursive=True))
             print(f"tr_ir_fps: {len(self.tr_ir_fps):>6,}")
             assert len(self.tr_ir_fps)>0, "No impulse response found."
+
+        # Collect the augmentation parameters
+        self.tr_bg_parameters = [self.tr_use_bg_aug, 
+                                self.tr_bg_fps, 
+                                self.tr_bg_snr, 
+                                self.tr_bg_amp_range]
+        self.tr_ir_parameters = [self.tr_use_ir_aug,
+                                self.tr_ir_fps,
+                                self.tr_max_ir_dur]
 
     def _get_val_augmentations(self):
 
