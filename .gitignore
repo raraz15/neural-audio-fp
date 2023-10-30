@@ -10,6 +10,7 @@ afp/*
 data/figures/*
 ablation_emb/*
 extras_dataset/*
+*.ipynb_checkpoints
 
 TODO.md
 
