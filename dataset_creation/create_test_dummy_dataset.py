@@ -1,3 +1,6 @@
+""" Creates a dummy test dataset. It is used for converting mp3 files to wav files adnd
+normalizing the audio. We use multiprocessing to speed up the process."""
+
 import os
 import sys
 import argparse

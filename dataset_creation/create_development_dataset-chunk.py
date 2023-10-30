@@ -1,8 +1,8 @@
 """ Creates a development dataset for training and validation by sampling 
-a consecutive audio chunk from the audio files in the discotube dataset. The 
-chunks are saved as .wav files and their start and end indices 
-in the original audio file are saved as a .npy file. We do not use 
-multiprocessing here to preserve reproducibility."""
+a consecutive audio chunk from the audio files in the corresponding text files. 
+The chunks are saved as .wav files and their start and end indices in the 
+original audio file are saved as a .npy file. We do not use multiprocessing 
+here to preserve reproducibility."""
 
 import os
 import sys

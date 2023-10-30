@@ -1,3 +1,8 @@
+""" Creates a query dataset for testing by sampling a consecutive audio chunk 
+from the specified audio files. The chunks are saved as .wav files and their 
+start and end indices in the original audio file are saved as a .npy file. 
+We do not use multiprocessing here to preserve reproducibility."""
+
 import os
 import sys
 import argparse
@@ -72,16 +77,15 @@ def main(paths, split_dir, sample_rate, min_duration):
 
 if __name__=="__main__":
 
-    parser = argparse.ArgumentParser(description='Extracts segments from audio files.')
+    parser = argparse.ArgumentParser(description='Extracts chunks from audio files.')
     parser.add_argument('query_text', 
                         type=str,
                         help='Path to the text file containing test_query audio paths.')
-    parser.add_argument('--output_dir', 
+    parser.add_argument('output_dir', 
                         type=str,
-                        default="../data/",
-                        help='Path to the output directory. Segments will be written '
-                         'here as in single .npz file. The directory structure will be '
-                         'output_dir/test/<split>/audio_name[:2]/audio_name.npz')
+                        help='Path to the output directory. Chunks will be written '
+                         'here as in single .wav file. The directory structure will be '
+                         'output_dir/test/query_clean/audio_name[:2]/audio_name.wav')
     parser.add_argument('--query_chunk_duration',
                         type=float,
                         default=30.,

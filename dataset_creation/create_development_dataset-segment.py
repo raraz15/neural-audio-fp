@@ -1,8 +1,8 @@
-""" Creates a dataset for training and validation by sampling segments from
-the audio files in the discotube dataset. The segments are sampled from the
-audio files in a non-overlapping manner. The segments are saved as separate
-.wav files and their start and end indices in the original audio file are
-saved as a .npy file. We do not use multiprocessing here to preserve 
+""" Creates a development dataset for training and validation by sampling
+ segments from the audio files in the corresponding text files. The segments
+ are sampled from the audio files in a non-overlapping manner and saved as 
+ separate .wav files while their start and end indices in the original audio 
+ file are saved as a .npy file. We do not use multiprocessing here to preserve 
 reproducibility."""
 
 import os
