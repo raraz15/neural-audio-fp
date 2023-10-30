@@ -21,7 +21,14 @@ np.random.seed(SEED)
 
 def main(paths, split_dir, sample_rate, T_min, L0, n_segments):
 
-    print(f"Writing {split} segments to {split_dir}...")
+    print(f"Writing query_clean segments to {split_dir}...")
+    os.makedirs(split_dir, exist_ok=True)
+
+    # log file for recording failed audio files
+    log_path = os.path.join(split_dir, "log.txt")
+    # Clear the log file if it already exists
+    if os.path.exists(log_path):
+        open(log_path, "w").close()
 
     # For 00, 01, ... type of file saving
     z_fill = len(str(n_segments))
@@ -42,8 +49,10 @@ def main(paths, split_dir, sample_rate, T_min, L0, n_segments):
                                 resampleQuality=4)()
         except KeyboardInterrupt:
             sys.exit()
-        except:
+        except Exception as e:
             print(f"Could not load the audio file. Skipping {audio_path}.")
+            with open(log_path, "a") as o_f:
+                o_f.write(f"Error on: {audio_path}\n{str(e)}\n\n")
             continue
 
         # Normalize the audio

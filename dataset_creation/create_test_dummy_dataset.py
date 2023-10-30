@@ -13,6 +13,15 @@ from model.utils.audio_utils import max_normalize
 
 def main(paths, split_dir, sample_rate, partition_idx):
 
+    print(f"Writing query_clean segments to {split_dir}...")
+    os.makedirs(split_dir, exist_ok=True)
+
+    # log file for recording failed audio files
+    log_path = os.path.join(split_dir, "log.txt")
+    # Clear the log file if it already exists
+    if os.path.exists(log_path):
+        open(log_path, "w").close()
+
     # Sample segments from each audio file
     for i, audio_path in enumerate(paths):
 
@@ -38,8 +47,10 @@ def main(paths, split_dir, sample_rate, partition_idx):
                                 resampleQuality=4)()
         except KeyboardInterrupt:
             sys.exit()
-        except:
+        except Exception as e:
             print(f"Could not load the audio file. Skipping {audio_path}.")
+            with open(log_path, "a") as o_f:
+                o_f.write(f"Error on: {audio_path}\n{str(e)}\n\n")
             continue
 
         # Normalize the audio
