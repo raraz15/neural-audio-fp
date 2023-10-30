@@ -7,19 +7,19 @@ import glob
 
 import essentia.standard as es
 
-FMA_DIR = "/home/oaraz/nextcore/fingerprinting/datasets/fma_wav_8k/"
-OUTPUT_DIR = FMA_DIR
+FMA_DIR = "/mnt/mtgdb-audio/incoming/fma"
+OUTPUT_DIR = "/home/oaraz/nextcore/fingerprinting/datasets/fma_wav_8k"
 
 if __name__ == "__main__":
 
-    audio_paths = sorted(glob.glob(os.path.join(FMA_DIR, "**", "*.wav"), 
+    audio_paths = sorted(glob.glob(os.path.join(FMA_DIR, "**", "*.mp3"), 
                         recursive=True))
     print(len(audio_paths))
 
     # Audio file metadata
-    jsonl_path = os.path.join(OUTPUT_DIR, "analysis-wav_Audioloader.json")
+    jsonl_path = os.path.join(OUTPUT_DIR, "analysis-mp3_Audioloader.json")
     # log file for recording failed audio files
-    log_path = os.path.join(OUTPUT_DIR, "log-wav_Audioloader.txt")
+    log_path = os.path.join(OUTPUT_DIR, "log-mp3_Audioloader.txt")
 
     for i,audio_path in enumerate(audio_paths):
 
