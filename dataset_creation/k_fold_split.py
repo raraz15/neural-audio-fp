@@ -19,6 +19,8 @@ N_TEST_QUERY = 5000
 
 T_MIN = 30
 
+EXCLUDE = {"080601.wav"} # This file is corrupted
+
 """ We fix the seed for reproducibility. However, due to the size of the dataset,
 we cannot guarantee that the splits will be the same as the ones used in the paper. See
 https://docs.python.org/3/library/random.html random.shuffle() for more details."""
@@ -44,8 +46,11 @@ if __name__ == "__main__":
     # Get the list of wav files
     wav_paths = glob.glob(os.path.join(args.wav_dir, "**", "*.wav"), recursive=True)
     print(f"Found {len(wav_paths):,} wav files.")
-    # Make sure that the paths are absolute, convert to set
-    wav_paths = set([os.path.abspath(path) for path in wav_paths])
+    # Make sure that the paths are absolute
+    wav_paths = [os.path.abspath(path) for path in wav_paths]
+
+    # Remove the excluded files convert to set
+    wav_paths = set([path for path in wav_paths if os.path.basename(path) not in EXCLUDE])
 
     # Determine the output directory
     if args.output_dir is None:
