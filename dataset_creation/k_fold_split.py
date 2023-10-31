@@ -14,7 +14,7 @@ import wave
 import numpy as np
 
 N_TRAIN = 10000
-N_VAL = 1000
+N_VAL = 0 # If args.use_val will be 1000
 N_TEST_QUERY = 5000
 
 T_MIN = 30
@@ -36,6 +36,8 @@ if __name__ == "__main__":
                         formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("wav_dir", type=str, 
                         help="Path to the dataset directory containing wav files.")
+    parser.add_argument("--use_val", "-v", action="store_true",
+                        help="Whether to create a validation set.")
     parser.add_argument("--output_dir", "-o", type=str, default=None,
                         help="Path to the output directory of the split information files."
                         "Defaults to the same directory as the wav_dir.")
@@ -51,11 +53,20 @@ if __name__ == "__main__":
 
     # Remove the excluded files convert to set
     wav_paths = set([path for path in wav_paths if os.path.basename(path) not in EXCLUDE])
+    print(f"{len(wav_paths):,} wav files are not corupted.")
+
+    # Exclude the corrupted files
+    wav_paths = wav_paths.difference(EXCLUDE)
 
     # Determine the output directory
     if args.output_dir is None:
         args.output_dir = args.wav_dir
     os.makedirs(args.output_dir, exist_ok=True)
+
+    # If we are not using a validation set, set the number of validation tracks to 0
+    if args.use_val:
+        N_VAL = 1000
+        print("Using a validation set.")
 
     # Read each wav file and record their duration
     duration_file_path = os.path.join(args.output_dir, 'wav_durations.json')
@@ -143,10 +154,11 @@ if __name__ == "__main__":
             for line in train:
                 out_f.write(f"{line}\n")
 
-        val_file_path = os.path.join(fold_dir, 'val.txt')
-        with open(val_file_path, 'w') as out_f:
-            for line in val:
-                out_f.write(f"{line}\n")
+        if args.use_val: # Write the val set if we are using it
+            val_file_path = os.path.join(fold_dir, 'val.txt')
+            with open(val_file_path, 'w') as out_f:
+                for line in val:
+                    out_f.write(f"{line}\n")
 
         test_query_file_path = os.path.join(fold_dir, 'test_query.txt')
         with open(test_query_file_path, 'w') as out_f:
