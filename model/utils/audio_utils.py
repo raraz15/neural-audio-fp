@@ -345,11 +345,12 @@ def read_cut_resample(filename,
         audio = resampler(audio)
 
     # Pad the audio to the correct length if necessary
-    N_desired = int(seg_length_sec*fs)
-    if (seg_length_sec is not None) and len(audio)<N_desired:
-        audio = np.pad(audio, 
-                    (0, N_desired-len(audio)), 
-                    mode='constant')
+    if seg_length_sec is not None:
+        N_desired = int(seg_length_sec*fs)
+        if len(audio)<N_desired:
+            audio = np.pad(audio, 
+                        (0, N_desired-len(audio)), 
+                        mode='constant')
 
     return audio
 
