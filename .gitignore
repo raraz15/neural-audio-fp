@@ -5,6 +5,9 @@
 logs/
 **/dev/
 .vscode/*
+*.ipynb_checkpoints
+
+*.wav
 
 afp/*
 data/figures/*
