@@ -8,6 +8,8 @@ logs/
 *.ipynb_checkpoints
 
 *.wav
+*.png
+*.pdf
 
 afp/*
 data/figures/*
