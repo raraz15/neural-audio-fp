@@ -20,7 +20,7 @@ np.random.seed(SEED)
 
 def main(paths, split_dir, sample_rate, min_duration):
 
-    print(f"Writing query_clean segments to {split_dir}...")
+    print(f"Writing chunks to {split_dir}...")
     os.makedirs(split_dir, exist_ok=True)
 
     # log file for recording failed audio files
@@ -67,8 +67,8 @@ def main(paths, split_dir, sample_rate, min_duration):
             print(f"Audio duration is too short. Skipping {audio_path}.")
             continue
 
-        # Normalize the audio
-        audio = max_normalize(audio)
+        # We peak normalized the audio with sox before
+        # audio = max_normalize(audio)
 
         # Get a random min_samples chunk from the audio
         chunk, boundary = get_random_chunk(audio, min_samples)
@@ -119,6 +119,7 @@ if __name__=="__main__":
         val_paths = [line.strip() for line in f.readlines()]
     assert len(val_paths) > 0, "No files found for validation."
     print(f"Number of validation files: {len(val_paths)}")
+    assert set(train_paths).isdisjoint(set(val_paths)), "Train and validation sets overlap."
 
     # Sample segments from each audio file for train and val sets
     for split, paths in zip(["train", "val"], [train_paths, val_paths]):
