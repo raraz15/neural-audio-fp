@@ -9,6 +9,7 @@ logs/
 
 *.wav
 *.png
+*.jpeg
 *.pdf
 
 afp/*
