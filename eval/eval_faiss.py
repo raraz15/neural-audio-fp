@@ -279,8 +279,9 @@ def eval_faiss(emb_dir,
         gt_id = test_id + dummy_db_shape[0]
 
         # Track idx of the ground truth sequence inside the total DB
+        # end boundary is exclusive
         gt_track_id = np.where((gt_id>=total_db_track_boundaries[:,0]) & 
-                               (gt_id<=total_db_track_boundaries[:,1]))[0][0]
+                               (gt_id<total_db_track_boundaries[:,1]))[0][0]
         # Name of the ground truth track
         gt_track_path = total_db_track_paths[gt_track_id]
         # Position of the start segment of the ground truth sequence inside the track
@@ -289,7 +290,7 @@ def eval_faiss(emb_dir,
         # Corresponding information for the query track. We assume that each test_id will correspond to only
         # a single track. This was not true for the ICASSP 2021 test set.
         q_track_id = np.where((test_id>=query_track_boundaries[:,0]) & 
-                              (test_id<=query_track_boundaries[:,1])
+                              (test_id<query_track_boundaries[:,1])
                               )[0][0]
         assert q_track_id == gt_track_id - len(dummy_db_track_paths), \
             f'q_track_id ({q_track_id}) does not match gt_track_id ({gt_track_id - len(dummy_db_track_paths)})'
