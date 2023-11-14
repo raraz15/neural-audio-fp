@@ -63,6 +63,11 @@ def get_fns_seg_dict(fns_list=[],
         # Get the number of samples the file has
         n_total_samples = pt_wav.getnframes()
         pt_wav.close()
+        
+        # If the file is shorter than the segment length, skip it
+        if n_total_samples < n_samples_in_seg:
+            print(f"{filename} has {n_total_samples} samples, which is shorter than {n_samples_in_seg} samples.")
+            continue
 
         # Calculate number of segments and residual frames
         if n_total_samples > n_samples_in_seg:
