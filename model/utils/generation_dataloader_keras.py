@@ -76,6 +76,7 @@ class GenerationLoader(Sequence):
                                                     fs=self.fs,
                                                     duration=self.segment_duration,
                                                     hop=self.hop_duration)
+        print(f"Total number of tracks used: {len(self.track_seg_dict):,}")
         # Create a list of track-segment pairs. We connvert it to a list so that
         # each segment can be used during fp-generation.
         self.track_seg_list = [[fname, *seg] 
