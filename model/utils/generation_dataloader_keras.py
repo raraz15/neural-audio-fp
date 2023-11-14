@@ -196,20 +196,22 @@ class GenerationLoader(Sequence):
         track_boundaries = [[0]]
         track_paths = []
         for i,(track_path,segments) in enumerate(self.track_seg_dict.items()):
-            track_boundaries[-1].append(track_boundaries[-1][0] + len(segments) - 1)
+            # End index, exclusive
+            track_boundaries[-1].append(track_boundaries[-1][0] + len(segments))
             if i < len(self.track_seg_dict) - 1:
-                track_boundaries.append([track_boundaries[-1][1] + 1])
+                # Start index, inclusive
+                track_boundaries.append([track_boundaries[-1][1]])
             track_paths.append(os.path.abspath(track_path))
         track_boundaries = np.vstack(track_boundaries)
 
-        assert track_boundaries[-1,-1] == self.n_samples - 1, \
-            "Something went wrong with the track boundaries"
+        assert track_boundaries[-1,-1] == self.n_samples, \
+            "Last boundary does not match the number of samples"
         assert len(track_boundaries) == len(self.track_seg_dict), \
-            "Something went wrong with the track boundaries"
+            "Something went wrong with the track boundaries."
         assert np.all(track_boundaries[:,0] < track_boundaries[:,1]), \
-            "Something went wrong with the track boundaries"
-        assert np.all(track_boundaries[1:,0] == track_boundaries[:-1,1] + 1), \
-            "Something went wrong with the track boundaries"
+            "Some tracks have no segments."
+        assert np.all(track_boundaries[1:,0] == track_boundaries[:-1,1]), \
+            "Something went wrong with the track boundaries."
 
         return track_paths, track_boundaries
 
