@@ -45,8 +45,6 @@ def get_fns_seg_dict(fns_list=[],
     fns_event_seg_dict = {}
     for filename in fns_list:
 
-        fns_event_seg_dict[filename] = []
-
         # Only support .wav
         file_ext = os.path.splitext(filename)[1]
         if file_ext != '.wav':
@@ -66,7 +64,7 @@ def get_fns_seg_dict(fns_list=[],
         
         # If the file is shorter than the segment length, skip it
         if n_total_samples < n_samples_in_seg:
-            print(f"{filename} has {n_total_samples} samples, which is shorter than {n_samples_in_seg} samples.")
+            print(f"{filename} has {n_total_samples} samples, which is shorter than the required segment duration.")
             continue
 
         # Calculate number of segments and residual frames
@@ -78,6 +76,7 @@ def get_fns_seg_dict(fns_list=[],
         residual_samples = np.max([0, n_total_samples - ((n_segs - 1) * n_samples_in_hop + n_samples_in_seg)])
 
         # Create a list of segments from the file
+        fns_event_seg_dict[filename] = []
         if segment_mode == 'all': # Load all segments
             # A segment can be randomly offsetted to the left or right without going out of bounds
             for seg_idx in range(n_segs):
